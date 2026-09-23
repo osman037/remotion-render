@@ -27,7 +27,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       # ── 3. System deps (Chrome + FFmpeg) ──────────────────────────
       - name: 🔧 Install system dependencies
@@ -80,7 +79,7 @@ jobs:
 
       # ── 4. npm install ─────────────────────────────────────────────
       - name: 📦 Install npm dependencies
-        run: npm ci
+        run: npm install
 
       # ── 5. Render ──────────────────────────────────────────────────
       - name: 🎬 Render video (4K · 60fps · 900 frames)
