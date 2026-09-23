@@ -18,84 +18,18 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      # ── 1. Checkout ────────────────────────────────────────────────
-      - name: ⬇️ Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@main
 
-      # ── 2. Node.js ─────────────────────────────────────────────────
-      - name: 🟢 Setup Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      - uses: actions/setup-node@main
 
-      # ── 3. System deps (Chrome + FFmpeg) ──────────────────────────
-      - name: 🔧 Install system dependencies
+      - run: npm i
+
+      - name: 🎬 Render video
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y \
-            ffmpeg \
-            chromium-browser \
-            libgbm-dev \
-            libasound2-dev \
-            libatk1.0-0 \
-            libatk-bridge2.0-0 \
-            libc6 \
-            libcairo2 \
-            libcups2 \
-            libdbus-1-3 \
-            libexpat1 \
-            libfontconfig1 \
-            libgcc1 \
-            libgconf-2-4 \
-            libgdk-pixbuf2.0-0 \
-            libglib2.0-0 \
-            libgtk-3-0 \
-            libnspr4 \
-            libnss3 \
-            libpango-1.0-0 \
-            libpangocairo-1.0-0 \
-            libstdc++6 \
-            libx11-6 \
-            libx11-xcb1 \
-            libxcb1 \
-            libxcomposite1 \
-            libxcursor1 \
-            libxdamage1 \
-            libxext6 \
-            libxfixes3 \
-            libxi6 \
-            libxrandr2 \
-            libxrender1 \
-            libxss1 \
-            libxtst6 \
-            ca-certificates \
-            fonts-liberation \
-            libappindicator1 \
-            libnss3 \
-            lsb-release \
-            xdg-utils \
-            wget \
-            xvfb
-
-      # ── 4. npm install ─────────────────────────────────────────────
-      - name: 📦 Install npm dependencies
-        run: npm install
-
-      # ── 5. Render ──────────────────────────────────────────────────
-      - name: 🎬 Render video (4K · 60fps · 900 frames)
-        run: |
-          export COMPOSITION_ID="${{ github.event.inputs.composition_id || 'CybersecurityNetworkMap' }}"
-          export TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-          export OUTPUT_FILE="output/${COMPOSITION_ID}_4K_${TIMESTAMP}.mp4"
-          mkdir -p output
-
-          # Run virtual display so Chromium can launch headlessly
-          Xvfb :99 -screen 0 1024x768x24 &
-          export DISPLAY=:99
-
+          mkdir -p out
           npx remotion render \
-            "$COMPOSITION_ID" \
-            "$OUTPUT_FILE" \
+            "${{ github.event.inputs.composition_id || 'CybersecurityNetworkMap' }}" \
+            out/video.mp4 \
             --width=3840 \
             --height=2160 \
             --fps=60 \
@@ -103,53 +37,10 @@ jobs:
             --codec=h264 \
             --crf=18 \
             --pixel-format=yuv420p \
-            --browser-executable=$(which chromium-browser) \
-            --concurrency=4 \
-            --log=verbose
+            --concurrency=2
 
-          echo "OUTPUT_FILE=$OUTPUT_FILE" >> $GITHUB_ENV
-          echo "TIMESTAMP=$TIMESTAMP" >> $GITHUB_ENV
-          echo "COMPOSITION_ID=$COMPOSITION_ID" >> $GITHUB_ENV
-
-          # Print file info
-          ls -lh "$OUTPUT_FILE"
-          ffprobe -v quiet -print_format json -show_format -show_streams "$OUTPUT_FILE" | \
-            python3 -c "
-          import json,sys
-          d=json.load(sys.stdin)
-          fmt=d['format']
-          vid=[s for s in d['streams'] if s['codec_type']=='video'][0]
-          print(f\"✅ File: {fmt['filename']}\")
-          print(f\"   Size: {int(fmt['size'])//1024//1024} MB\")
-          print(f\"   Duration: {float(fmt['duration']):.2f}s\")
-          print(f\"   Resolution: {vid['width']}x{vid['height']}\")
-          print(f\"   FPS: {vid['r_frame_rate']}\")
-          print(f\"   Codec: {vid['codec_name']}\")
-          "
-
-      # ── 6. Upload artifact (90-day retention, direct download) ─────
-      - name: 📤 Upload rendered video as artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: "${{ env.COMPOSITION_ID }}_4K_${{ env.TIMESTAMP }}"
-          path: "${{ env.OUTPUT_FILE }}"
+          name: CybersecurityNetworkMap_4K
+          path: out/video.mp4
           retention-days: 90
-          compression-level: 0   # video is already compressed
-
-      # ── 7. Summary card with download link ─────────────────────────
-      - name: 📋 Write job summary
-        run: |
-          echo "## 🎬 Render Complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Composition | \`${{ env.COMPOSITION_ID }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Resolution | 3840 × 2160 (4K) |" >> $GITHUB_STEP_SUMMARY
-          echo "| FPS | 60 |" >> $GITHUB_STEP_SUMMARY
-          echo "| Duration | 15 seconds (900 frames) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Codec | H.264 CRF 18 |" >> $GITHUB_STEP_SUMMARY
-          echo "| File | \`${{ env.OUTPUT_FILE }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### ⬇️ Download" >> $GITHUB_STEP_SUMMARY
-          echo "Go to **Actions → this run → Artifacts** section at the bottom of the page." >> $GITHUB_STEP_SUMMARY
-          echo "Click the artifact named \`${{ env.COMPOSITION_ID }}_4K_${{ env.TIMESTAMP }}\` to download a ZIP containing your MP4." >> $GITHUB_STEP_SUMMARY
