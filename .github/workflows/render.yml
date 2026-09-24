@@ -4,32 +4,61 @@ on:
   push:
     paths:
       - 'src/composition.tsx'
+      - 'src/compositions/**.tsx'
   workflow_dispatch:
     inputs:
       composition_id:
-        description: 'Composition ID to render'
+        description: 'Single composition ID (leave empty if using compositions_json)'
         required: false
-        default: 'CybersecurityNetworkMap'
+        default: ''
+      compositions_json:
+        description: 'Bulk: JSON array e.g. [{"id":"CompA","file":"CompA"},{"id":"CompB","file":"CompB"}]'
+        required: false
+        default: ''
 
 jobs:
+  # ── Build the matrix from inputs ──────────────────────────────────────────
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        run: |
+          BULK='${{ github.event.inputs.compositions_json }}'
+          SINGLE='${{ github.event.inputs.composition_id }}'
+
+          if [ -n "$BULK" ] && [ "$BULK" != "null" ] && [ "$BULK" != "" ]; then
+            echo "matrix={\"include\":$(echo $BULK)}" >> $GITHUB_OUTPUT
+          elif [ -n "$SINGLE" ] && [ "$SINGLE" != "" ]; then
+            echo "matrix={\"include\":[{\"id\":\"$SINGLE\",\"file\":\"composition\"}]}" >> $GITHUB_OUTPUT
+          else
+            echo "matrix={\"include\":[{\"id\":\"CybersecurityNetworkMap\",\"file\":\"composition\"}]}" >> $GITHUB_OUTPUT
+          fi
+
+  # ── Render job — runs once per matrix entry (parallel) ───────────────────
   render:
-    name: Render 4K 60fps 15s Video
+    needs: prepare
+    name: Render ${{ matrix.id }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    strategy:
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      fail-fast: false   # other videos keep rendering if one fails
 
     steps:
       - uses: actions/checkout@main
-
       - uses: actions/setup-node@main
-
+        with:
+          node-version: '20'
       - run: npm i
 
-      - name: 🎬 Render video
+      - name: 🎬 Render ${{ matrix.id }}
         run: |
           mkdir -p out
           npx remotion render \
-            "${{ github.event.inputs.composition_id || 'CybersecurityNetworkMap' }}" \
-            out/video.mp4 \
+            "${{ matrix.id }}" \
+            "out/${{ matrix.id }}.mp4" \
             --width=3840 \
             --height=2160 \
             --fps=60 \
@@ -41,6 +70,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: CybersecurityNetworkMap_4K
-          path: out/video.mp4
+          name: "${{ matrix.id }}_4K_60fps"
+          path: "out/${{ matrix.id }}.mp4"
           retention-days: 90
