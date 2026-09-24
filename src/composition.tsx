@@ -322,9 +322,8 @@ interface PacketsProps {
   positions: { x: number; y: number }[];
   frame: number;
   width: number;
-  height: number;
 }
-const DataPackets: React.FC<PacketsProps> = ({ positions, frame, width, height }) => {
+const DataPackets: React.FC<PacketsProps> = ({ positions, frame, width }) => {
   const maxDist = CONNECTION_DISTANCE_RATIO * width;
   const packets: React.ReactNode[] = [];
 
@@ -366,8 +365,8 @@ const DataPackets: React.FC<PacketsProps> = ({ positions, frame, width, height }
   return (
     <svg
       width={width}
-      height={height}
-      style={{ position: "absolute", top: 0, left: 0, overflow: "visible" }}
+      height={2160}
+      style={{ position: "absolute", top: 0, left: 0, overflow: "visible", height: "100%" }}
     >
       {packets}
     </svg>
@@ -666,7 +665,7 @@ export const CybersecurityNetworkMap: React.FC = () => {
       <Connections positions={positions} width={width} height={height} />
 
       {/* 3 — Data packets traveling along edges */}
-      <DataPackets positions={positions} frame={frame} width={width} height={height} />
+      <DataPackets positions={positions} frame={frame} width={width} />
 
       {/* 4 — Nodes SVG layer */}
       <svg
@@ -709,4 +708,4 @@ export const CybersecurityNetworkMap: React.FC = () => {
   );
 };
 
-// default export kept for compatibility
+export default CybersecurityNetworkMap;
