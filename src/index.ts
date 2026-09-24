@@ -1,3 +1,4 @@
-// Remotion entry point — registers all compositions
-// remotion.config.ts picks this up via the "remotion.entryPoint" in package.json
-export { RemotionRoot as default } from "./Root";
+import { registerRoot } from "remotion";
+import { RemotionRoot } from "./Root";
+
+registerRoot(RemotionRoot);
