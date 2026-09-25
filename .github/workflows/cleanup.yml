@@ -1,0 +1,52 @@
+name: 🗑️ Auto-cleanup Artifacts
+
+on:
+  schedule:
+    # Runs every day at 3:00 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch: # Also allow manual trigger
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🗑️ Delete artifacts older than 2 days
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner    = context.repo.owner;
+            const repo     = context.repo.repo;
+            const maxAgeMs = 2 * 24 * 60 * 60 * 1000; // 2 days
+            const now      = Date.now();
+            let   page     = 1;
+            let   deleted  = 0;
+            let   kept     = 0;
+
+            console.log(`Scanning artifacts in ${owner}/${repo}…`);
+
+            while (true) {
+              const { data } = await github.rest.actions.listArtifactsForRepo({
+                owner, repo, per_page: 100, page,
+              });
+
+              if (data.artifacts.length === 0) break;
+
+              for (const artifact of data.artifacts) {
+                const age = now - new Date(artifact.created_at).getTime();
+                if (age > maxAgeMs) {
+                  await github.rest.actions.deleteArtifact({
+                    owner, repo, artifact_id: artifact.id,
+                  });
+                  console.log(`🗑  Deleted: ${artifact.name} (${Math.floor(age/86400000)}d old)`);
+                  deleted++;
+                } else {
+                  const hoursLeft = Math.floor((maxAgeMs - age) / 3600000);
+                  console.log(`✅ Kept:    ${artifact.name} (expires in ~${hoursLeft}h)`);
+                  kept++;
+                }
+              }
+              page++;
+            }
+
+            console.log(`\nDone. Deleted: ${deleted}, Kept: ${kept}`);
