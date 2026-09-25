@@ -1,7 +1,6 @@
 name: 🎬 Render Remotion Video
 
 on:
-  # Only manual triggers — NO push trigger (that caused double runs)
   workflow_dispatch:
     inputs:
       composition_id:
@@ -9,16 +8,32 @@ on:
         required: false
         default: ''
       compositions_json:
-        description: 'Bulk JSON: [{"id":"CompA","file":"comp0"},{"id":"CompB","file":"comp1"}]'
+        description: 'Bulk JSON: [{"id":"CompA"},{"id":"CompB"}]'
         required: false
         default: ''
+      width:
+        description: 'Width in px (default 3840)'
+        required: false
+        default: '3840'
+      height:
+        description: 'Height in px (default 2160)'
+        required: false
+        default: '2160'
+      fps:
+        description: 'Frames per second (default 60)'
+        required: false
+        default: '60'
+      duration_seconds:
+        description: 'Duration in seconds (default 15)'
+        required: false
+        default: '15'
 
 jobs:
-  # ── Build matrix from inputs ───────────────────────────────────────────────
   prepare:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set.outputs.matrix }}
+      matrix:     ${{ steps.set.outputs.matrix }}
+      last_frame: ${{ steps.calc.outputs.last_frame }}
     steps:
       - id: set
         run: |
@@ -32,12 +47,18 @@ jobs:
             echo "matrix={\"include\":[{\"id\":\"CybersecurityNetworkMap\",\"file\":\"composition\"}]}" >> $GITHUB_OUTPUT
           fi
 
-  # ── Render — parallel per matrix entry ────────────────────────────────────
+      - id: calc
+        run: |
+          FPS=${{ github.event.inputs.fps || 60 }}
+          SECS=${{ github.event.inputs.duration_seconds || 15 }}
+          LAST=$(( FPS * SECS - 1 ))
+          echo "last_frame=$LAST" >> $GITHUB_OUTPUT
+
   render:
     needs: prepare
     name: Render ${{ matrix.id }}
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     strategy:
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
       fail-fast: false
@@ -55,10 +76,10 @@ jobs:
           npx remotion render \
             "${{ matrix.id }}" \
             "out/${{ matrix.id }}.mp4" \
-            --width=3840 \
-            --height=2160 \
-            --fps=60 \
-            --frames=0-899 \
+            --width=${{ github.event.inputs.width || 3840 }} \
+            --height=${{ github.event.inputs.height || 2160 }} \
+            --fps=${{ github.event.inputs.fps || 60 }} \
+            --frames=0-${{ needs.prepare.outputs.last_frame }} \
             --codec=h264 \
             --crf=18 \
             --pixel-format=yuv420p \
@@ -66,6 +87,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: "${{ matrix.id }}_4K_60fps"
+          name: "${{ matrix.id }}_${{ github.event.inputs.width || 3840 }}x${{ github.event.inputs.height || 2160 }}_${{ github.event.inputs.fps || 60 }}fps"
           path: "out/${{ matrix.id }}.mp4"
           retention-days: 2
