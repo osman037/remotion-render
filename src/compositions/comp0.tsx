@@ -1,14 +1,14 @@
 /**
- * CybersecurityNetworkMap.tsx
+ * CybersecurityNetwork.tsx
  * Remotion composition — 4K (3840×2160), 60 fps, 15 s (900 frames), perfect loop.
  * Adobe-Stock-ready motion-graphics background.
  *
  * Usage:
  *   1. npm install remotion react react-dom
  *   2. Register this composition in your remotion.config.ts / Root.tsx:
- *        <Composition id="CybersecurityNetworkMap" component={CybersecurityNetworkMap}
+ *        <Composition id="CybersecurityNetwork" component={CybersecurityNetwork}
  *                     width={3840} height={2160} fps={60} durationInFrames={900} />
- *   3. npx remotion render CybersecurityNetworkMap out/cybersecurity.mp4
+ *   3. npx remotion render CybersecurityNetwork out/cybersecurity.mp4
  */
 
 import React, { useMemo } from "react";
@@ -634,7 +634,7 @@ const RadialBurst: React.FC<{ width: number; height: number; frame: number }> = 
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const CybersecurityNetworkMap: React.FC = () => {
+export const CybersecurityNetwork: React.FC = () => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
 
@@ -708,4 +708,4 @@ export const CybersecurityNetworkMap: React.FC = () => {
   );
 };
 
-export default CybersecurityNetworkMap;
+export default CybersecurityNetwork;
