@@ -1,23 +1,20 @@
 name: 🎬 Render Remotion Video
 
 on:
-  push:
-    paths:
-      - 'src/composition.tsx'
-      - 'src/compositions/**.tsx'
+  # Only manual triggers — NO push trigger (that caused double runs)
   workflow_dispatch:
     inputs:
       composition_id:
-        description: 'Single composition ID (leave empty if using compositions_json)'
+        description: 'Single composition ID'
         required: false
         default: ''
       compositions_json:
-        description: 'Bulk: JSON array e.g. [{"id":"CompA","file":"CompA"},{"id":"CompB","file":"CompB"}]'
+        description: 'Bulk JSON: [{"id":"CompA","file":"comp0"},{"id":"CompB","file":"comp1"}]'
         required: false
         default: ''
 
 jobs:
-  # ── Build the matrix from inputs ──────────────────────────────────────────
+  # ── Build matrix from inputs ───────────────────────────────────────────────
   prepare:
     runs-on: ubuntu-latest
     outputs:
@@ -27,7 +24,6 @@ jobs:
         run: |
           BULK='${{ github.event.inputs.compositions_json }}'
           SINGLE='${{ github.event.inputs.composition_id }}'
-
           if [ -n "$BULK" ] && [ "$BULK" != "null" ] && [ "$BULK" != "" ]; then
             echo "matrix={\"include\":$(echo $BULK)}" >> $GITHUB_OUTPUT
           elif [ -n "$SINGLE" ] && [ "$SINGLE" != "" ]; then
@@ -36,7 +32,7 @@ jobs:
             echo "matrix={\"include\":[{\"id\":\"CybersecurityNetworkMap\",\"file\":\"composition\"}]}" >> $GITHUB_OUTPUT
           fi
 
-  # ── Render job — runs once per matrix entry (parallel) ───────────────────
+  # ── Render — parallel per matrix entry ────────────────────────────────────
   render:
     needs: prepare
     name: Render ${{ matrix.id }}
@@ -44,7 +40,7 @@ jobs:
     timeout-minutes: 120
     strategy:
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
-      fail-fast: false   # other videos keep rendering if one fails
+      fail-fast: false
 
     steps:
       - uses: actions/checkout@main
@@ -72,4 +68,4 @@ jobs:
         with:
           name: "${{ matrix.id }}_4K_60fps"
           path: "out/${{ matrix.id }}.mp4"
-          retention-days: 90
+          retention-days: 2
