@@ -1,100 +1,187 @@
 import React from "react";
-import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 
 const CYAN = "#22d3ee";
+const RED = "#f43f5e";
+const AMBER = "#fbbf24";
 const FONT = "'Inter','Segoe UI',system-ui,-apple-system,sans-serif";
 
-export const NeonCountdownRing: React.FC = () => {
+const rand = (seed: number): number => {
+  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+const FX = ["RGB SPLIT", "SLICE SHIFT", "SCANLINES", "PIXEL BLOCKS", "CHROMA BURST", "WIPE"];
+
+export const GlitchTransitionSampler: React.FC = () => {
   const frame = useCurrentFrame();
-  const { width, height, fps } = useVideoConfig();
+  const { width, height } = useVideoConfig();
   const u = Math.min(width, height) / 100;
 
-  const step = Math.min(9, Math.floor(frame / 90));
-  const num = 10 - step;
-  const pop = spring({ frame: frame - step * 90, fps, config: { damping: 9, stiffness: 220 } });
+  const cycle = Math.min(5, Math.floor(frame / 150));
+  const ct = frame % 150;
+  const env = Math.sin((Math.PI * ct) / 150);
+  const fx = FX[cycle];
 
-  const R = 30 * u;
-  const circ = 2 * Math.PI * R;
-  const ringPct = 1 - frame / 900;
-
-  const ticks = Array.from({ length: 60 }, (_, i) => i);
-
-  return (
-    <AbsoluteFill
+  const title = (extra?: React.CSSProperties) => (
+    <div
       style={{
-        backgroundColor: "#000000",
-        fontFamily: FONT,
+        fontSize: `${13 * u}px`,
+        fontWeight: 800,
+        letterSpacing: `${0.1 * u}px`,
         color: "#fff",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
+        ...extra,
       }}
     >
-      <div style={{ fontSize: `${2.6 * u}px`, fontWeight: 600, letterSpacing: `${0.6 * u}px`, color: "rgba(165,243,252,0.75)", marginBottom: `${3 * u}px` }}>
-        LIVE IN
+      GLITCH FX
+    </div>
+  );
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: "#05060a", fontFamily: FONT, overflow: "hidden" }}>
+      {/* base panel */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: `${2 * u}px`,
+          filter: fx === "CHROMA BURST" ? `hue-rotate(${env * 120}deg) saturate(${1 + env * 2.5})` : "none",
+        }}
+      >
+        <div style={{ position: "relative" }}>
+          {fx === "RGB SPLIT" && (
+            <>
+              <div style={{ position: "absolute", left: `${-2.4 * u * env}px`, top: 0, color: RED, opacity: 0.85 * env, mixBlendMode: "screen", fontSize: `${13 * u}px`, fontWeight: 800, whiteSpace: "nowrap" }}>
+                GLITCH FX
+              </div>
+              <div style={{ position: "absolute", left: `${2.4 * u * env}px`, top: 0, color: CYAN, opacity: 0.85 * env, mixBlendMode: "screen", fontSize: `${13 * u}px`, fontWeight: 800, whiteSpace: "nowrap" }}>
+                GLITCH FX
+              </div>
+            </>
+          )}
+          {title()}
+        </div>
+        <div
+          style={{
+            width: `${46 * u}px`,
+            height: `${1.2 * u}px`,
+            background: `linear-gradient(90deg, ${CYAN}, ${AMBER}, ${RED})`,
+            borderRadius: `${0.6 * u}px`,
+            opacity: 0.9,
+          }}
+        />
+        <div style={{ display: "flex", gap: `${1.5 * u}px` }}>
+          {[CYAN, AMBER, RED].map((c, i) => (
+            <div key={i} style={{ width: `${8 * u}px`, height: `${8 * u}px`, borderRadius: `${1 * u}px`, backgroundColor: c, opacity: 0.85 }} />
+          ))}
+        </div>
       </div>
 
-      <div style={{ position: "relative", width: `${(R + 6 * u) * 2}px`, height: `${(R + 6 * u) * 2}px` }}>
-        <svg width={(R + 6 * u) * 2} height={(R + 6 * u) * 2} style={{ position: "absolute", inset: 0 }}>
-          {ticks.map((i) => {
-            const a = (i / 60) * 2 * Math.PI;
-            const lit = i / 60 <= ringPct;
-            const x1 = (R + 6 * u) + Math.cos(a) * (R + 3.4 * u);
-            const y1 = (R + 6 * u) + Math.sin(a) * (R + 3.4 * u);
-            const x2 = (R + 6 * u) + Math.cos(a) * (R + 5.2 * u);
-            const y2 = (R + 6 * u) + Math.sin(a) * (R + 5.2 * u);
-            return (
-              <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
-                stroke={lit ? CYAN : "rgba(148,163,184,0.25)"} strokeWidth={i % 5 === 0 ? u * 0.7 : u * 0.35} />
-            );
-          })}
-          <circle
-            cx={R + 6 * u}
-            cy={R + 6 * u}
-            r={R}
-            fill="none"
-            stroke="rgba(148,163,184,0.18)"
-            strokeWidth={u * 1.4}
+      {/* SLICE SHIFT */}
+      {fx === "SLICE SHIFT" &&
+        Array.from({ length: 8 }, (_, i) => (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: `${(i / 8) * 100}%`,
+              height: `${12.5}%`,
+              backgroundColor: i % 2 ? "rgba(34,211,238,0.25)" : "rgba(255,255,255,0.12)",
+              transform: `translateX(${(rand(i * 13.7 + cycle) - 0.5) * env * 22 * u}px)`,
+              opacity: env,
+            }}
           />
-          <circle
-            cx={R + 6 * u}
-            cy={R + 6 * u}
-            r={R}
-            fill="none"
-            stroke={CYAN}
-            strokeWidth={u * 1.4}
-            strokeLinecap="round"
-            strokeDasharray={circ}
-            strokeDashoffset={circ * (1 - ringPct)}
-            transform={`rotate(-90 ${R + 6 * u} ${R + 6 * u})`}
-            style={{ filter: `drop-shadow(0 0 ${1.6 * u}px ${CYAN})` }}
-          />
-        </svg>
+        ))}
+
+      {/* SCANLINES */}
+      {fx === "SCANLINES" && (
         <div
           style={{
             position: "absolute",
             inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: `${17 * u}px`,
-            fontWeight: 800,
-            color: "#fff",
-            transform: `scale(${0.55 + 0.45 * Math.min(1, pop)})`,
-            textShadow: `0 0 ${3 * u}px ${CYAN}, 0 0 ${8 * u}px rgba(34,211,238,0.5)`,
-            fontVariantNumeric: "tabular-nums",
+            background: `repeating-linear-gradient(0deg, rgba(34,211,238,0.35) 0 ${0.5 * u}px, transparent ${0.5 * u}px ${1.4 * u}px)`,
+            opacity: env * 0.9,
           }}
-        >
-          {num}
-        </div>
-      </div>
+        />
+      )}
 
-      <div style={{ fontSize: `${2.2 * u}px`, letterSpacing: `${0.5 * u}px`, color: "rgba(148,163,184,0.7)", marginTop: `${3 * u}px` }}>
-        SECONDS
+      {/* PIXEL BLOCKS */}
+      {fx === "PIXEL BLOCKS" &&
+        Array.from({ length: 60 }, (_, i) => {
+          const cols = 10;
+          const r = Math.floor(i / cols);
+          const c = i % cols;
+          const on = rand(i * 7.9 + cycle * 3.3) < env * 0.75;
+          return (
+            <div
+              key={i}
+              style={{
+                position: "absolute",
+                left: `${(c / cols) * 100}%`,
+                top: `${(r / 6) * 100}%`,
+                width: `${100 / cols}%`,
+                height: `${100 / 6}%`,
+                backgroundColor: [CYAN, AMBER, RED][i % 3],
+                opacity: on ? 0.55 : 0,
+              }}
+            />
+          );
+        })}
+
+      {/* WIPE */}
+      {fx === "WIPE" && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: `${(ct / 150) * 110 - 5}%`,
+            width: `${6 * u}px`,
+            background: `linear-gradient(90deg, transparent, #fff, transparent)`,
+            boxShadow: `0 0 ${4 * u}px #fff`,
+            opacity: 0.9,
+          }}
+        />
+      )}
+
+      {/* fx label */}
+      <div
+        style={{
+          position: "absolute",
+          left: `${4 * u}px`,
+          bottom: `${4 * u}px`,
+          backgroundColor: "rgba(0,0,0,0.75)",
+          border: `1px solid ${CYAN}`,
+          borderRadius: `${0.9 * u}px`,
+          padding: `${1 * u}px ${2.2 * u}px`,
+          fontSize: `${2.2 * u}px`,
+          fontWeight: 700,
+          letterSpacing: `${0.22 * u}px`,
+          color: CYAN,
+        }}
+      >
+        {String(cycle + 1).padStart(2, "0")} · {fx}
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          right: `${4 * u}px`,
+          bottom: `${4 * u}px`,
+          fontSize: `${1.7 * u}px`,
+          color: "rgba(148,163,184,0.65)",
+          letterSpacing: `${0.2 * u}px`,
+        }}
+      >
+        TRANSITION PACK · 6 STYLES
       </div>
     </AbsoluteFill>
   );
 };
 
-export default NeonCountdownRing;
+export default GlitchTransitionSampler;
