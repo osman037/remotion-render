@@ -1,711 +1,427 @@
 /**
- * CybersecurityNetworkMap.tsx
- * Remotion composition — 4K (3840×2160), 60 fps, 15 s (900 frames), perfect loop.
- * Adobe-Stock-ready motion-graphics background.
+ * AIDashboardOverlay.tsx
+ * Remotion composition - 4K (3840x2160), 60 fps, 21 s (1260 frames).
+ * Floating AI analytics dashboard: an accuracy donut gauge sweeps to 87%,
+ * throughput bars grow, an inference-latency line draws itself, event
+ * counters tick up, pipeline progress bars fill, an activity feed streams,
+ * and a keyword marquee scrolls along the bottom.
  *
- * Usage:
- *   1. npm install remotion react react-dom
- *   2. Register this composition in your remotion.config.ts / Root.tsx:
- *        <Composition id="CybersecurityNetworkMap" component={CybersecurityNetworkMap}
- *                     width={3840} height={2160} fps={60} durationInFrames={900} />
- *   3. npx remotion render CybersecurityNetworkMap out/cybersecurity.mp4
+ * Register in Root.tsx:
+ *   <Composition id="AIDashboardOverlay" component={AIDashboardOverlay}
+ *     width={3840} height={2160} fps={60} durationInFrames={1260} />
+ *
+ * Render:
+ *   npx remotion render AIDashboardOverlay out/ai-dashboard.mp4
  */
 
-import React, { useMemo } from "react";
-import { useCurrentFrame, useVideoConfig } from "remotion";
+import React from 'react';
+import {
+  AbsoluteFill,
+  interpolate,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Constants & palette
+// Palette
 // ---------------------------------------------------------------------------
-const BG_COLOR = "#030712";
-const GRID_COLOR = "rgba(0,242,254,0.045)";
-const COLORS = {
-  cyan: "#00f2fe",
-  blue: "#4facfe",
-  purple: "#a855f7",
-  green: "#00ff88",
-};
-const NODE_COLORS = [
-  COLORS.cyan,
-  COLORS.blue,
-  COLORS.purple,
-  COLORS.green,
-  COLORS.cyan,
-  COLORS.blue,
-  COLORS.cyan,
-];
-const TOTAL_FRAMES = 900; // 15 s × 60 fps
-const NODE_COUNT = 26;
-const CONNECTION_DISTANCE_RATIO = 0.22; // fraction of width
-const GRID_COLS = 24;
-const GRID_ROWS = 14;
+const BG = '#05080F';
+const INK = '#EAF1FB';
+const MUTED = 'rgba(203,213,225,0.62)';
+const CYAN = '#38BDF8';
+const VIOLET = '#A78BFA';
+const GREEN = '#34D399';
+const AMBER = '#FBBF24';
+const RED = '#F87171';
+
+const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
+const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
+
+const W = 3840;
+const H = 2160;
 
 // ---------------------------------------------------------------------------
-// Seeded pseudo-random number generator (mulberry32) — deterministic positions
+// Deterministic pseudo-random (module level so every frame matches)
 // ---------------------------------------------------------------------------
-function mulberry32(seed: number) {
-  return function () {
-    seed |= 0;
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
-// ---------------------------------------------------------------------------
-// Node descriptor generated once at module scope
-// ---------------------------------------------------------------------------
-interface NodeDef {
-  /** base x in [0,1] */
-  bx: number;
-  /** base y in [0,1] */
-  by: number;
-  /** orbit radius as fraction of width */
-  rx: number;
-  ry: number;
-  /** full-cycle speed (radians per frame at 60 fps) */
-  speed: number;
-  /** phase offset so nodes start at different points of their orbit */
+const rand = mulberry32(20260926);
+
+// Line chart data (plot coords: 1300 x 460)
+const LINE_N = 44;
+const LINE_PTS: Array<{x: number; y: number}> = [];
+for (let i = 0; i < LINE_N; i++) {
+  const v = Math.min(0.95, Math.max(0.06, 0.68 - i * 0.009 + (rand() - 0.5) * 0.34));
+  LINE_PTS.push({x: 20 + (i / (LINE_N - 1)) * 1260, y: 460 - v * 420});
+}
+let LINE_LEN = 0;
+for (let i = 1; i < LINE_PTS.length; i++) {
+  const dx = LINE_PTS[i].x - LINE_PTS[i - 1].x;
+  const dy = LINE_PTS[i].y - LINE_PTS[i - 1].y;
+  LINE_LEN += Math.sqrt(dx * dx + dy * dy);
+}
+const LINE_D = LINE_PTS.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+const AREA_D = `${LINE_D} L ${LINE_PTS[LINE_N - 1].x.toFixed(1)} 460 L ${LINE_PTS[0].x.toFixed(1)} 460 Z`;
+
+// Bar chart data
+const BAR_VALUES: number[] = [];
+for (let i = 0; i < 12; i++) {
+  BAR_VALUES.push(0.32 + rand() * 0.68);
+}
+
+const PIPELINE = [
+  {label: 'TRAINING', v: 0.92, color: CYAN},
+  {label: 'INFERENCE', v: 0.78, color: VIOLET},
+  {label: 'INDEXING', v: 0.64, color: GREEN},
+  {label: 'SYNC', v: 0.85, color: AMBER},
+];
+
+const FEED = [
+  '> model v4.2 deployed to cluster',
+  '> inference scaled +12 nodes',
+  '> anomaly score nominal',
+  '> retraining pipeline queued',
+  '> embeddings refreshed',
+  '> latency p99 within SLO',
+];
+
+const MARQUEE =
+  'NEURAL NETWORKS ◆ PREDICTIVE ANALYTICS ◆ REAL-TIME INFERENCE ◆ DEEP LEARNING ◆ DATA PIPELINES ◆ ';
+
+interface PanelDef {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
   phase: number;
-  color: string;
-  radius: number;
-  /** secondary drift — slow sinusoidal wander */
-  driftAmp: number;
-  driftFreq: number;
-  driftPhase: number;
+  delay: number;
+  title: string;
 }
 
-function buildNodes(): NodeDef[] {
-  const rand = mulberry32(0xdeadbeef);
-  return Array.from({ length: NODE_COUNT }, (_, i) => {
-    const color = NODE_COLORS[i % NODE_COLORS.length];
-    return {
-      bx: 0.05 + rand() * 0.9,
-      by: 0.05 + rand() * 0.9,
-      rx: 0.03 + rand() * 0.07,
-      ry: 0.02 + rand() * 0.05,
-      speed: (Math.PI * 2) / (TOTAL_FRAMES * (0.6 + rand() * 0.8)),
-      phase: rand() * Math.PI * 2,
-      color,
-      radius: 8 + rand() * 14,
-      driftAmp: 0.01 + rand() * 0.025,
-      driftFreq: (Math.PI * 2) / (TOTAL_FRAMES * (1.2 + rand() * 1.6)),
-      driftPhase: rand() * Math.PI * 2,
-    };
-  });
-}
+const PANELS: PanelDef[] = [
+  {id: 'donut', x: 170, y: 400, w: 780, h: 800, phase: 0.0, delay: 20, title: 'MODEL ACCURACY'},
+  {id: 'bars', x: 170, y: 1280, w: 1040, h: 660, phase: 1.3, delay: 60, title: 'THROUGHPUT / HOUR'},
+  {id: 'line', x: 1030, y: 400, w: 1420, h: 800, phase: 2.1, delay: 100, title: 'INFERENCE LATENCY'},
+  {id: 'tickers', x: 2530, y: 400, w: 1140, h: 470, phase: 0.7, delay: 140, title: 'EVENTS PROCESSED'},
+  {id: 'progress', x: 2530, y: 950, w: 1140, h: 580, phase: 1.8, delay: 180, title: 'PIPELINE STATUS'},
+  {id: 'logs', x: 2530, y: 1610, w: 1140, h: 330, phase: 2.6, delay: 220, title: 'ACTIVITY FEED'},
+];
 
-const NODE_DEFS: NodeDef[] = buildNodes();
-
-// ---------------------------------------------------------------------------
-// Compute node screen positions for a given frame
-// ---------------------------------------------------------------------------
-function getNodePositions(
-  frame: number,
-  W: number,
-  H: number
-): { x: number; y: number }[] {
-  return NODE_DEFS.map((n) => {
-    const t = frame;
-    const orbX = Math.cos(n.phase + n.speed * t) * n.rx;
-    const orbY = Math.sin(n.phase + n.speed * t * 0.7) * n.ry;
-    const driftX = Math.sin(n.driftPhase + n.driftFreq * t) * n.driftAmp;
-    const driftY =
-      Math.cos(n.driftPhase * 1.3 + n.driftFreq * t * 0.9) * n.driftAmp;
-
-    return {
-      x: (n.bx + orbX + driftX) * W,
-      y: (n.by + orbY + driftY) * H,
-    };
-  });
+function fmt(n: number): string {
+  return Math.round(n).toLocaleString('en-US');
 }
 
 // ---------------------------------------------------------------------------
-// Background grid
+// Component
 // ---------------------------------------------------------------------------
-interface GridProps {
-  width: number;
-  height: number;
-}
-const BackgroundGrid: React.FC<GridProps> = ({ width, height }) => {
-  const colW = width / GRID_COLS;
-  const rowH = height / GRID_ROWS;
+export const AIDashboardOverlay: React.FC = () => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
 
-  const verticals = useMemo(
-    () =>
-      Array.from({ length: GRID_COLS + 1 }, (_, i) => (
-        <line
-          key={`v${i}`}
-          x1={i * colW}
-          y1={0}
-          x2={i * colW}
-          y2={height}
-          stroke={GRID_COLOR}
-          strokeWidth={1}
-        />
-      )),
-    [colW, height]
-  );
+  const titleX = interpolate(frame, [0, 70], [-140, 0], clamp);
+  const titleO = interpolate(frame, [0, 50], [0, 1], clamp);
+  const liveO = frame % 70 < 38 ? 1 : 0.25;
 
-  const horizontals = useMemo(
-    () =>
-      Array.from({ length: GRID_ROWS + 1 }, (_, i) => (
-        <line
-          key={`h${i}`}
-          x1={0}
-          y1={i * rowH}
-          x2={width}
-          y2={i * rowH}
-          stroke={GRID_COLOR}
-          strokeWidth={1}
-        />
-      )),
-    [rowH, width]
-  );
-
-  // Subtle cross-hair intersection dots
-  const dots = useMemo(
-    () =>
-      Array.from({ length: GRID_COLS + 1 }, (_, ci) =>
-        Array.from({ length: GRID_ROWS + 1 }, (_, ri) => (
-          <circle
-            key={`d${ci}-${ri}`}
-            cx={ci * colW}
-            cy={ri * rowH}
-            r={2}
-            fill="rgba(0,242,254,0.12)"
-          />
-        ))
-      ),
-    [colW, rowH]
-  );
-
-  return (
-    <svg
-      width={width}
-      height={height}
-      style={{ position: "absolute", top: 0, left: 0 }}
-    >
-      <defs>
-        <radialGradient id="bgvignette" cx="50%" cy="50%" r="70%">
-          <stop offset="0%" stopColor="transparent" />
-          <stop offset="100%" stopColor="rgba(3,7,18,0.85)" />
-        </radialGradient>
-      </defs>
-      {verticals}
-      {horizontals}
-      {dots}
-      {/* Vignette layer */}
-      <rect
-        x={0}
-        y={0}
-        width={width}
-        height={height}
-        fill="url(#bgvignette)"
-      />
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Scan-line pulse — horizontal band sweeping downward on loop
-// ---------------------------------------------------------------------------
-interface ScanLineProps {
-  frame: number;
-  width: number;
-  height: number;
-}
-const ScanLine: React.FC<ScanLineProps> = ({ frame, width, height }) => {
-  const y = ((frame / TOTAL_FRAMES) * (height + 200)) % (height + 200) - 100;
-  return (
-    <svg
-      width={width}
-      height={height}
-      style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}
-    >
-      <defs>
-        <linearGradient id="scangrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="transparent" />
-          <stop offset="40%" stopColor="rgba(0,242,254,0.04)" />
-          <stop offset="50%" stopColor="rgba(0,242,254,0.12)" />
-          <stop offset="60%" stopColor="rgba(0,242,254,0.04)" />
-          <stop offset="100%" stopColor="transparent" />
-        </linearGradient>
-      </defs>
-      <rect
-        x={0}
-        y={y - 60}
-        width={width}
-        height={120}
-        fill="url(#scangrad)"
-      />
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Connection lines between nearby nodes
-// ---------------------------------------------------------------------------
-interface ConnectionsProps {
-  positions: { x: number; y: number }[];
-  width: number;
-  height: number;
-}
-const Connections: React.FC<ConnectionsProps> = ({
-  positions,
-  width,
-  height,
-}) => {
-  const maxDist = CONNECTION_DISTANCE_RATIO * width;
-
-  const lines: React.ReactNode[] = [];
-  for (let i = 0; i < positions.length; i++) {
-    for (let j = i + 1; j < positions.length; j++) {
-      const dx = positions[i].x - positions[j].x;
-      const dy = positions[i].y - positions[j].y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < maxDist) {
-        const strength = 1 - dist / maxDist;
-        const opacity = strength * strength * 0.75; // quadratic fade
-        const colorA = NODE_DEFS[i].color;
-        const colorB = NODE_DEFS[j].color;
-        const gradId = `lg${i}-${j}`;
-        lines.push(
-          <defs key={`def-${i}-${j}`}>
-            <linearGradient
-              id={gradId}
-              x1={positions[i].x}
-              y1={positions[i].y}
-              x2={positions[j].x}
-              y2={positions[j].y}
-              gradientUnits="userSpaceOnUse"
-            >
-              <stop offset="0%" stopColor={colorA} stopOpacity={opacity} />
-              <stop offset="100%" stopColor={colorB} stopOpacity={opacity} />
+  const renderContent = (id: string, p: PanelDef): React.ReactNode => {
+    if (id === 'donut') {
+      const prog = interpolate(frame, [140, 780], [0, 0.87], clamp);
+      const R = 215;
+      const C = 2 * Math.PI * R;
+      return (
+        <svg width={p.w} height={p.h - 120}>
+          <defs>
+            <linearGradient id="donutGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={CYAN} />
+              <stop offset="100%" stopColor={VIOLET} />
             </linearGradient>
           </defs>
-        );
-        lines.push(
-          <line
-            key={`ln-${i}-${j}`}
-            x1={positions[i].x}
-            y1={positions[i].y}
-            x2={positions[j].x}
-            y2={positions[j].y}
-            stroke={`url(#${gradId})`}
-            strokeWidth={strength * 3 + 0.5}
-            style={{
-              filter: `drop-shadow(0 0 ${Math.round(strength * 12)}px ${colorA})`,
-            }}
-          />
-        );
-      }
-    }
-  }
-
-  return (
-    <svg
-      width={width}
-      height={height}
-      style={{ position: "absolute", top: 0, left: 0, overflow: "visible" }}
-    >
-      {lines}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Data-packet dashes traveling along active edges
-// ---------------------------------------------------------------------------
-interface PacketsProps {
-  positions: { x: number; y: number }[];
-  frame: number;
-  width: number;
-}
-const DataPackets: React.FC<PacketsProps> = ({ positions, frame, width }) => {
-  const maxDist = CONNECTION_DISTANCE_RATIO * width;
-  const packets: React.ReactNode[] = [];
-
-  // Only render a subset of edges that have an active packet to keep it sparse
-  let edgeIdx = 0;
-  for (let i = 0; i < positions.length; i++) {
-    for (let j = i + 1; j < positions.length; j++) {
-      const dx = positions[i].x - positions[j].x;
-      const dy = positions[i].y - positions[j].y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < maxDist) {
-        // Each edge gets its own phase offset based on index so they travel at different times
-        const edgePhase = edgeIdx * 137.508; // golden angle distribution
-        const t = ((frame + edgePhase) % TOTAL_FRAMES) / TOTAL_FRAMES;
-        // Only show packet 30% of the time per edge
-        const showWindow = (t * 3.3) % 1;
-        if (showWindow < 0.3) {
-          const progress = showWindow / 0.3;
-          const px = positions[i].x + (positions[j].x - positions[i].x) * progress;
-          const py = positions[i].y + (positions[j].y - positions[i].y) * progress;
-          const color = NODE_DEFS[i].color;
-          packets.push(
+          <g transform={`translate(${p.w / 2} ${(p.h - 120) / 2})`}>
+            <circle r={R} fill="none" stroke="rgba(148,163,184,0.14)" strokeWidth={64} />
             <circle
-              key={`pkt-${i}-${j}`}
-              cx={px}
-              cy={py}
-              r={5}
-              fill={color}
-              opacity={0.9}
-              style={{ filter: `drop-shadow(0 0 10px ${color})` }}
+              r={R} fill="none" stroke="url(#donutGrad)" strokeWidth={64}
+              strokeLinecap="round" strokeDasharray={`${(prog * C).toFixed(1)} ${C.toFixed(1)}`}
+              transform="rotate(-90)"
             />
-          );
-        }
-        edgeIdx++;
-      }
-    }
-  }
-
-  return (
-    <svg
-      width={width}
-      height={2160}
-      style={{ position: "absolute", top: 0, left: 0, overflow: "visible", height: "100%" }}
-    >
-      {packets}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Individual glowing node
-// ---------------------------------------------------------------------------
-interface NodeProps {
-  x: number;
-  y: number;
-  def: NodeDef;
-  frame: number;
-}
-const Node: React.FC<NodeProps> = ({ x, y, def, frame }) => {
-  // Pulse the outer ring brightness on a per-node cycle
-  const pulse =
-    0.5 + 0.5 * Math.sin(def.phase + (frame * Math.PI * 2) / (TOTAL_FRAMES * 0.4));
-  const outerOpacity = 0.15 + pulse * 0.35;
-  const innerOpacity = 0.7 + pulse * 0.3;
-  const glowRadius = def.radius * (1.8 + pulse * 0.8);
-
-  return (
-    <g transform={`translate(${x},${y})`}>
-      {/* Outer glow ring */}
-      <circle
-        r={glowRadius}
-        fill={def.color}
-        opacity={outerOpacity * 0.25}
-      />
-      {/* Mid glow */}
-      <circle
-        r={def.radius * 1.4}
-        fill={def.color}
-        opacity={outerOpacity * 0.5}
-        style={{ filter: `blur(${def.radius * 0.6}px)` }}
-      />
-      {/* Core dot */}
-      <circle
-        r={def.radius}
-        fill={def.color}
-        opacity={innerOpacity}
-        style={{
-          filter: `drop-shadow(0 0 ${Math.round(def.radius * 1.2)}px ${def.color})`,
-        }}
-      />
-      {/* Bright specular highlight */}
-      <circle
-        r={def.radius * 0.4}
-        fill="white"
-        opacity={0.55 + pulse * 0.2}
-        cx={-def.radius * 0.2}
-        cy={-def.radius * 0.2}
-      />
-    </g>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Floating hex labels (decorative data readouts near some nodes)
-// ---------------------------------------------------------------------------
-interface HexLabelProps {
-  x: number;
-  y: number;
-  frame: number;
-  idx: number;
-  color: string;
-}
-const HEX_STRINGS = [
-  "0xA3F2", "192.168.1.1", "::1/128", "TLS1.3", "SHA-256",
-  "RSA-4096", "0xDEAD", "AES-GCM", "JWT", "0xFF00",
-  "HMAC", "ECDSA", "VPN", "0x7F01", "BGP/AS",
-];
-const HexLabel: React.FC<HexLabelProps> = ({ x, y, frame, idx, color }) => {
-  const fade =
-    0.3 +
-    0.4 *
-      Math.abs(
-        Math.sin(idx * 1.3 + (frame * Math.PI * 2) / (TOTAL_FRAMES * 0.9))
+            <text textAnchor="middle" dy={-16} fontSize={44} fill={MUTED} fontFamily={MONO} letterSpacing={6}>
+              ACCURACY
+            </text>
+            <text textAnchor="middle" dy={86} fontSize={132} fontWeight={800} fill={INK} fontFamily={FONT}>
+              {Math.round(prog * 100)}%
+            </text>
+          </g>
+        </svg>
       );
-  const label = HEX_STRINGS[idx % HEX_STRINGS.length];
-  return (
-    <text
-      x={x + 18}
-      y={y - 8}
-      fill={color}
-      opacity={fade}
-      fontSize={22}
-      fontFamily="'Courier New', monospace"
-      fontWeight="600"
-      style={{ filter: `drop-shadow(0 0 6px ${color})` }}
-    >
-      {label}
-    </text>
-  );
-};
+    }
+    if (id === 'bars') {
+      const plotW = p.w - 160;
+      const maxH = 400;
+      const gap = 26;
+      const bw = (plotW - gap * 11) / 12;
+      return (
+        <svg width={p.w} height={p.h - 130}>
+          {[0.25, 0.5, 0.75, 1].map((g) => (
+            <line
+              key={g} x1={80} x2={p.w - 80}
+              y1={500 - g * maxH} y2={500 - g * maxH}
+              stroke="rgba(148,163,184,0.14)" strokeWidth={2}
+            />
+          ))}
+          {BAR_VALUES.map((v, i) => {
+            const grow = interpolate(frame, [210 + i * 20, 270 + i * 20], [0, 1], clamp);
+            const bh = v * maxH * grow;
+            const bx = 80 + i * (bw + gap);
+            return (
+              <g key={i}>
+                <rect x={bx} y={500 - bh} width={bw} height={Math.max(1, bh)} rx={12}
+                  fill={i % 3 === 2 ? VIOLET : CYAN} opacity={0.9} />
+                <text x={bx + bw / 2} y={540} textAnchor="middle" fontSize={26} fill={MUTED} fontFamily={MONO}>
+                  {String(i + 1).padStart(2, '0')}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      );
+    }
+    if (id === 'line') {
+      const draw = interpolate(frame, [230, 940], [0, 1], clamp);
+      const last = LINE_PTS[LINE_N - 1];
+      const dotO = interpolate(frame, [900, 960], [0, 1], clamp);
+      return (
+        <svg width={p.w} height={p.h - 120}>
+          <g transform="translate(60 90)">
+            {[0.25, 0.5, 0.75, 1].map((g) => (
+              <line key={g} x1={0} x2={1300} y1={460 - g * 420} y2={460 - g * 420}
+                stroke="rgba(148,163,184,0.14)" strokeWidth={2} />
+            ))}
+            <path d={AREA_D} fill="url(#areaGrad)" opacity={draw * 0.45} />
+            <path
+              d={LINE_D} fill="none" stroke={CYAN} strokeWidth={10} strokeLinecap="round"
+              strokeDasharray={LINE_LEN.toFixed(1)}
+              strokeDashoffset={(LINE_LEN * (1 - draw)).toFixed(1)}
+            />
+            {dotO > 0 && (
+              <g opacity={dotO}>
+                <circle cx={last.x} cy={last.y} r={22 + 6 * Math.sin(frame * 0.2)} fill={CYAN} opacity={0.3} />
+                <circle cx={last.x} cy={last.y} r={16} fill={CYAN} />
+                <circle cx={last.x} cy={last.y} r={7} fill="#FFFFFF" />
+              </g>
+            )}
+          </g>
+          <defs>
+            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={CYAN} stopOpacity={0.55} />
+              <stop offset="100%" stopColor={CYAN} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+        </svg>
+      );
+    }
+    if (id === 'tickers') {
+      const events = interpolate(frame, [170, 1020], [0, 4281906], clamp);
+      const models = Math.round(interpolate(frame, [200, 720], [0, 128], clamp));
+      return (
+        <div style={{padding: '10px 56px'}}>
+          <div style={{fontSize: 128, fontWeight: 800, color: INK, fontFamily: FONT, lineHeight: 1.1}}>
+            {fmt(events)}
+          </div>
+          <div style={{display: 'flex', gap: 90, marginTop: 34}}>
+            <div>
+              <div style={{fontSize: 30, color: MUTED, fontFamily: MONO, letterSpacing: 6}}>ACTIVE MODELS</div>
+              <div style={{fontSize: 72, fontWeight: 700, color: CYAN, fontFamily: FONT}}>{models}</div>
+            </div>
+            <div>
+              <div style={{fontSize: 30, color: MUTED, fontFamily: MONO, letterSpacing: 6}}>AVG UPTIME</div>
+              <div style={{fontSize: 72, fontWeight: 700, color: GREEN, fontFamily: FONT}}>99.98%</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    if (id === 'progress') {
+      return (
+        <div style={{padding: '6px 56px'}}>
+          {PIPELINE.map((row, i) => {
+            const grow = interpolate(frame, [280 + i * 46, 380 + i * 46], [0, 1], clamp);
+            return (
+              <div key={row.label} style={{marginBottom: 34}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 12}}>
+                  <span style={{fontSize: 32, color: MUTED, fontFamily: MONO, letterSpacing: 6}}>{row.label}</span>
+                  <span style={{fontSize: 34, fontWeight: 700, color: INK, fontFamily: MONO}}>
+                    {Math.round(row.v * grow * 100)}%
+                  </span>
+                </div>
+                <div style={{height: 26, borderRadius: 13, background: 'rgba(148,163,184,0.14)'}}>
+                  <div style={{
+                    width: `${row.v * grow * 100}%`, height: '100%',
+                    borderRadius: 13, background: row.color,
+                    boxShadow: `0 0 24px ${row.color}66`,
+                  }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    // logs
+    return (
+      <div style={{padding: '4px 56px'}}>
+        {FEED.map((line, i) => {
+          const lo = interpolate(frame, [320 + i * 85, 360 + i * 85], [0, 1], clamp);
+          if (lo <= 0.001) return null;
+          return (
+            <div key={i} style={{
+              fontSize: 31, fontFamily: MONO, color: i === 2 ? AMBER : MUTED,
+              opacity: lo, marginBottom: 16,
+            }}>
+              {line}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
-// ---------------------------------------------------------------------------
-// Corner UI chrome elements
-// ---------------------------------------------------------------------------
-const CornerChrome: React.FC<{ width: number; height: number; frame: number }> = ({
-  width,
-  height,
-  frame,
-}) => {
-  const blink = frame % 90 < 45 ? 1 : 0.3;
-  const scan = ((frame / TOTAL_FRAMES) * 100).toFixed(1);
-
-  const cornerSize = 80;
-  const strokeW = 3;
-  const C = COLORS.cyan;
-
-  return (
-    <svg
-      width={width}
-      height={height}
-      style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}
-    >
-      {/* Top-left corner bracket */}
-      <path
-        d={`M ${cornerSize} 40 L 40 40 L 40 ${cornerSize}`}
-        stroke={C}
-        strokeWidth={strokeW}
-        fill="none"
-        opacity={0.7}
-      />
-      {/* Top-right corner bracket */}
-      <path
-        d={`M ${width - cornerSize} 40 L ${width - 40} 40 L ${width - 40} ${cornerSize}`}
-        stroke={C}
-        strokeWidth={strokeW}
-        fill="none"
-        opacity={0.7}
-      />
-      {/* Bottom-left corner bracket */}
-      <path
-        d={`M ${cornerSize} ${height - 40} L 40 ${height - 40} L 40 ${height - cornerSize}`}
-        stroke={C}
-        strokeWidth={strokeW}
-        fill="none"
-        opacity={0.7}
-      />
-      {/* Bottom-right corner bracket */}
-      <path
-        d={`M ${width - cornerSize} ${height - 40} L ${width - 40} ${height - 40} L ${width - 40} ${height - cornerSize}`}
-        stroke={C}
-        strokeWidth={strokeW}
-        fill="none"
-        opacity={0.7}
-      />
-
-      {/* Status text top-left */}
-      <text
-        x={60}
-        y={110}
-        fill={C}
-        opacity={0.6}
-        fontSize={28}
-        fontFamily="'Courier New', monospace"
-      >
-        NETWORK MONITOR v2.1
-      </text>
-      <text
-        x={60}
-        y={155}
-        fill={C}
-        opacity={0.4}
-        fontSize={22}
-        fontFamily="'Courier New', monospace"
-      >
-        NODES: {NODE_COUNT} | SCAN: {scan}%
-      </text>
-
-      {/* Blinking REC dot top-right */}
-      <circle
-        cx={width - 100}
-        cy={90}
-        r={16}
-        fill="#ef4444"
-        opacity={blink * 0.85}
-      />
-      <text
-        x={width - 74}
-        y={98}
-        fill="#ef4444"
-        opacity={blink * 0.85}
-        fontSize={26}
-        fontFamily="'Courier New', monospace"
-        fontWeight="700"
-      >
-        ● LIVE
-      </text>
-
-      {/* Bottom status bar */}
-      <rect
-        x={40}
-        y={height - 90}
-        width={width - 80}
-        height={2}
-        fill={C}
-        opacity={0.2}
-      />
-      <text
-        x={60}
-        y={height - 55}
-        fill={C}
-        opacity={0.35}
-        fontSize={22}
-        fontFamily="'Courier New', monospace"
-      >
-        SECURE CHANNEL ACTIVE | ENCRYPTION: AES-256-GCM | LATENCY: {(12 + Math.sin(frame * 0.05) * 3).toFixed(1)}ms
-      </text>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Radial burst emitting from center occasionally
-// ---------------------------------------------------------------------------
-const RadialBurst: React.FC<{ width: number; height: number; frame: number }> = ({
-  width,
-  height,
-  frame,
-}) => {
-  // A burst fires every ~300 frames, lasts ~80 frames
-  const CYCLE = 300;
-  const DURATION = 80;
-  const phase = frame % CYCLE;
-  if (phase > DURATION) return null;
-
-  const progress = phase / DURATION;
-  const maxRadius = Math.sqrt(width * width + height * height) * 0.55;
-  const radius = progress * maxRadius;
-  const opacity = (1 - progress) * 0.12;
+  // Marquee
+  const MARQ_W = 5760;
+  const marqX = -((frame * 3.2) % MARQ_W);
+  const strip = MARQUEE + MARQUEE + MARQUEE;
 
   return (
-    <svg
-      width={width}
-      height={height}
-      style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}
-    >
-      <circle
-        cx={width / 2}
-        cy={height / 2}
-        r={radius}
-        stroke={COLORS.cyan}
-        strokeWidth={4}
-        fill="none"
-        opacity={opacity}
-      />
-      <circle
-        cx={width / 2}
-        cy={height / 2}
-        r={radius * 0.85}
-        stroke={COLORS.blue}
-        strokeWidth={2}
-        fill="none"
-        opacity={opacity * 0.5}
-      />
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Main composition
-// ---------------------------------------------------------------------------
-export const CybersecurityNetworkMap: React.FC = () => {
-  const frame = useCurrentFrame();
-  const { width, height } = useVideoConfig();
-
-  // Node positions computed every frame (cheap math, no state)
-  const positions = getNodePositions(frame, width, height);
-
-  // Which nodes get hex labels (every 3rd node to avoid clutter)
-  const labelIndices = useMemo(
-    () => NODE_DEFS.map((_, i) => i).filter((i) => i % 3 === 0),
-    []
-  );
-
-  return (
-    <div
-      style={{
-        width,
-        height,
-        background: BG_COLOR,
-        position: "relative",
-        overflow: "hidden",
-        fontFamily: "'Courier New', monospace",
-      }}
-    >
-      {/* 1 — Background grid */}
-      <BackgroundGrid width={width} height={height} />
-
-      {/* 2 — Connection lines */}
-      <Connections positions={positions} width={width} height={height} />
-
-      {/* 3 — Data packets traveling along edges */}
-      <DataPackets positions={positions} frame={frame} width={width} />
-
-      {/* 4 — Nodes SVG layer */}
-      <svg
-        width={width}
-        height={height}
-        style={{ position: "absolute", top: 0, left: 0, overflow: "visible" }}
-      >
-        {positions.map((pos, i) => (
-          <Node
-            key={i}
-            x={pos.x}
-            y={pos.y}
-            def={NODE_DEFS[i]}
-            frame={frame}
-          />
-        ))}
-
-        {/* Hex labels on selected nodes */}
-        {labelIndices.map((i) => (
-          <HexLabel
-            key={`lbl-${i}`}
-            x={positions[i].x}
-            y={positions[i].y}
-            frame={frame}
-            idx={i}
-            color={NODE_DEFS[i].color}
-          />
-        ))}
+    <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT, overflow: 'hidden'}}>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{position: 'absolute'}}>
+        <defs>
+          <pattern id="aigrid" width={170} height={170} patternUnits="userSpaceOnUse">
+            <path d="M 170 0 L 0 0 0 170" fill="none" stroke="rgba(148,163,184,0.06)" strokeWidth="1" />
+          </pattern>
+          <radialGradient id="aiglow1" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(56,189,248,0.10)" />
+            <stop offset="100%" stopColor="rgba(56,189,248,0)" />
+          </radialGradient>
+          <radialGradient id="aiglow2" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(167,139,250,0.10)" />
+            <stop offset="100%" stopColor="rgba(167,139,250,0)" />
+          </radialGradient>
+          <radialGradient id="aivig" cx="50%" cy="50%" r="78%">
+            <stop offset="55%" stopColor="rgba(5,8,15,0)" />
+            <stop offset="100%" stopColor="rgba(2,4,9,0.9)" />
+          </radialGradient>
+        </defs>
+        <rect width={W} height={H} fill={BG} />
+        <rect width={W} height={H} fill="url(#aigrid)" />
+        <circle cx={900} cy={700} r={900} fill="url(#aiglow1)" />
+        <circle cx={3000} cy={1500} r={1000} fill="url(#aiglow2)" />
       </svg>
 
-      {/* 5 — Scan line sweep */}
-      <ScanLine frame={frame} width={width} height={height} />
+      {/* Header */}
+      <div style={{
+        position: 'absolute', left: 170 + titleX, top: 110, opacity: titleO,
+      }}>
+        <div style={{display: 'flex', alignItems: 'center', gap: 24}}>
+          <div style={{width: 10, height: 150, background: CYAN}} />
+          <div>
+            <div style={{fontSize: 104, fontWeight: 800, color: INK, letterSpacing: 12, lineHeight: 1}}>
+              AI ANALYTICS
+            </div>
+            <div style={{fontSize: 40, color: CYAN, fontFamily: MONO, letterSpacing: 15, marginTop: 14}}>
+              REAL-TIME INTELLIGENCE DASHBOARD
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style={{
+        position: 'absolute', right: 170, top: 150, textAlign: 'right',
+        opacity: interpolate(frame, [40, 90], [0, 1], clamp),
+      }}>
+        <div style={{display: 'flex', alignItems: 'center', gap: 18, justifyContent: 'flex-end'}}>
+          <div style={{width: 22, height: 22, borderRadius: 11, background: RED, opacity: liveO}} />
+          <span style={{fontSize: 52, fontWeight: 700, color: INK, fontFamily: MONO, letterSpacing: 10}}>LIVE</span>
+        </div>
+        <div style={{fontSize: 32, color: MUTED, fontFamily: MONO, letterSpacing: 6, marginTop: 10}}>
+          SESSION 042 // CLUSTER EU-WEST
+        </div>
+      </div>
 
-      {/* 6 — Radial burst pulse */}
-      <RadialBurst width={width} height={height} frame={frame} />
+      {/* Panels */}
+      {PANELS.map((p) => {
+        const s = spring({
+          frame: frame - p.delay,
+          fps,
+          config: {damping: 200, stiffness: 80, mass: 1},
+        });
+        if (s <= 0.01) return null;
+        const bob = Math.sin(frame * 0.018 + p.phase) * 10;
+        const rise = (1 - Math.min(1, s)) * 70;
+        return (
+          <div
+            key={p.id}
+            style={{
+              position: 'absolute',
+              left: p.x,
+              top: p.y + bob + rise,
+              width: p.w,
+              height: p.h,
+              opacity: Math.min(1, s),
+              background: 'rgba(9,15,28,0.82)',
+              border: '2px solid rgba(56,189,248,0.25)',
+              borderRadius: 28,
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{
+              height: 3,
+              background: `linear-gradient(90deg, ${CYAN}, ${VIOLET}, transparent)`,
+              opacity: 0.8,
+            }} />
+            <div style={{
+              fontSize: 31, color: MUTED, fontFamily: MONO, letterSpacing: 9,
+              padding: '26px 48px 6px',
+            }}>
+              {p.title}
+            </div>
+            {renderContent(p.id, p)}
+          </div>
+        );
+      })}
 
-      {/* 7 — Corner chrome / HUD */}
-      <CornerChrome width={width} height={height} frame={frame} />
-    </div>
+      {/* Bottom marquee */}
+      <div style={{
+        position: 'absolute', left: 0, top: 2030, width: W, height: 90,
+        borderTop: '2px solid rgba(56,189,248,0.2)',
+        background: 'rgba(6,10,20,0.85)', overflow: 'hidden',
+        opacity: interpolate(frame, [200, 280], [0, 1], clamp),
+      }}>
+        {[0, 1].map((k) => (
+          <div key={k} style={{
+            position: 'absolute', top: 0, left: 0,
+            transform: `translateX(${marqX + k * MARQ_W}px)`,
+            width: MARQ_W, whiteSpace: 'nowrap',
+            fontSize: 40, fontFamily: MONO, letterSpacing: 8, color: 'rgba(148,197,255,0.75)',
+            lineHeight: '90px',
+          }}>
+            {strip}
+          </div>
+        ))}
+      </div>
+
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{position: 'absolute', pointerEvents: 'none'}}>
+        <rect width={W} height={H} fill="url(#aivig)" />
+      </svg>
+    </AbsoluteFill>
   );
 };
 
-export default CybersecurityNetworkMap;
+export default AIDashboardOverlay;
