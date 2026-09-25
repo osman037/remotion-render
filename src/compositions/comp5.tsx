@@ -8,125 +8,118 @@ import {
   useVideoConfig,
 } from "remotion";
 
-const AMBER = "#fbbf24";
 const FONT = "'Inter','Segoe UI',system-ui,-apple-system,sans-serif";
 
-const WORDS = [
-  { t: "GROWTH", color: "#ffffff" },
-  { t: "IS A", color: "#ffffff" },
-  { t: "DAILY", color: "#ffffff" },
-  { t: "DECISION", color: AMBER },
+const CARDS = [
+  { name: "Alex Morgan", title: "Chief Executive", accent: "#22d3ee" },
+  { name: "Sara Ahmed", title: "Design Director", accent: "#fbbf24" },
+  { name: "David Chen", title: "Head of Product", accent: "#34d399" },
 ];
 
-export const GrowthMindsetKineticType: React.FC = () => {
+export const CorporateLowerThirds: React.FC = () => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
   const u = Math.min(width, height) / 100;
 
-  const subIn = interpolate(frame, [430, 500], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const lineSweep = interpolate(frame, [150, 230], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: Easing.out(Easing.cubic),
-  });
+  // faint drifting highlight so the full frame stays alive
+  const drift = ((frame / 900) * 120 - 10) % 120;
 
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: "#0a0a0a",
+        background: "linear-gradient(160deg, #0a0f1e 0%, #05070f 60%, #0a0f1e 100%)",
         fontFamily: FONT,
         color: "#fff",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
         overflow: "hidden",
       }}
     >
-      {/* soft radial glow */}
       <div
         style={{
           position: "absolute",
-          width: `${90 * u}px`,
-          height: `${90 * u}px`,
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(251,191,36,0.07) 0%, transparent 65%)",
+          top: 0,
+          bottom: 0,
+          left: `${drift}%`,
+          width: "18%",
+          background: "linear-gradient(90deg, transparent, rgba(56,189,248,0.05), transparent)",
         }}
       />
-
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: `${1.2 * u}px`, zIndex: 1 }}>
-        {WORDS.map((w, i) => {
-          const s = spring({
-            frame: frame - i * 26,
-            fps,
-            config: { damping: 13, stiffness: 130 },
-          });
-          const shown = frame >= i * 26;
-          return (
-            <div key={w.t} style={{ position: "relative", overflow: "hidden", paddingBottom: `${0.6 * u}px` }}>
-              <div
-                style={{
-                  fontSize: `${10.5 * u}px`,
-                  fontWeight: 800,
-                  letterSpacing: `${0.06 * u}px`,
-                  lineHeight: 1.04,
-                  color: w.color,
-                  opacity: shown ? 1 : 0,
-                  transform: `translateY(${(1 - Math.min(1, s)) * 9 * u}px)`,
-                }}
-              >
-                {w.t}
-              </div>
-              {w.t === "DECISION" && (
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: 0,
-                    left: 0,
-                    height: `${0.9 * u}px`,
-                    width: `${lineSweep * 100}%`,
-                    backgroundColor: AMBER,
-                    borderRadius: `${0.45 * u}px`,
-                  }}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      <div
-        style={{
-          marginTop: `${4.5 * u}px`,
-          fontSize: `${2.8 * u}px`,
-          fontWeight: 400,
-          color: "rgba(255,255,255,0.72)",
-          letterSpacing: `${0.14 * u}px`,
-          opacity: subIn,
-          transform: `translateY(${(1 - subIn) * 3 * u}px)`,
-          zIndex: 1,
-        }}
-      >
-        Small steps. Compounding results.
-      </div>
+      {/* faint grid */}
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.5 }}>
+        {Array.from({ length: 12 }, (_, i) => (
+          <line key={`v${i}`} x1={(width / 12) * i} y1={0} x2={(width / 12) * i} y2={height} stroke="rgba(148,163,184,0.07)" strokeWidth={1} />
+        ))}
+        {Array.from({ length: 8 }, (_, i) => (
+          <line key={`h${i}`} x1={0} y1={(height / 8) * i} x2={width} y2={(height / 8) * i} stroke="rgba(148,163,184,0.07)" strokeWidth={1} />
+        ))}
+      </svg>
 
       <div
         style={{
           position: "absolute",
-          bottom: `${4 * u}px`,
-          fontSize: `${1.6 * u}px`,
-          color: "rgba(255,255,255,0.35)",
-          letterSpacing: `${0.3 * u}px`,
-          opacity: interpolate(frame, [560, 620], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
+          top: `${4 * u}px`,
+          left: 0,
+          right: 0,
+          textAlign: "center",
+          fontSize: `${1.8 * u}px`,
+          letterSpacing: `${0.4 * u}px`,
+          color: "rgba(148,163,184,0.6)",
+          fontWeight: 600,
         }}
       >
-        MOTIVATION · BUSINESS · PERSONAL GROWTH
+        CORPORATE LOWER THIRDS · 3 STYLES
       </div>
+
+      {CARDS.map((c, i) => {
+        const start = i * 300;
+        const local = frame - start;
+        if (local < 0 || local > 300) return null;
+        const enter = spring({ frame: local, fps, config: { damping: 16, stiffness: 170 } });
+        const exitT = interpolate(local, [240, 295], [0, 1], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+          easing: Easing.in(Easing.cubic),
+        });
+        const barW = interpolate(local, [10, 70], [0, 100], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+          easing: Easing.out(Easing.cubic),
+        });
+        return (
+          <div
+            key={c.name}
+            style={{
+              position: "absolute",
+              left: `${8 * u}px`,
+              bottom: `${13 * u}px`,
+              opacity: (1 - exitT) * Math.min(1, enter * 2),
+              transform: `translateX(${(1 - Math.min(1, enter)) * -30 * u + exitT * 24 * u}px)`,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "stretch" }}>
+              <div style={{ width: `${1.1 * u}px`, backgroundColor: c.accent, borderRadius: `${0.55 * u}px` }} />
+              <div style={{ marginLeft: `${2.2 * u}px`, padding: `${1 * u}px 0` }}>
+                <div style={{ fontSize: `${4.2 * u}px`, fontWeight: 800, letterSpacing: `${0.04 * u}px`, lineHeight: 1.1 }}>
+                  {c.name}
+                </div>
+                <div style={{ fontSize: `${2.3 * u}px`, color: "rgba(226,232,240,0.75)", letterSpacing: `${0.22 * u}px`, marginTop: `${0.7 * u}px`, textTransform: "uppercase" }}>
+                  {c.title}
+                </div>
+                <div
+                  style={{
+                    marginTop: `${1.2 * u}px`,
+                    height: `${0.45 * u}px`,
+                    width: `${barW * 0.32 * u}px`,
+                    backgroundColor: c.accent,
+                    borderRadius: `${0.22 * u}px`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </AbsoluteFill>
   );
 };
 
-export default GrowthMindsetKineticType;
+export default CorporateLowerThirds;
