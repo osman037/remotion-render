@@ -1,125 +1,100 @@
 import React from "react";
-import {
-  AbsoluteFill,
-  Easing,
-  interpolate,
-  spring,
-  useCurrentFrame,
-  useVideoConfig,
-} from "remotion";
+import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from "remotion";
 
+const CYAN = "#22d3ee";
 const FONT = "'Inter','Segoe UI',system-ui,-apple-system,sans-serif";
 
-const CARDS = [
-  { name: "Alex Morgan", title: "Chief Executive", accent: "#22d3ee" },
-  { name: "Sara Ahmed", title: "Design Director", accent: "#fbbf24" },
-  { name: "David Chen", title: "Head of Product", accent: "#34d399" },
-];
-
-export const CorporateLowerThirds: React.FC = () => {
+export const NeonCountdownRing: React.FC = () => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
   const u = Math.min(width, height) / 100;
 
-  // faint drifting highlight so the full frame stays alive
-  const drift = ((frame / 900) * 120 - 10) % 120;
+  const step = Math.min(9, Math.floor(frame / 90));
+  const num = 10 - step;
+  const pop = spring({ frame: frame - step * 90, fps, config: { damping: 9, stiffness: 220 } });
+
+  const R = 30 * u;
+  const circ = 2 * Math.PI * R;
+  const ringPct = 1 - frame / 900;
+
+  const ticks = Array.from({ length: 60 }, (_, i) => i);
 
   return (
     <AbsoluteFill
       style={{
-        background: "linear-gradient(160deg, #0a0f1e 0%, #05070f 60%, #0a0f1e 100%)",
+        backgroundColor: "#000000",
         fontFamily: FONT,
         color: "#fff",
-        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          bottom: 0,
-          left: `${drift}%`,
-          width: "18%",
-          background: "linear-gradient(90deg, transparent, rgba(56,189,248,0.05), transparent)",
-        }}
-      />
-      {/* faint grid */}
-      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.5 }}>
-        {Array.from({ length: 12 }, (_, i) => (
-          <line key={`v${i}`} x1={(width / 12) * i} y1={0} x2={(width / 12) * i} y2={height} stroke="rgba(148,163,184,0.07)" strokeWidth={1} />
-        ))}
-        {Array.from({ length: 8 }, (_, i) => (
-          <line key={`h${i}`} x1={0} y1={(height / 8) * i} x2={width} y2={(height / 8) * i} stroke="rgba(148,163,184,0.07)" strokeWidth={1} />
-        ))}
-      </svg>
-
-      <div
-        style={{
-          position: "absolute",
-          top: `${4 * u}px`,
-          left: 0,
-          right: 0,
-          textAlign: "center",
-          fontSize: `${1.8 * u}px`,
-          letterSpacing: `${0.4 * u}px`,
-          color: "rgba(148,163,184,0.6)",
-          fontWeight: 600,
-        }}
-      >
-        CORPORATE LOWER THIRDS · 3 STYLES
+      <div style={{ fontSize: `${2.6 * u}px`, fontWeight: 600, letterSpacing: `${0.6 * u}px`, color: "rgba(165,243,252,0.75)", marginBottom: `${3 * u}px` }}>
+        LIVE IN
       </div>
 
-      {CARDS.map((c, i) => {
-        const start = i * 300;
-        const local = frame - start;
-        if (local < 0 || local > 300) return null;
-        const enter = spring({ frame: local, fps, config: { damping: 16, stiffness: 170 } });
-        const exitT = interpolate(local, [240, 295], [0, 1], {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-          easing: Easing.in(Easing.cubic),
-        });
-        const barW = interpolate(local, [10, 70], [0, 100], {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-          easing: Easing.out(Easing.cubic),
-        });
-        return (
-          <div
-            key={c.name}
-            style={{
-              position: "absolute",
-              left: `${8 * u}px`,
-              bottom: `${13 * u}px`,
-              opacity: (1 - exitT) * Math.min(1, enter * 2),
-              transform: `translateX(${(1 - Math.min(1, enter)) * -30 * u + exitT * 24 * u}px)`,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "stretch" }}>
-              <div style={{ width: `${1.1 * u}px`, backgroundColor: c.accent, borderRadius: `${0.55 * u}px` }} />
-              <div style={{ marginLeft: `${2.2 * u}px`, padding: `${1 * u}px 0` }}>
-                <div style={{ fontSize: `${4.2 * u}px`, fontWeight: 800, letterSpacing: `${0.04 * u}px`, lineHeight: 1.1 }}>
-                  {c.name}
-                </div>
-                <div style={{ fontSize: `${2.3 * u}px`, color: "rgba(226,232,240,0.75)", letterSpacing: `${0.22 * u}px`, marginTop: `${0.7 * u}px`, textTransform: "uppercase" }}>
-                  {c.title}
-                </div>
-                <div
-                  style={{
-                    marginTop: `${1.2 * u}px`,
-                    height: `${0.45 * u}px`,
-                    width: `${barW * 0.32 * u}px`,
-                    backgroundColor: c.accent,
-                    borderRadius: `${0.22 * u}px`,
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        );
-      })}
+      <div style={{ position: "relative", width: `${(R + 6 * u) * 2}px`, height: `${(R + 6 * u) * 2}px` }}>
+        <svg width={(R + 6 * u) * 2} height={(R + 6 * u) * 2} style={{ position: "absolute", inset: 0 }}>
+          {ticks.map((i) => {
+            const a = (i / 60) * 2 * Math.PI;
+            const lit = i / 60 <= ringPct;
+            const x1 = (R + 6 * u) + Math.cos(a) * (R + 3.4 * u);
+            const y1 = (R + 6 * u) + Math.sin(a) * (R + 3.4 * u);
+            const x2 = (R + 6 * u) + Math.cos(a) * (R + 5.2 * u);
+            const y2 = (R + 6 * u) + Math.sin(a) * (R + 5.2 * u);
+            return (
+              <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
+                stroke={lit ? CYAN : "rgba(148,163,184,0.25)"} strokeWidth={i % 5 === 0 ? u * 0.7 : u * 0.35} />
+            );
+          })}
+          <circle
+            cx={R + 6 * u}
+            cy={R + 6 * u}
+            r={R}
+            fill="none"
+            stroke="rgba(148,163,184,0.18)"
+            strokeWidth={u * 1.4}
+          />
+          <circle
+            cx={R + 6 * u}
+            cy={R + 6 * u}
+            r={R}
+            fill="none"
+            stroke={CYAN}
+            strokeWidth={u * 1.4}
+            strokeLinecap="round"
+            strokeDasharray={circ}
+            strokeDashoffset={circ * (1 - ringPct)}
+            transform={`rotate(-90 ${R + 6 * u} ${R + 6 * u})`}
+            style={{ filter: `drop-shadow(0 0 ${1.6 * u}px ${CYAN})` }}
+          />
+        </svg>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: `${17 * u}px`,
+            fontWeight: 800,
+            color: "#fff",
+            transform: `scale(${0.55 + 0.45 * Math.min(1, pop)})`,
+            textShadow: `0 0 ${3 * u}px ${CYAN}, 0 0 ${8 * u}px rgba(34,211,238,0.5)`,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {num}
+        </div>
+      </div>
+
+      <div style={{ fontSize: `${2.2 * u}px`, letterSpacing: `${0.5 * u}px`, color: "rgba(148,163,184,0.7)", marginTop: `${3 * u}px` }}>
+        SECONDS
+      </div>
     </AbsoluteFill>
   );
 };
 
-export default CorporateLowerThirds;
+export default NeonCountdownRing;
