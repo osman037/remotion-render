@@ -1,52 +1,68 @@
-name: 🗑️ Auto-cleanup Artifacts
+name: 🗑️ Auto-cleanup Artifacts & Runs
 
 on:
   schedule:
-    # Runs every day at 3:00 AM UTC
-    - cron: '0 3 * * *'
-  workflow_dispatch: # Also allow manual trigger
+    - cron: '0 3 * * *'   # daily at 3 AM UTC
+  workflow_dispatch:
 
 jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
-      - name: 🗑️ Delete artifacts older than 2 days
+      - name: 🗑️ Delete artifacts & runs older than 2 days
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const owner    = context.repo.owner;
             const repo     = context.repo.repo;
-            const maxAgeMs = 2 * 24 * 60 * 60 * 1000; // 2 days
+            const maxAgeMs = 2 * 24 * 60 * 60 * 1000;
             const now      = Date.now();
-            let   page     = 1;
-            let   deleted  = 0;
-            let   kept     = 0;
 
-            console.log(`Scanning artifacts in ${owner}/${repo}…`);
-
+            // ── Delete old artifacts ──────────────────────────────────────
+            console.log("=== Artifacts ===");
+            let artPage = 1, artDeleted = 0, artKept = 0;
             while (true) {
               const { data } = await github.rest.actions.listArtifactsForRepo({
-                owner, repo, per_page: 100, page,
+                owner, repo, per_page: 100, page: artPage,
               });
-
-              if (data.artifacts.length === 0) break;
-
-              for (const artifact of data.artifacts) {
-                const age = now - new Date(artifact.created_at).getTime();
+              if (!data.artifacts.length) break;
+              for (const a of data.artifacts) {
+                const age = now - new Date(a.created_at).getTime();
                 if (age > maxAgeMs) {
-                  await github.rest.actions.deleteArtifact({
-                    owner, repo, artifact_id: artifact.id,
-                  });
-                  console.log(`🗑  Deleted: ${artifact.name} (${Math.floor(age/86400000)}d old)`);
-                  deleted++;
-                } else {
-                  const hoursLeft = Math.floor((maxAgeMs - age) / 3600000);
-                  console.log(`✅ Kept:    ${artifact.name} (expires in ~${hoursLeft}h)`);
-                  kept++;
-                }
+                  await github.rest.actions.deleteArtifact({ owner, repo, artifact_id: a.id });
+                  console.log(`🗑  Deleted artifact: ${a.name}`);
+                  artDeleted++;
+                } else { artKept++; }
               }
-              page++;
+              artPage++;
             }
+            console.log(`Artifacts: deleted=${artDeleted}, kept=${artKept}`);
 
-            console.log(`\nDone. Deleted: ${deleted}, Kept: ${kept}`);
+            // ── Delete old workflow runs (except this cleanup run itself) ─
+            console.log("\n=== Workflow Runs ===");
+            let runPage = 1, runDeleted = 0, runKept = 0;
+            const thisRunId = context.runId;
+            while (true) {
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner, repo, per_page: 100, page: runPage,
+              });
+              if (!data.workflow_runs.length) break;
+              for (const run of data.workflow_runs) {
+                if (run.id === thisRunId) { runKept++; continue; } // skip self
+                if (run.status !== "completed") { runKept++; continue; } // skip active
+                const age = now - new Date(run.created_at).getTime();
+                if (age > maxAgeMs) {
+                  try {
+                    await github.rest.actions.deleteWorkflowRun({ owner, repo, run_id: run.id });
+                    console.log(`🗑  Deleted run #${run.run_number}: ${run.name}`);
+                    runDeleted++;
+                  } catch (e) {
+                    console.log(`⚠  Could not delete run #${run.run_number}: ${e.message}`);
+                    runKept++;
+                  }
+                } else { runKept++; }
+              }
+              runPage++;
+            }
+            console.log(`Runs: deleted=${runDeleted}, kept=${runKept}`);
