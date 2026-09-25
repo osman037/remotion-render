@@ -1,515 +1,711 @@
-<!DOCTYPE html><html lang="en" class="h-full bg-slate-25 type-d-100"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><link rel="preload" as="image" href="/build/assets/limewire-logo-CWTx4rdZ.svg"/><link rel="preload" as="image" href="/build/assets/limewire-icon-CuSTCjU4.svg"/><script src="https://jsc.mgid.com/site/1110887.js" async=""></script><meta name="theme-color" content="#00934b"/><title>Download CyberNetwork.tsx | LimeWire</title><meta name="description" content="Download CyberNetwork.tsx on LimeWire"/><meta property="twitter:title" content="Download CyberNetwork.tsx | LimeWire"/><meta property="twitter:description" content="Download CyberNetwork.tsx on LimeWire"/><meta property="twitter:image" content="https://limewire.com/img/remix/twitter_card_image_file_sharing.png"/><meta property="twitter:card" content="summary_large_image"/><meta property="twitter:site" content="@limewire"/><meta property="twitter:creator" content="@limewire"/><meta property="og:title" content="Download CyberNetwork.tsx | LimeWire"/><meta property="og:description" content="Download CyberNetwork.tsx on LimeWire"/><meta property="og:image" content="https://limewire.com/img/remix/twitter_card_image_file_sharing.png"/><meta property="og:type" content="website"/><meta property="og:site_name" content="LimeWire"/><link rel="apple-touch-icon" href="/apple-touch-icon.png" type="image/png" sizes="180x180"/><link rel="icon" href="/favicon-32x32.ico" sizes="32x32"/><link rel="modulepreload" href="/build/chunks/entry/entry.client-h-8J_f_U.js"/><link rel="modulepreload" href="/build/chunks/jsx-runtime-D_zvdyIk.js"/><link rel="modulepreload" href="/build/chunks/chunk-4N6VE7H7-CYH4PXiQ.js"/><link rel="modulepreload" href="/build/chunks/tooltip-Dh-GCyoz.js"/><link rel="modulepreload" href="/build/chunks/correctAssetUrl-8jt7Bzg0.js"/><link rel="modulepreload" href="/build/chunks/file-sharing-provider-NtsXpuMT.js"/><link rel="modulepreload" href="/build/chunks/sentry-DCGaZcF5.js"/><link rel="modulepreload" href="/build/chunks/button-CB2fQLpx.js"/><link rel="modulepreload" href="/build/chunks/index-5zs3RZdd.js"/><link rel="modulepreload" href="/build/chunks/env-context-DebTkedx.js"/><link rel="modulepreload" href="/build/chunks/form-validation-BmVkRcjs.js"/><link rel="modulepreload" href="/build/chunks/StripeModal-D_zJSTg3.js"/><link rel="modulepreload" href="/build/chunks/error-CNFYeXfL.js"/><link rel="modulepreload" href="/build/chunks/forward-platform-action-cZbimJfK.js"/><link rel="modulepreload" href="/build/chunks/runtime-a9fv597q.js"/><link rel="modulepreload" href="/build/chunks/toggle-group-BSQQLJtK.js"/><link rel="modulepreload" href="/build/chunks/focus-visible-outline-CA5WDHp1.js"/><link rel="modulepreload" href="/build/chunks/footer-BhUrYW9s.js"/><link rel="modulepreload" href="/build/chunks/link-button-Dgv_yPAf.js"/><link rel="modulepreload" href="/build/chunks/plus-icon-BzkK1_R0.js"/><link rel="modulepreload" href="/build/chunks/arrow-right-icon-CJx94PN2.js"/><link rel="modulepreload" href="/build/chunks/navigation-tabs-BJf4kUpl.js"/><link rel="modulepreload" href="/build/chunks/use-callback-ref-CJ9SODNh.js"/><link rel="modulepreload" href="/build/chunks/alert-Bsob527P.js"/><link rel="modulepreload" href="/build/chunks/base-button-BOVQiXV3.js"/><link rel="modulepreload" href="/build/chunks/use-state-ref-0aYGV7fB.js"/><link rel="modulepreload" href="/build/chunks/result-BtcenhOc.js"/><link rel="modulepreload" href="/build/chunks/gtm-CBAuTBQe.js"/><link rel="modulepreload" href="/build/chunks/get-api-DWzc_bBF.js"/><link rel="modulepreload" href="/build/chunks/use-controlled-state-6BKWRsRt.js"/><link rel="modulepreload" href="/build/chunks/resolve-to-node-Bl44lgnH.js"/><link rel="modulepreload" href="/build/chunks/runtime-2_b2CLRu.js"/><link rel="modulepreload" href="/build/chunks/VerificationStatusEnum-BMWjV5ER.js"/><link rel="modulepreload" href="/build/chunks/AccountSubscriptionTier-Cz37hh3K.js"/><link rel="modulepreload" href="/build/chunks/UsStateCodeAlpha2-sRkxuwjy.js"/><link rel="modulepreload" href="/build/chunks/form-schema-utils-CKHKKg7G.js"/><link rel="modulepreload" href="/build/chunks/types-CeqL-daw.js"/><link rel="modulepreload" href="/build/chunks/modal-content-window-title-header-DByhHMtf.js"/><link rel="modulepreload" href="/build/chunks/noop-BjFrJKj1.js"/><link rel="modulepreload" href="/build/chunks/preload-helper-ckwbz45p.js"/><link rel="modulepreload" href="/build/chunks/create-lazy-singleton-cLopSc4o.js"/><link rel="modulepreload" href="/build/chunks/use-self-cancel-timeout-DCHuMrr-.js"/><link rel="modulepreload" href="/build/chunks/use-self-cancel-interval-BgB7hfvd.js"/><link rel="modulepreload" href="/build/chunks/createFormData-6W1bV2BK.js"/><link rel="modulepreload" href="/build/chunks/get-sharing-bucket-expiration-label-BxASTJP2.js"/><link rel="modulepreload" href="/build/chunks/auth-form-BNw1-pAv.js"/><link rel="modulepreload" href="/build/chunks/use-typed-explicit-fetcher-fhEyK6eX.js"/><link rel="modulepreload" href="/build/chunks/authenticity-token-CFgl6Z4h.js"/><link rel="modulepreload" href="/build/chunks/auth-form-validation-C7l7Lp9m.js"/><link rel="modulepreload" href="/build/chunks/use-const-CyuDI2Jw.js"/><link rel="modulepreload" href="/build/chunks/auth-context-DVtKf2vI.js"/><link rel="modulepreload" href="/build/chunks/navigation-link-De5ItD8a.js"/><link rel="modulepreload" href="/build/chunks/app-integration-provider-4-SaOz_c.js"/><link rel="modulepreload" href="/build/chunks/app-integration-loading-D3uWt4C6.js"/><link rel="modulepreload" href="/build/chunks/client-only-CnbT09nL.js"/><link rel="modulepreload" href="/build/chunks/auth-window-messenger-DvswJzyt.js"/><link rel="modulepreload" href="/build/chunks/use-external-wallet-dcgxeJzM.js"/><link rel="modulepreload" href="/build/chunks/divider-Bx5FVaq5.js"/><link rel="modulepreload" href="/build/chunks/user-context-H9i7VnPA.js"/><link rel="modulepreload" href="/build/chunks/CryptoCurrency-C8i-2yC7.js"/><link rel="modulepreload" href="/build/chunks/format-crypto-currency-DU9teVm2.js"/><link rel="modulepreload" href="/build/chunks/index-CWrIKnBx.js"/><link rel="modulepreload" href="/build/chunks/file-name-D6aW1GMb.js"/><link rel="modulepreload" href="/build/chunks/content-item-name-BgJnKYk_.js"/><link rel="modulepreload" href="/build/chunks/feedback-tooltip-DnQoTtgx.js"/><link rel="modulepreload" href="/build/chunks/dropdown-menu-item-Db0oH43Q.js"/><link rel="modulepreload" href="/build/chunks/CompositeItem-C2QJYDDY.js"/><link rel="modulepreload" href="/build/chunks/file-descriptor-CGrQeZua.js"/><link rel="modulepreload" href="/build/chunks/format-1NPDPTzm.js"/><link rel="modulepreload" href="/build/chunks/shared-DwIwScEe.js"/><link rel="modulepreload" href="/build/chunks/use-copyright-Dc7D5n5M.js"/><link rel="modulepreload" href="/build/chunks/tab-button-Ds5-Xr2w.js"/><link rel="modulepreload" href="/build/chunks/entry/root-Y8iUtRpO.js"/><link rel="modulepreload" href="/build/chunks/use-sentry-capture-route-error-DQjqgE2j.js"/><link rel="modulepreload" href="/build/chunks/root-data-from-meta-_uWRppwb.js"/><link rel="modulepreload" href="/build/chunks/mgid-BClyNFEN.js"/><link rel="modulepreload" href="/build/chunks/page-error-content-beLpRn94.js"/><link rel="modulepreload" href="/build/chunks/default-shell-layout-GstI-jbb.js"/><link rel="modulepreload" href="/build/chunks/api-context-7msjQt-g.js"/><link rel="modulepreload" href="/build/chunks/creator-name-CiLx5-S8.js"/><link rel="modulepreload" href="/build/chunks/asset-aspect-ratio-CFxZTYNK.js"/><link rel="modulepreload" href="/build/chunks/limewire-logo-Dqzw9EF0.js"/><link rel="modulepreload" href="/build/chunks/use-logout-DTFjcmcZ.js"/><link rel="modulepreload" href="/build/chunks/creator-834ASwQB.js"/><link rel="modulepreload" href="/build/chunks/errors-Bt-IsbGS.js"/><link rel="modulepreload" href="/build/chunks/entry/__root-4OwC_upI.js"/><link rel="modulepreload" href="/build/chunks/mgid-slot-DhBerfc6.js"/><link rel="modulepreload" href="/build/chunks/share-nearby-provider-CwuMIupI.js"/><link rel="modulepreload" href="/build/chunks/script-EPnTUGRP.js"/><link rel="modulepreload" href="/build/chunks/copy-input-0I8Jahig.js"/><link rel="modulepreload" href="/build/chunks/entry/_id-C1I2UVlI.js"/><link rel="modulepreload" href="/build/chunks/shell-layout-aside-65Zf2JuP.js"/><link rel="modulepreload" href="/build/chunks/page-column-layout-DWZQyDxP.js"/><link rel="modulepreload" href="/build/chunks/get-default-seo-preview-image-19rrZO0W.js"/><link rel="modulepreload" href="/build/chunks/page-error-404-Ba3LfCNG.js"/><link rel="modulepreload" href="/build/chunks/date-time-D44bRngG.js"/><link rel="stylesheet" href="/build/assets/nprogress-Dw03ZESa.css"/><link rel="stylesheet" href="/build/assets/react-datepicker-CE21K4bl.css"/><link rel="stylesheet" href="/build/assets/400-C8LWbix3.css"/><link rel="stylesheet" href="/build/assets/500-B36wLJV3.css"/><link rel="stylesheet" href="/build/assets/700-C5Ia9mPP.css"/><link rel="stylesheet" href="/build/assets/tailwind-C1kcPAQu.css"/></head><body class="h-full"><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TZPQT7Z8" height="0" width="0" style="display:none;visibility:hidden" title="Google Tag Manager"></iframe></noscript><div style="--lmwr-banner-height:0px;--lmwr-navigation-height:3.5rem;--lmwr-navigation-sticky-height:calc(var(--lmwr-navigation-height) * var(--lmwr-navigation-non-sticky-height-percent, 1))" class="min-h-full grid grid-cols-1 grid-rows-[auto_auto_minmax(0,_1fr)]"><div class="z-50"></div><div class="h-[--lmwr-navigation-height] z-40 sticky top-0"><nav class="h-full bg-slate-25 after:content-empty after:absolute after:w-full after:h-px after:bg-slate-200 after:bottom-0"><div class="flex items-center gap-x-3 h-full min-w-0 px-3.5 md:px-4"><div class="flex items-center h-full min-w-0 flex-none"><a class="hidden md:flex h-10 outline-offset-0 flex-none items-center rounded-sm" href="/" data-discover="true"><img class="w-32 object-contain" src="/build/assets/limewire-logo-CWTx4rdZ.svg" alt="LimeWire Logo"/></a><a class="flex md:hidden h-10 outline-offset-0 flex-none items-center rounded-sm" href="/" data-discover="true"><img class="w-8 object-contain" src="/build/assets/limewire-icon-CuSTCjU4.svg" alt="LimeWire Logo"/></a></div><div class="h-6 flex items-center min-w-0"><div class="lg:flex-none flex-1 min-w-0 h-full flex items-center border-l-slate-300 border-l pl-3"><button type="button" tabindex="0" data-base-ui-click-trigger="" id="base-ui-_R_qqiaral5_" aria-haspopup="dialog" aria-expanded="false" class="default:rounded-sm block h-10 text-slate-900 min-w-0 w-full"><span class="flex flex-row items-center gap-x-2 min-w-0"><span style="mask-image:url(/build/assets/sharing-bucket-single-file-icon-CoFWt95U.svg);-webkit-mask-image:url(/build/assets/sharing-bucket-single-file-icon-CoFWt95U.svg)" class="default:block default:flex-none default:bg-current mask-center mask-contain mask-no-repeat w-4 h-4 text-slate-700 flex-none hidden lg:block"></span><span class="min-w-0 max-w-64 flex-1"><span class="default:type-d-50 default:text-slate-900 default:overflow-hidden flex flex-row items-center flex-nowrap min-w-0 type-d-100-medium"><span class="overflow-hidden text-ellipsis whitespace-nowrap">CyberNetwork</span><span class="flex-none whitespace-nowrap">.tsx</span></span></span><span style="mask-image:url(/build/assets/chevron-down-icon-gfhbPJjL.svg);-webkit-mask-image:url(/build/assets/chevron-down-icon-gfhbPJjL.svg)" class="default:block default:flex-none default:bg-current mask-center mask-contain mask-no-repeat w-4 h-4 transition-transform"></span></span></button></div><div class="h-full max-w-56 flex items-center flex-none type-d-75 text-slate-500 border-l-slate-300 border-l ml-3 pl-3"><div class="text-nowrap overflow-hidden text-ellipsis min-w-0">20.3KB</div></div><div class="h-full lg:flex-1 hidden lg:flex items-center min-w-0 flex-wrap overflow-hidden"><div class="h-full"></div><div class="h-full max-w-56 flex items-center flex-none type-d-75 text-slate-500 border-l-slate-300 border-l ml-3 pl-3"><div class="text-nowrap overflow-hidden text-ellipsis min-w-0"><span class="bg-slate-300 h-5 rounded-md block w-28"></span></div></div><div class="h-full max-w-56 flex items-center flex-none type-d-75 text-slate-500 border-l-slate-300 border-l ml-3 pl-3"><div class="text-nowrap overflow-hidden text-ellipsis min-w-0"><span class="bg-slate-300 h-5 rounded-md block w-24"></span></div></div></div></div><div class="flex items-center h-full flex-none min-w-0 ml-auto gap-x-2"><div><div class="md:hidden w-10 h-10 bg-slate-300 rounded-full"></div><div class="hidden md:flex w-32 h-10 bg-slate-300 rounded-full"></div></div><div class="items-center flex-none gap-x-2 hidden sm:flex"><div><div class="lg:hidden w-10 h-10 bg-slate-300 rounded-full"></div><div class="hidden lg:flex w-28 h-10 bg-slate-300 rounded-full"></div></div><div class="w-10 h-10 bg-slate-300 rounded-full"></div><div class="w-10 h-10 bg-slate-300 rounded-full"></div></div></div></div></nav></div><div><div class="default:min-h-full grid"><div class="w-full h-full grid grid-cols-1 grid-rows-1 md:grid-cols-[minmax(0,1fr)]"><main class="w-full min-h-full"><div class="h-full w-full flex items-center justify-center"><span class="default:w-5 default:h-5 default:border-2 animate-spin block border-t-current border-r-current border-solid border-b-transparent border-l-transparent rounded-full w-7 h-7"></span></div></main></div></div></div></div><div class="lg:hidden fixed top-0 left-0 overflow-hidden pointer-events-none -z-50"></div><script>
-function __removeSearchParam() {
-  try {
-    var url = new URL(window.location.href);
-    if (url.searchParams.has("lmwr-ftv")) {
-      url.searchParams.delete("lmwr-ftv");
-      window.history.replaceState(null, "", url.href);
-    } 
-  } catch (e) {}
-}
-__removeSearchParam();
-</script><script>window.ENV = {"NOW":"2026-09-25T01:53:52.343Z","CLIENT_BASE_URL":"https://limewire.com","IS_DEV":false,"IS_STAGING":false,"API_BASE_URL":"https://api.limewire.com","CANONICAL_BASE_URL":"https://limewire.com","LIMEWIRE_FREE_USER_ID":"7f219511-0a09-403c-a94b-caa56419b5f8","LIMEWIRE_PRO_USER_ID":"1e2c66a9-7073-499b-86fb-b134a088ce44","SENTRY_DSN":"https://3914d239cc544007a8bc3b33c2e276e7:375389f9b8fc4a58aac7ddf053335cd6@o4505008135340032.ingest.sentry.io/4505114707099648","SENTRY_ENVIRONMENT":"production","SENTRY_PROJECT":"limewire-js-remix","GIT_RELEASE":"f85f0ca344014a7d746fa6a78746a729ef7e2e8f","STORYBLOCK_SPACE_ACCESS_TOKEN":"jmGRmWycHD5MvliLQXFkXAtt","TURNSTILE_SITEKEY":"0x4AAAAAAEVmA3xwky6ar3WJ"}</script><script>window.__reactRouterContext = {"basename":"/","future":{"unstable_optimizeDeps":false,"v8_passThroughRequests":false,"unstable_trailingSlashAwareDataRequests":false,"unstable_previewServerPrerendering":false,"v8_middleware":false,"v8_splitRouteModules":false,"v8_viteEnvironmentApi":false},"routeDiscovery":{"mode":"lazy","manifestPath":"/__manifest"},"ssr":true,"isSpaMode":false};window.__reactRouterContext.stream = new ReadableStream({start(controller){window.__reactRouterContext.streamController = controller;}}).pipeThrough(new TextEncoderStream());</script><script type="module" async="">;
-import * as route0 from "/build/chunks/entry/root-Y8iUtRpO.js";
-import * as route1 from "/build/chunks/entry/__root-4OwC_upI.js";
-import * as route2 from "/build/chunks/entry/_id-C1I2UVlI.js";
-  window.__reactRouterManifest = {
-  "entry": {
-    "module": "/build/chunks/entry/entry.client-h-8J_f_U.js",
-    "imports": [
-      "/build/chunks/jsx-runtime-D_zvdyIk.js",
-      "/build/chunks/chunk-4N6VE7H7-CYH4PXiQ.js",
-      "/build/chunks/tooltip-Dh-GCyoz.js",
-      "/build/chunks/correctAssetUrl-8jt7Bzg0.js",
-      "/build/chunks/file-sharing-provider-NtsXpuMT.js",
-      "/build/chunks/sentry-DCGaZcF5.js",
-      "/build/chunks/button-CB2fQLpx.js",
-      "/build/chunks/index-5zs3RZdd.js",
-      "/build/chunks/env-context-DebTkedx.js",
-      "/build/chunks/form-validation-BmVkRcjs.js",
-      "/build/chunks/StripeModal-D_zJSTg3.js",
-      "/build/chunks/error-CNFYeXfL.js",
-      "/build/chunks/forward-platform-action-cZbimJfK.js",
-      "/build/chunks/runtime-a9fv597q.js",
-      "/build/chunks/toggle-group-BSQQLJtK.js",
-      "/build/chunks/focus-visible-outline-CA5WDHp1.js",
-      "/build/chunks/footer-BhUrYW9s.js",
-      "/build/chunks/link-button-Dgv_yPAf.js",
-      "/build/chunks/plus-icon-BzkK1_R0.js",
-      "/build/chunks/arrow-right-icon-CJx94PN2.js",
-      "/build/chunks/navigation-tabs-BJf4kUpl.js",
-      "/build/chunks/use-callback-ref-CJ9SODNh.js",
-      "/build/chunks/alert-Bsob527P.js",
-      "/build/chunks/base-button-BOVQiXV3.js",
-      "/build/chunks/use-state-ref-0aYGV7fB.js",
-      "/build/chunks/result-BtcenhOc.js",
-      "/build/chunks/gtm-CBAuTBQe.js",
-      "/build/chunks/get-api-DWzc_bBF.js",
-      "/build/chunks/use-controlled-state-6BKWRsRt.js",
-      "/build/chunks/resolve-to-node-Bl44lgnH.js",
-      "/build/chunks/runtime-2_b2CLRu.js",
-      "/build/chunks/VerificationStatusEnum-BMWjV5ER.js",
-      "/build/chunks/AccountSubscriptionTier-Cz37hh3K.js",
-      "/build/chunks/UsStateCodeAlpha2-sRkxuwjy.js",
-      "/build/chunks/form-schema-utils-CKHKKg7G.js",
-      "/build/chunks/types-CeqL-daw.js",
-      "/build/chunks/modal-content-window-title-header-DByhHMtf.js",
-      "/build/chunks/noop-BjFrJKj1.js",
-      "/build/chunks/preload-helper-ckwbz45p.js",
-      "/build/chunks/create-lazy-singleton-cLopSc4o.js",
-      "/build/chunks/use-self-cancel-timeout-DCHuMrr-.js",
-      "/build/chunks/use-self-cancel-interval-BgB7hfvd.js",
-      "/build/chunks/createFormData-6W1bV2BK.js",
-      "/build/chunks/get-sharing-bucket-expiration-label-BxASTJP2.js",
-      "/build/chunks/auth-form-BNw1-pAv.js",
-      "/build/chunks/use-typed-explicit-fetcher-fhEyK6eX.js",
-      "/build/chunks/authenticity-token-CFgl6Z4h.js",
-      "/build/chunks/auth-form-validation-C7l7Lp9m.js",
-      "/build/chunks/use-const-CyuDI2Jw.js",
-      "/build/chunks/auth-context-DVtKf2vI.js",
-      "/build/chunks/navigation-link-De5ItD8a.js",
-      "/build/chunks/app-integration-provider-4-SaOz_c.js",
-      "/build/chunks/app-integration-loading-D3uWt4C6.js",
-      "/build/chunks/client-only-CnbT09nL.js",
-      "/build/chunks/auth-window-messenger-DvswJzyt.js",
-      "/build/chunks/use-external-wallet-dcgxeJzM.js",
-      "/build/chunks/divider-Bx5FVaq5.js",
-      "/build/chunks/user-context-H9i7VnPA.js",
-      "/build/chunks/CryptoCurrency-C8i-2yC7.js",
-      "/build/chunks/format-crypto-currency-DU9teVm2.js",
-      "/build/chunks/index-CWrIKnBx.js",
-      "/build/chunks/file-name-D6aW1GMb.js",
-      "/build/chunks/content-item-name-BgJnKYk_.js",
-      "/build/chunks/feedback-tooltip-DnQoTtgx.js",
-      "/build/chunks/dropdown-menu-item-Db0oH43Q.js",
-      "/build/chunks/CompositeItem-C2QJYDDY.js",
-      "/build/chunks/file-descriptor-CGrQeZua.js",
-      "/build/chunks/format-1NPDPTzm.js",
-      "/build/chunks/shared-DwIwScEe.js",
-      "/build/chunks/use-copyright-Dc7D5n5M.js",
-      "/build/chunks/tab-button-Ds5-Xr2w.js"
-    ],
-    "css": []
-  },
-  "routes": {
-    "root": {
-      "id": "root",
-      "path": "",
-      "hasAction": false,
-      "hasLoader": false,
-      "hasClientAction": false,
-      "hasClientLoader": false,
-      "hasClientMiddleware": false,
-      "hasDefaultExport": true,
-      "hasErrorBoundary": true,
-      "module": "/build/chunks/entry/root-Y8iUtRpO.js",
-      "imports": [
-        "/build/chunks/jsx-runtime-D_zvdyIk.js",
-        "/build/chunks/chunk-4N6VE7H7-CYH4PXiQ.js",
-        "/build/chunks/tooltip-Dh-GCyoz.js",
-        "/build/chunks/correctAssetUrl-8jt7Bzg0.js",
-        "/build/chunks/file-sharing-provider-NtsXpuMT.js",
-        "/build/chunks/sentry-DCGaZcF5.js",
-        "/build/chunks/button-CB2fQLpx.js",
-        "/build/chunks/index-5zs3RZdd.js",
-        "/build/chunks/env-context-DebTkedx.js",
-        "/build/chunks/form-validation-BmVkRcjs.js",
-        "/build/chunks/StripeModal-D_zJSTg3.js",
-        "/build/chunks/error-CNFYeXfL.js",
-        "/build/chunks/forward-platform-action-cZbimJfK.js",
-        "/build/chunks/runtime-a9fv597q.js",
-        "/build/chunks/toggle-group-BSQQLJtK.js",
-        "/build/chunks/focus-visible-outline-CA5WDHp1.js",
-        "/build/chunks/footer-BhUrYW9s.js",
-        "/build/chunks/link-button-Dgv_yPAf.js",
-        "/build/chunks/plus-icon-BzkK1_R0.js",
-        "/build/chunks/arrow-right-icon-CJx94PN2.js",
-        "/build/chunks/navigation-tabs-BJf4kUpl.js",
-        "/build/chunks/use-callback-ref-CJ9SODNh.js",
-        "/build/chunks/alert-Bsob527P.js",
-        "/build/chunks/base-button-BOVQiXV3.js",
-        "/build/chunks/use-state-ref-0aYGV7fB.js",
-        "/build/chunks/result-BtcenhOc.js",
-        "/build/chunks/gtm-CBAuTBQe.js",
-        "/build/chunks/get-api-DWzc_bBF.js",
-        "/build/chunks/use-controlled-state-6BKWRsRt.js",
-        "/build/chunks/resolve-to-node-Bl44lgnH.js",
-        "/build/chunks/runtime-2_b2CLRu.js",
-        "/build/chunks/VerificationStatusEnum-BMWjV5ER.js",
-        "/build/chunks/AccountSubscriptionTier-Cz37hh3K.js",
-        "/build/chunks/UsStateCodeAlpha2-sRkxuwjy.js",
-        "/build/chunks/form-schema-utils-CKHKKg7G.js",
-        "/build/chunks/types-CeqL-daw.js",
-        "/build/chunks/modal-content-window-title-header-DByhHMtf.js",
-        "/build/chunks/noop-BjFrJKj1.js",
-        "/build/chunks/preload-helper-ckwbz45p.js",
-        "/build/chunks/create-lazy-singleton-cLopSc4o.js",
-        "/build/chunks/use-self-cancel-timeout-DCHuMrr-.js",
-        "/build/chunks/use-self-cancel-interval-BgB7hfvd.js",
-        "/build/chunks/createFormData-6W1bV2BK.js",
-        "/build/chunks/get-sharing-bucket-expiration-label-BxASTJP2.js",
-        "/build/chunks/auth-form-BNw1-pAv.js",
-        "/build/chunks/use-typed-explicit-fetcher-fhEyK6eX.js",
-        "/build/chunks/authenticity-token-CFgl6Z4h.js",
-        "/build/chunks/auth-form-validation-C7l7Lp9m.js",
-        "/build/chunks/use-const-CyuDI2Jw.js",
-        "/build/chunks/auth-context-DVtKf2vI.js",
-        "/build/chunks/navigation-link-De5ItD8a.js",
-        "/build/chunks/app-integration-provider-4-SaOz_c.js",
-        "/build/chunks/app-integration-loading-D3uWt4C6.js",
-        "/build/chunks/client-only-CnbT09nL.js",
-        "/build/chunks/auth-window-messenger-DvswJzyt.js",
-        "/build/chunks/use-external-wallet-dcgxeJzM.js",
-        "/build/chunks/divider-Bx5FVaq5.js",
-        "/build/chunks/user-context-H9i7VnPA.js",
-        "/build/chunks/CryptoCurrency-C8i-2yC7.js",
-        "/build/chunks/format-crypto-currency-DU9teVm2.js",
-        "/build/chunks/index-CWrIKnBx.js",
-        "/build/chunks/file-name-D6aW1GMb.js",
-        "/build/chunks/content-item-name-BgJnKYk_.js",
-        "/build/chunks/feedback-tooltip-DnQoTtgx.js",
-        "/build/chunks/dropdown-menu-item-Db0oH43Q.js",
-        "/build/chunks/CompositeItem-C2QJYDDY.js",
-        "/build/chunks/file-descriptor-CGrQeZua.js",
-        "/build/chunks/format-1NPDPTzm.js",
-        "/build/chunks/shared-DwIwScEe.js",
-        "/build/chunks/use-copyright-Dc7D5n5M.js",
-        "/build/chunks/tab-button-Ds5-Xr2w.js",
-        "/build/chunks/use-sentry-capture-route-error-DQjqgE2j.js",
-        "/build/chunks/root-data-from-meta-_uWRppwb.js",
-        "/build/chunks/mgid-BClyNFEN.js",
-        "/build/chunks/page-error-content-beLpRn94.js",
-        "/build/chunks/default-shell-layout-GstI-jbb.js",
-        "/build/chunks/api-context-7msjQt-g.js",
-        "/build/chunks/creator-name-CiLx5-S8.js",
-        "/build/chunks/asset-aspect-ratio-CFxZTYNK.js",
-        "/build/chunks/limewire-logo-Dqzw9EF0.js",
-        "/build/chunks/use-logout-DTFjcmcZ.js",
-        "/build/chunks/creator-834ASwQB.js",
-        "/build/chunks/errors-Bt-IsbGS.js"
-      ],
-      "css": []
-    },
-    "routes/__root": {
-      "id": "routes/__root",
-      "parentId": "root",
-      "hasAction": false,
-      "hasLoader": true,
-      "hasClientAction": false,
-      "hasClientLoader": false,
-      "hasClientMiddleware": false,
-      "hasDefaultExport": true,
-      "hasErrorBoundary": true,
-      "module": "/build/chunks/entry/__root-4OwC_upI.js",
-      "imports": [
-        "/build/chunks/chunk-4N6VE7H7-CYH4PXiQ.js",
-        "/build/chunks/jsx-runtime-D_zvdyIk.js",
-        "/build/chunks/authenticity-token-CFgl6Z4h.js",
-        "/build/chunks/runtime-2_b2CLRu.js",
-        "/build/chunks/AccountSubscriptionTier-Cz37hh3K.js",
-        "/build/chunks/mgid-slot-DhBerfc6.js",
-        "/build/chunks/default-shell-layout-GstI-jbb.js",
-        "/build/chunks/env-context-DebTkedx.js",
-        "/build/chunks/mgid-BClyNFEN.js",
-        "/build/chunks/share-nearby-provider-CwuMIupI.js",
-        "/build/chunks/auth-context-DVtKf2vI.js",
-        "/build/chunks/user-context-H9i7VnPA.js",
-        "/build/chunks/StripeModal-D_zJSTg3.js",
-        "/build/chunks/createFormData-6W1bV2BK.js",
-        "/build/chunks/sentry-DCGaZcF5.js",
-        "/build/chunks/tooltip-Dh-GCyoz.js",
-        "/build/chunks/file-sharing-provider-NtsXpuMT.js",
-        "/build/chunks/index-5zs3RZdd.js",
-        "/build/chunks/modal-content-window-title-header-DByhHMtf.js",
-        "/build/chunks/file-name-D6aW1GMb.js",
-        "/build/chunks/form-validation-BmVkRcjs.js",
-        "/build/chunks/focus-visible-outline-CA5WDHp1.js",
-        "/build/chunks/get-sharing-bucket-expiration-label-BxASTJP2.js",
-        "/build/chunks/result-BtcenhOc.js",
-        "/build/chunks/get-api-DWzc_bBF.js",
-        "/build/chunks/preload-helper-ckwbz45p.js",
-        "/build/chunks/noop-BjFrJKj1.js",
-        "/build/chunks/file-descriptor-CGrQeZua.js",
-        "/build/chunks/use-controlled-state-6BKWRsRt.js",
-        "/build/chunks/use-callback-ref-CJ9SODNh.js",
-        "/build/chunks/client-only-CnbT09nL.js",
-        "/build/chunks/runtime-a9fv597q.js",
-        "/build/chunks/api-context-7msjQt-g.js",
-        "/build/chunks/auth-form-BNw1-pAv.js",
-        "/build/chunks/use-logout-DTFjcmcZ.js",
-        "/build/chunks/alert-Bsob527P.js",
-        "/build/chunks/button-CB2fQLpx.js",
-        "/build/chunks/script-EPnTUGRP.js",
-        "/build/chunks/app-integration-provider-4-SaOz_c.js",
-        "/build/chunks/use-sentry-capture-route-error-DQjqgE2j.js",
-        "/build/chunks/CryptoCurrency-C8i-2yC7.js",
-        "/build/chunks/format-crypto-currency-DU9teVm2.js",
-        "/build/chunks/navigation-link-De5ItD8a.js",
-        "/build/chunks/tab-button-Ds5-Xr2w.js",
-        "/build/chunks/toggle-group-BSQQLJtK.js",
-        "/build/chunks/use-state-ref-0aYGV7fB.js",
-        "/build/chunks/use-const-CyuDI2Jw.js",
-        "/build/chunks/resolve-to-node-Bl44lgnH.js",
-        "/build/chunks/error-CNFYeXfL.js",
-        "/build/chunks/create-lazy-singleton-cLopSc4o.js",
-        "/build/chunks/base-button-BOVQiXV3.js",
-        "/build/chunks/creator-name-CiLx5-S8.js",
-        "/build/chunks/asset-aspect-ratio-CFxZTYNK.js",
-        "/build/chunks/VerificationStatusEnum-BMWjV5ER.js",
-        "/build/chunks/shared-DwIwScEe.js",
-        "/build/chunks/limewire-logo-Dqzw9EF0.js",
-        "/build/chunks/CompositeItem-C2QJYDDY.js",
-        "/build/chunks/arrow-right-icon-CJx94PN2.js",
-        "/build/chunks/creator-834ASwQB.js",
-        "/build/chunks/use-copyright-Dc7D5n5M.js",
-        "/build/chunks/copy-input-0I8Jahig.js",
-        "/build/chunks/use-self-cancel-timeout-DCHuMrr-.js",
-        "/build/chunks/types-CeqL-daw.js",
-        "/build/chunks/index-CWrIKnBx.js",
-        "/build/chunks/UsStateCodeAlpha2-sRkxuwjy.js",
-        "/build/chunks/form-schema-utils-CKHKKg7G.js",
-        "/build/chunks/link-button-Dgv_yPAf.js",
-        "/build/chunks/use-self-cancel-interval-BgB7hfvd.js",
-        "/build/chunks/use-typed-explicit-fetcher-fhEyK6eX.js",
-        "/build/chunks/auth-form-validation-C7l7Lp9m.js",
-        "/build/chunks/app-integration-loading-D3uWt4C6.js",
-        "/build/chunks/auth-window-messenger-DvswJzyt.js",
-        "/build/chunks/use-external-wallet-dcgxeJzM.js",
-        "/build/chunks/divider-Bx5FVaq5.js",
-        "/build/chunks/page-error-content-beLpRn94.js",
-        "/build/chunks/errors-Bt-IsbGS.js"
-      ],
-      "css": []
-    },
-    "routes/__root/d/$id": {
-      "id": "routes/__root/d/$id",
-      "parentId": "routes/__root",
-      "path": "d/:id",
-      "hasAction": false,
-      "hasLoader": true,
-      "hasClientAction": false,
-      "hasClientLoader": false,
-      "hasClientMiddleware": false,
-      "hasDefaultExport": true,
-      "hasErrorBoundary": false,
-      "module": "/build/chunks/entry/_id-C1I2UVlI.js",
-      "imports": [
-        "/build/chunks/chunk-4N6VE7H7-CYH4PXiQ.js",
-        "/build/chunks/jsx-runtime-D_zvdyIk.js",
-        "/build/chunks/shell-layout-aside-65Zf2JuP.js",
-        "/build/chunks/file-sharing-provider-NtsXpuMT.js",
-        "/build/chunks/page-column-layout-DWZQyDxP.js",
-        "/build/chunks/get-default-seo-preview-image-19rrZO0W.js",
-        "/build/chunks/page-error-content-beLpRn94.js",
-        "/build/chunks/page-error-404-Ba3LfCNG.js",
-        "/build/chunks/default-shell-layout-GstI-jbb.js",
-        "/build/chunks/index-5zs3RZdd.js",
-        "/build/chunks/get-api-DWzc_bBF.js",
-        "/build/chunks/runtime-2_b2CLRu.js",
-        "/build/chunks/runtime-a9fv597q.js",
-        "/build/chunks/feedback-tooltip-DnQoTtgx.js",
-        "/build/chunks/resolve-to-node-Bl44lgnH.js",
-        "/build/chunks/alert-Bsob527P.js",
-        "/build/chunks/content-item-name-BgJnKYk_.js",
-        "/build/chunks/use-self-cancel-timeout-DCHuMrr-.js",
-        "/build/chunks/navigation-link-De5ItD8a.js",
-        "/build/chunks/shared-DwIwScEe.js",
-        "/build/chunks/file-name-D6aW1GMb.js",
-        "/build/chunks/form-schema-utils-CKHKKg7G.js",
-        "/build/chunks/modal-content-window-title-header-DByhHMtf.js",
-        "/build/chunks/form-validation-BmVkRcjs.js",
-        "/build/chunks/button-CB2fQLpx.js",
-        "/build/chunks/types-CeqL-daw.js",
-        "/build/chunks/focus-visible-outline-CA5WDHp1.js",
-        "/build/chunks/base-button-BOVQiXV3.js",
-        "/build/chunks/use-controlled-state-6BKWRsRt.js",
-        "/build/chunks/use-state-ref-0aYGV7fB.js",
-        "/build/chunks/navigation-tabs-BJf4kUpl.js",
-        "/build/chunks/mgid-slot-DhBerfc6.js",
-        "/build/chunks/env-context-DebTkedx.js",
-        "/build/chunks/use-callback-ref-CJ9SODNh.js",
-        "/build/chunks/noop-BjFrJKj1.js",
-        "/build/chunks/mgid-BClyNFEN.js",
-        "/build/chunks/api-context-7msjQt-g.js",
-        "/build/chunks/user-context-H9i7VnPA.js",
-        "/build/chunks/creator-name-CiLx5-S8.js",
-        "/build/chunks/use-const-CyuDI2Jw.js",
-        "/build/chunks/get-sharing-bucket-expiration-label-BxASTJP2.js",
-        "/build/chunks/format-1NPDPTzm.js",
-        "/build/chunks/auth-form-BNw1-pAv.js",
-        "/build/chunks/result-BtcenhOc.js",
-        "/build/chunks/date-time-D44bRngG.js",
-        "/build/chunks/client-only-CnbT09nL.js",
-        "/build/chunks/VerificationStatusEnum-BMWjV5ER.js",
-        "/build/chunks/AccountSubscriptionTier-Cz37hh3K.js",
-        "/build/chunks/UsStateCodeAlpha2-sRkxuwjy.js",
-        "/build/chunks/link-button-Dgv_yPAf.js",
-        "/build/chunks/root-data-from-meta-_uWRppwb.js",
-        "/build/chunks/CryptoCurrency-C8i-2yC7.js",
-        "/build/chunks/format-crypto-currency-DU9teVm2.js",
-        "/build/chunks/tab-button-Ds5-Xr2w.js",
-        "/build/chunks/toggle-group-BSQQLJtK.js",
-        "/build/chunks/error-CNFYeXfL.js",
-        "/build/chunks/preload-helper-ckwbz45p.js",
-        "/build/chunks/create-lazy-singleton-cLopSc4o.js",
-        "/build/chunks/limewire-logo-Dqzw9EF0.js",
-        "/build/chunks/tooltip-Dh-GCyoz.js",
-        "/build/chunks/CompositeItem-C2QJYDDY.js",
-        "/build/chunks/arrow-right-icon-CJx94PN2.js",
-        "/build/chunks/use-logout-DTFjcmcZ.js",
-        "/build/chunks/use-typed-explicit-fetcher-fhEyK6eX.js",
-        "/build/chunks/creator-834ASwQB.js",
-        "/build/chunks/use-copyright-Dc7D5n5M.js",
-        "/build/chunks/app-integration-provider-4-SaOz_c.js",
-        "/build/chunks/app-integration-loading-D3uWt4C6.js",
-        "/build/chunks/use-self-cancel-interval-BgB7hfvd.js",
-        "/build/chunks/createFormData-6W1bV2BK.js",
-        "/build/chunks/auth-context-DVtKf2vI.js",
-        "/build/chunks/asset-aspect-ratio-CFxZTYNK.js",
-        "/build/chunks/index-CWrIKnBx.js",
-        "/build/chunks/authenticity-token-CFgl6Z4h.js",
-        "/build/chunks/auth-form-validation-C7l7Lp9m.js",
-        "/build/chunks/auth-window-messenger-DvswJzyt.js",
-        "/build/chunks/use-external-wallet-dcgxeJzM.js",
-        "/build/chunks/divider-Bx5FVaq5.js"
-      ],
-      "css": []
-    },
-    "routes/__root/__landing": {
-      "id": "routes/__root/__landing",
-      "parentId": "routes/__root",
-      "hasAction": false,
-      "hasLoader": true,
-      "hasClientAction": false,
-      "hasClientLoader": false,
-      "hasClientMiddleware": false,
-      "hasDefaultExport": true,
-      "hasErrorBoundary": false,
-      "module": "/build/chunks/entry/__landing-Cahq9YEn.js",
-      "imports": [
-        "/build/chunks/__landing-wPXq_Oql.js",
-        "/build/chunks/chunk-4N6VE7H7-CYH4PXiQ.js",
-        "/build/chunks/jsx-runtime-D_zvdyIk.js",
-        "/build/chunks/forward-platform-action-cZbimJfK.js",
-        "/build/chunks/index-5zs3RZdd.js",
-        "/build/chunks/link-button-Dgv_yPAf.js",
-        "/build/chunks/base-button-BOVQiXV3.js",
-        "/build/chunks/focus-visible-outline-CA5WDHp1.js",
-        "/build/chunks/runtime-a9fv597q.js",
-        "/build/chunks/get-sharing-bucket-expiration-label-BxASTJP2.js",
-        "/build/chunks/auth-form-BNw1-pAv.js",
-        "/build/chunks/file-sharing-provider-NtsXpuMT.js",
-        "/build/chunks/get-api-DWzc_bBF.js",
-        "/build/chunks/runtime-2_b2CLRu.js",
-        "/build/chunks/result-BtcenhOc.js",
-        "/build/chunks/VerificationStatusEnum-BMWjV5ER.js",
-        "/build/chunks/AccountSubscriptionTier-Cz37hh3K.js",
-        "/build/chunks/UsStateCodeAlpha2-sRkxuwjy.js",
-        "/build/chunks/form-schema-utils-CKHKKg7G.js",
-        "/build/chunks/types-CeqL-daw.js",
-        "/build/chunks/use-state-ref-0aYGV7fB.js",
-        "/build/chunks/use-callback-ref-CJ9SODNh.js",
-        "/build/chunks/use-const-CyuDI2Jw.js",
-        "/build/chunks/modal-content-window-title-header-DByhHMtf.js",
-        "/build/chunks/use-controlled-state-6BKWRsRt.js",
-        "/build/chunks/resolve-to-node-Bl44lgnH.js",
-        "/build/chunks/noop-BjFrJKj1.js",
-        "/build/chunks/tooltip-Dh-GCyoz.js",
-        "/build/chunks/form-validation-BmVkRcjs.js",
-        "/build/chunks/alert-Bsob527P.js",
-        "/build/chunks/use-self-cancel-timeout-DCHuMrr-.js",
-        "/build/chunks/use-self-cancel-interval-BgB7hfvd.js",
-        "/build/chunks/toggle-group-BSQQLJtK.js",
-        "/build/chunks/createFormData-6W1bV2BK.js",
-        "/build/chunks/button-CB2fQLpx.js",
-        "/build/chunks/env-context-DebTkedx.js",
-        "/build/chunks/use-typed-explicit-fetcher-fhEyK6eX.js",
-        "/build/chunks/authenticity-token-CFgl6Z4h.js",
-        "/build/chunks/auth-form-validation-C7l7Lp9m.js",
-        "/build/chunks/auth-context-DVtKf2vI.js",
-        "/build/chunks/navigation-link-De5ItD8a.js",
-        "/build/chunks/app-integration-provider-4-SaOz_c.js",
-        "/build/chunks/app-integration-loading-D3uWt4C6.js",
-        "/build/chunks/client-only-CnbT09nL.js",
-        "/build/chunks/auth-window-messenger-DvswJzyt.js",
-        "/build/chunks/use-external-wallet-dcgxeJzM.js",
-        "/build/chunks/preload-helper-ckwbz45p.js",
-        "/build/chunks/create-lazy-singleton-cLopSc4o.js",
-        "/build/chunks/divider-Bx5FVaq5.js",
-        "/build/chunks/CryptoCurrency-C8i-2yC7.js",
-        "/build/chunks/file-name-D6aW1GMb.js",
-        "/build/chunks/content-item-name-BgJnKYk_.js",
-        "/build/chunks/arrow-right-icon-CJx94PN2.js",
-        "/build/chunks/feedback-tooltip-DnQoTtgx.js",
-        "/build/chunks/dropdown-menu-item-Db0oH43Q.js",
-        "/build/chunks/CompositeItem-C2QJYDDY.js",
-        "/build/chunks/file-descriptor-CGrQeZua.js",
-        "/build/chunks/format-1NPDPTzm.js",
-        "/build/chunks/index-CWrIKnBx.js",
-        "/build/chunks/StripeModal-D_zJSTg3.js",
-        "/build/chunks/user-context-H9i7VnPA.js",
-        "/build/chunks/format-crypto-currency-DU9teVm2.js",
-        "/build/chunks/error-CNFYeXfL.js",
-        "/build/chunks/shell-layout-aside-65Zf2JuP.js",
-        "/build/chunks/mgid-slot-DhBerfc6.js",
-        "/build/chunks/mgid-BClyNFEN.js",
-        "/build/chunks/date-time-D44bRngG.js",
-        "/build/chunks/default-shell-layout-GstI-jbb.js",
-        "/build/chunks/tab-button-Ds5-Xr2w.js",
-        "/build/chunks/api-context-7msjQt-g.js",
-        "/build/chunks/creator-name-CiLx5-S8.js",
-        "/build/chunks/asset-aspect-ratio-CFxZTYNK.js",
-        "/build/chunks/shared-DwIwScEe.js",
-        "/build/chunks/limewire-logo-Dqzw9EF0.js",
-        "/build/chunks/use-logout-DTFjcmcZ.js",
-        "/build/chunks/creator-834ASwQB.js",
-        "/build/chunks/use-copyright-Dc7D5n5M.js",
-        "/build/chunks/navigation-tabs-BJf4kUpl.js",
-        "/build/chunks/share-nearby-provider-CwuMIupI.js",
-        "/build/chunks/copy-input-0I8Jahig.js",
-        "/build/chunks/script-EPnTUGRP.js",
-        "/build/chunks/page-column-layout-DWZQyDxP.js"
-      ],
-      "css": []
-    },
-    "routes/__root/__landing/index": {
-      "id": "routes/__root/__landing/index",
-      "parentId": "routes/__root/__landing",
-      "index": true,
-      "hasAction": false,
-      "hasLoader": true,
-      "hasClientAction": false,
-      "hasClientLoader": false,
-      "hasClientMiddleware": false,
-      "hasDefaultExport": true,
-      "hasErrorBoundary": false,
-      "module": "/build/chunks/entry/index-DOPVeHiG.js",
-      "imports": [
-        "/build/chunks/chunk-4N6VE7H7-CYH4PXiQ.js",
-        "/build/chunks/get-default-seo-preview-image-19rrZO0W.js",
-        "/build/chunks/root-data-from-meta-_uWRppwb.js"
-      ],
-      "css": []
-    }
-  },
-  "url": "/build/assets/manifest-06151e2d.js",
-  "version": "06151e2d"
-};
-  window.__reactRouterRouteModules = {"root":route0,"routes/__root":route1,"routes/__root/d/$id":route2};
+/**
+ * CybersecurityNetworkMap.tsx
+ * Remotion composition — 4K (3840×2160), 60 fps, 15 s (900 frames), perfect loop.
+ * Adobe-Stock-ready motion-graphics background.
+ *
+ * Usage:
+ *   1. npm install remotion react react-dom
+ *   2. Register this composition in your remotion.config.ts / Root.tsx:
+ *        <Composition id="CybersecurityNetworkMap" component={CybersecurityNetworkMap}
+ *                     width={3840} height={2160} fps={60} durationInFrames={900} />
+ *   3. npx remotion render CybersecurityNetworkMap out/cybersecurity.mp4
+ */
 
-import("/build/chunks/entry/entry.client-h-8J_f_U.js");</script><script>((storageKey2, restoreKey) => {
-    if (!window.history.state || !window.history.state.key) {
-      let key = Math.random().toString(32).slice(2);
-      window.history.replaceState({ key }, "");
-    }
-    try {
-      let positions = JSON.parse(sessionStorage.getItem(storageKey2) || "{}");
-      let storedY = positions[restoreKey || window.history.state.key];
-      if (typeof storedY === "number") {
-        window.scrollTo(0, storedY);
+import React, { useMemo } from "react";
+import { useCurrentFrame, useVideoConfig } from "remotion";
+
+// ---------------------------------------------------------------------------
+// Constants & palette
+// ---------------------------------------------------------------------------
+const BG_COLOR = "#030712";
+const GRID_COLOR = "rgba(0,242,254,0.045)";
+const COLORS = {
+  cyan: "#00f2fe",
+  blue: "#4facfe",
+  purple: "#a855f7",
+  green: "#00ff88",
+};
+const NODE_COLORS = [
+  COLORS.cyan,
+  COLORS.blue,
+  COLORS.purple,
+  COLORS.green,
+  COLORS.cyan,
+  COLORS.blue,
+  COLORS.cyan,
+];
+const TOTAL_FRAMES = 900; // 15 s × 60 fps
+const NODE_COUNT = 26;
+const CONNECTION_DISTANCE_RATIO = 0.22; // fraction of width
+const GRID_COLS = 24;
+const GRID_ROWS = 14;
+
+// ---------------------------------------------------------------------------
+// Seeded pseudo-random number generator (mulberry32) — deterministic positions
+// ---------------------------------------------------------------------------
+function mulberry32(seed: number) {
+  return function () {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Node descriptor generated once at module scope
+// ---------------------------------------------------------------------------
+interface NodeDef {
+  /** base x in [0,1] */
+  bx: number;
+  /** base y in [0,1] */
+  by: number;
+  /** orbit radius as fraction of width */
+  rx: number;
+  ry: number;
+  /** full-cycle speed (radians per frame at 60 fps) */
+  speed: number;
+  /** phase offset so nodes start at different points of their orbit */
+  phase: number;
+  color: string;
+  radius: number;
+  /** secondary drift — slow sinusoidal wander */
+  driftAmp: number;
+  driftFreq: number;
+  driftPhase: number;
+}
+
+function buildNodes(): NodeDef[] {
+  const rand = mulberry32(0xdeadbeef);
+  return Array.from({ length: NODE_COUNT }, (_, i) => {
+    const color = NODE_COLORS[i % NODE_COLORS.length];
+    return {
+      bx: 0.05 + rand() * 0.9,
+      by: 0.05 + rand() * 0.9,
+      rx: 0.03 + rand() * 0.07,
+      ry: 0.02 + rand() * 0.05,
+      speed: (Math.PI * 2) / (TOTAL_FRAMES * (0.6 + rand() * 0.8)),
+      phase: rand() * Math.PI * 2,
+      color,
+      radius: 8 + rand() * 14,
+      driftAmp: 0.01 + rand() * 0.025,
+      driftFreq: (Math.PI * 2) / (TOTAL_FRAMES * (1.2 + rand() * 1.6)),
+      driftPhase: rand() * Math.PI * 2,
+    };
+  });
+}
+
+const NODE_DEFS: NodeDef[] = buildNodes();
+
+// ---------------------------------------------------------------------------
+// Compute node screen positions for a given frame
+// ---------------------------------------------------------------------------
+function getNodePositions(
+  frame: number,
+  W: number,
+  H: number
+): { x: number; y: number }[] {
+  return NODE_DEFS.map((n) => {
+    const t = frame;
+    const orbX = Math.cos(n.phase + n.speed * t) * n.rx;
+    const orbY = Math.sin(n.phase + n.speed * t * 0.7) * n.ry;
+    const driftX = Math.sin(n.driftPhase + n.driftFreq * t) * n.driftAmp;
+    const driftY =
+      Math.cos(n.driftPhase * 1.3 + n.driftFreq * t * 0.9) * n.driftAmp;
+
+    return {
+      x: (n.bx + orbX + driftX) * W,
+      y: (n.by + orbY + driftY) * H,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Background grid
+// ---------------------------------------------------------------------------
+interface GridProps {
+  width: number;
+  height: number;
+}
+const BackgroundGrid: React.FC<GridProps> = ({ width, height }) => {
+  const colW = width / GRID_COLS;
+  const rowH = height / GRID_ROWS;
+
+  const verticals = useMemo(
+    () =>
+      Array.from({ length: GRID_COLS + 1 }, (_, i) => (
+        <line
+          key={`v${i}`}
+          x1={i * colW}
+          y1={0}
+          x2={i * colW}
+          y2={height}
+          stroke={GRID_COLOR}
+          strokeWidth={1}
+        />
+      )),
+    [colW, height]
+  );
+
+  const horizontals = useMemo(
+    () =>
+      Array.from({ length: GRID_ROWS + 1 }, (_, i) => (
+        <line
+          key={`h${i}`}
+          x1={0}
+          y1={i * rowH}
+          x2={width}
+          y2={i * rowH}
+          stroke={GRID_COLOR}
+          strokeWidth={1}
+        />
+      )),
+    [rowH, width]
+  );
+
+  // Subtle cross-hair intersection dots
+  const dots = useMemo(
+    () =>
+      Array.from({ length: GRID_COLS + 1 }, (_, ci) =>
+        Array.from({ length: GRID_ROWS + 1 }, (_, ri) => (
+          <circle
+            key={`d${ci}-${ri}`}
+            cx={ci * colW}
+            cy={ri * rowH}
+            r={2}
+            fill="rgba(0,242,254,0.12)"
+          />
+        ))
+      ),
+    [colW, rowH]
+  );
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      style={{ position: "absolute", top: 0, left: 0 }}
+    >
+      <defs>
+        <radialGradient id="bgvignette" cx="50%" cy="50%" r="70%">
+          <stop offset="0%" stopColor="transparent" />
+          <stop offset="100%" stopColor="rgba(3,7,18,0.85)" />
+        </radialGradient>
+      </defs>
+      {verticals}
+      {horizontals}
+      {dots}
+      {/* Vignette layer */}
+      <rect
+        x={0}
+        y={0}
+        width={width}
+        height={height}
+        fill="url(#bgvignette)"
+      />
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Scan-line pulse — horizontal band sweeping downward on loop
+// ---------------------------------------------------------------------------
+interface ScanLineProps {
+  frame: number;
+  width: number;
+  height: number;
+}
+const ScanLine: React.FC<ScanLineProps> = ({ frame, width, height }) => {
+  const y = ((frame / TOTAL_FRAMES) * (height + 200)) % (height + 200) - 100;
+  return (
+    <svg
+      width={width}
+      height={height}
+      style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}
+    >
+      <defs>
+        <linearGradient id="scangrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="transparent" />
+          <stop offset="40%" stopColor="rgba(0,242,254,0.04)" />
+          <stop offset="50%" stopColor="rgba(0,242,254,0.12)" />
+          <stop offset="60%" stopColor="rgba(0,242,254,0.04)" />
+          <stop offset="100%" stopColor="transparent" />
+        </linearGradient>
+      </defs>
+      <rect
+        x={0}
+        y={y - 60}
+        width={width}
+        height={120}
+        fill="url(#scangrad)"
+      />
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Connection lines between nearby nodes
+// ---------------------------------------------------------------------------
+interface ConnectionsProps {
+  positions: { x: number; y: number }[];
+  width: number;
+  height: number;
+}
+const Connections: React.FC<ConnectionsProps> = ({
+  positions,
+  width,
+  height,
+}) => {
+  const maxDist = CONNECTION_DISTANCE_RATIO * width;
+
+  const lines: React.ReactNode[] = [];
+  for (let i = 0; i < positions.length; i++) {
+    for (let j = i + 1; j < positions.length; j++) {
+      const dx = positions[i].x - positions[j].x;
+      const dy = positions[i].y - positions[j].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < maxDist) {
+        const strength = 1 - dist / maxDist;
+        const opacity = strength * strength * 0.75; // quadratic fade
+        const colorA = NODE_DEFS[i].color;
+        const colorB = NODE_DEFS[j].color;
+        const gradId = `lg${i}-${j}`;
+        lines.push(
+          <defs key={`def-${i}-${j}`}>
+            <linearGradient
+              id={gradId}
+              x1={positions[i].x}
+              y1={positions[i].y}
+              x2={positions[j].x}
+              y2={positions[j].y}
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0%" stopColor={colorA} stopOpacity={opacity} />
+              <stop offset="100%" stopColor={colorB} stopOpacity={opacity} />
+            </linearGradient>
+          </defs>
+        );
+        lines.push(
+          <line
+            key={`ln-${i}-${j}`}
+            x1={positions[i].x}
+            y1={positions[i].y}
+            x2={positions[j].x}
+            y2={positions[j].y}
+            stroke={`url(#${gradId})`}
+            strokeWidth={strength * 3 + 0.5}
+            style={{
+              filter: `drop-shadow(0 0 ${Math.round(strength * 12)}px ${colorA})`,
+            }}
+          />
+        );
       }
-    } catch (error) {
-      console.error(error);
-      sessionStorage.removeItem(storageKey2);
     }
-  })("react-router-scroll-positions", null)</script><!--$--><script>window.__reactRouterContext.streamController.enqueue("[{\"_1\":2,\"_3\":-5,\"_4\":-5},\"loaderData\",{\"_5\":6,\"_7\":8},\"actionData\",\"errors\",\"routes/__root\",{\"_106\":-7,\"_107\":-5,\"_108\":-7,\"_109\":110,\"_111\":112,\"_113\":-7,\"_114\":-7,\"_115\":-5,\"_116\":36,\"_117\":-7,\"_118\":-7,\"_119\":120,\"_121\":-7,\"_122\":-5},\"routes/__root/d/$id\",{\"_9\":10,\"_11\":12},\"sharingId\",\"xZTrn\",\"sharingBucketContentData\",{\"_13\":14,\"_15\":16},\"ok\",true,\"value\",{\"_17\":18,\"_19\":20,\"_21\":22,\"_23\":14},\"sharingBucket\",{\"_25\":55,\"_82\":-7,\"_83\":84,\"_85\":86,\"_87\":88,\"_89\":90,\"_9\":10,\"_91\":26,\"_92\":93,\"_94\":63,\"_95\":96,\"_37\":97,\"_39\":98,\"_35\":36,\"_99\":100,\"_101\":102,\"_103\":102,\"_104\":36},\"contentItemList\",[52],\"fileEncryptionKeys\",[24],\"displayAds\",{\"_25\":26,\"_27\":28,\"_29\":30,\"_31\":32,\"_33\":34,\"_35\":36,\"_37\":38,\"_39\":40},\"id\",\"59a73252-2d47-4ffb-9041-c6b72cce5bda\",\"publicKey\",\"BFZt6Sm5WJOKE7I5PrTQFSv/fKNtPG80oufRdCv4+VuqpSqoZI86FJfmRwYkxStF8rG50UqypXPajOZElEdmtJ0=\",\"privateKeys\",[45],\"encryptedPassphrase\",\"b+KmrcTl4Y0qt2EsdrgwSc/rne7tSRyTReU=\",\"passphraseWrappedPrivateKey\",\"S8pOuFyarpB+Q5AIdqQiFiTkn0VJEMJujZelGdNVyA7ljXK7zaSfwA==\",\"deleted\",false,\"createdDate\",[\"D\",1790300040550],\"lastModifiedTimestamp\",{\"_41\":42,\"_43\":44},\"time\",1790300143,\"increment\",31,{\"_46\":47,\"_48\":49,\"_50\":51},\"encryptedPrivateKey\",\"xtgFMPVabkfvz5jPn6aROhXeoG+WfxXsR6GHwDJBQx6WXT62SR9Clg==\",\"encryptedByKeyType\",\"USER_ENCRYPTION_KEY\",\"encryptedByKeyId\",\"47e02f1d-0534-446e-8462-61ac338a95fb\",{\"_25\":53,\"_54\":55,\"_56\":57,\"_58\":59,\"_60\":61,\"_62\":63,\"_64\":65,\"_66\":67,\"_68\":26,\"_69\":70,\"_71\":72,\"_73\":74,\"_75\":-7,\"_37\":76,\"_39\":77,\"_35\":36},\"7178c8ae-0dbc-4885-aacc-a0378d655b78\",\"originalSharingBucketId\",\"c0d18472-973b-4d36-a349-554fa069c4a0\",\"s3Status\",\"UPLOADED\",\"itemType\",\"OTHER\",\"mediaType\",\"text/typescript\",\"size\",20298,\"nameEncrypted\",\"ZGcEueOYJ0/hO537BbMC027GZ5guqSIBBlLkTbtflQI=\",\"sha1Encrypted\",\"RL6axqh3dyQikXLKCVPpbZWOhzqJWi6Qq/ut4Zri0CKZLtGB\",\"baseFileEncryptionKeyId\",\"ephemeralPublicKey\",\"BMGVm94H3fyJlcPVPcBSH2/zH3iBf0Q94v/rXm0IH4aO0WFIXAHmbmhMERTlRbqj6kwgkghp0mOfPhP2ZPY9EiM=\",\"metadata\",{\"_80\":81},\"previews\",[],\"nsfw\",[\"D\",1790300041870],{\"_41\":78,\"_43\":79},1790300126,10,\"metadataType\",\"unknown\",\"ownerId\",\"clientDeviceId\",\"7fc6509e-7e77-43f8-850c-4726e3166bde\",\"ownerNick\",\"anonymous\",\"sharingStatus\",\"SHARED\",\"sharingPermission\",\"VIEWER\",\"primaryEncryptionKeyId\",\"contentItemIds\",[53],\"totalFileSize\",\"name\",\"CyberNetwork.tsx\",[\"D\",1790300041869],{\"_41\":42,\"_43\":105},\"expiresAt\",[\"D\",1790559241869],\"downloadCounter\",0,\"publicDownloadCounter\",\"pinned\",29,\"promotionBanner\",\"platformBanner\",\"cacheId\",\"env\",{\"_129\":130,\"_131\":132,\"_133\":36,\"_134\":36,\"_135\":136,\"_137\":132,\"_138\":139,\"_140\":141,\"_142\":143,\"_144\":145,\"_146\":147,\"_148\":149,\"_150\":151,\"_152\":153},\"csrfToken\",\"2BmjMdpkJWuoeM0npYluo5yOahkFu5n5u86UwuqSF7Wur9ule-KlQUJFRmOlwOsl7N3Qo2nLoQijHy4ttSl1KA\",\"selfClientId\",\"selfCsrf\",\"referrer\",\"isAuthenticated\",\"self\",\"lmwrBalance\",\"lmwrExchangeRates\",{\"_123\":124,\"_125\":126,\"_127\":128},\"aiCredits\",\"appIntegration\",\"currency\",\"LMWR\",\"exchangeRate\",0.010255949684859452,\"percentageChange24h\",-2.97336509,\"NOW\",[\"D\",1790301232343],\"CLIENT_BASE_URL\",\"https://limewire.com\",\"IS_DEV\",\"IS_STAGING\",\"API_BASE_URL\",\"https://api.limewire.com\",\"CANONICAL_BASE_URL\",\"LIMEWIRE_FREE_USER_ID\",\"7f219511-0a09-403c-a94b-caa56419b5f8\",\"LIMEWIRE_PRO_USER_ID\",\"1e2c66a9-7073-499b-86fb-b134a088ce44\",\"SENTRY_DSN\",\"https://3914d239cc544007a8bc3b33c2e276e7:375389f9b8fc4a58aac7ddf053335cd6@o4505008135340032.ingest.sentry.io/4505114707099648\",\"SENTRY_ENVIRONMENT\",\"production\",\"SENTRY_PROJECT\",\"limewire-js-remix\",\"GIT_RELEASE\",\"f85f0ca344014a7d746fa6a78746a729ef7e2e8f\",\"STORYBLOCK_SPACE_ACCESS_TOKEN\",\"jmGRmWycHD5MvliLQXFkXAtt\",\"TURNSTILE_SITEKEY\",\"0x4AAAAAAEVmA3xwky6ar3WJ\"]\n");</script><!--$--><script>window.__reactRouterContext.streamController.close();</script><!--/$--><!--/$--></body></html>
+  }
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      style={{ position: "absolute", top: 0, left: 0, overflow: "visible" }}
+    >
+      {lines}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Data-packet dashes traveling along active edges
+// ---------------------------------------------------------------------------
+interface PacketsProps {
+  positions: { x: number; y: number }[];
+  frame: number;
+  width: number;
+}
+const DataPackets: React.FC<PacketsProps> = ({ positions, frame, width }) => {
+  const maxDist = CONNECTION_DISTANCE_RATIO * width;
+  const packets: React.ReactNode[] = [];
+
+  // Only render a subset of edges that have an active packet to keep it sparse
+  let edgeIdx = 0;
+  for (let i = 0; i < positions.length; i++) {
+    for (let j = i + 1; j < positions.length; j++) {
+      const dx = positions[i].x - positions[j].x;
+      const dy = positions[i].y - positions[j].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < maxDist) {
+        // Each edge gets its own phase offset based on index so they travel at different times
+        const edgePhase = edgeIdx * 137.508; // golden angle distribution
+        const t = ((frame + edgePhase) % TOTAL_FRAMES) / TOTAL_FRAMES;
+        // Only show packet 30% of the time per edge
+        const showWindow = (t * 3.3) % 1;
+        if (showWindow < 0.3) {
+          const progress = showWindow / 0.3;
+          const px = positions[i].x + (positions[j].x - positions[i].x) * progress;
+          const py = positions[i].y + (positions[j].y - positions[i].y) * progress;
+          const color = NODE_DEFS[i].color;
+          packets.push(
+            <circle
+              key={`pkt-${i}-${j}`}
+              cx={px}
+              cy={py}
+              r={5}
+              fill={color}
+              opacity={0.9}
+              style={{ filter: `drop-shadow(0 0 10px ${color})` }}
+            />
+          );
+        }
+        edgeIdx++;
+      }
+    }
+  }
+
+  return (
+    <svg
+      width={width}
+      height={2160}
+      style={{ position: "absolute", top: 0, left: 0, overflow: "visible", height: "100%" }}
+    >
+      {packets}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Individual glowing node
+// ---------------------------------------------------------------------------
+interface NodeProps {
+  x: number;
+  y: number;
+  def: NodeDef;
+  frame: number;
+}
+const Node: React.FC<NodeProps> = ({ x, y, def, frame }) => {
+  // Pulse the outer ring brightness on a per-node cycle
+  const pulse =
+    0.5 + 0.5 * Math.sin(def.phase + (frame * Math.PI * 2) / (TOTAL_FRAMES * 0.4));
+  const outerOpacity = 0.15 + pulse * 0.35;
+  const innerOpacity = 0.7 + pulse * 0.3;
+  const glowRadius = def.radius * (1.8 + pulse * 0.8);
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      {/* Outer glow ring */}
+      <circle
+        r={glowRadius}
+        fill={def.color}
+        opacity={outerOpacity * 0.25}
+      />
+      {/* Mid glow */}
+      <circle
+        r={def.radius * 1.4}
+        fill={def.color}
+        opacity={outerOpacity * 0.5}
+        style={{ filter: `blur(${def.radius * 0.6}px)` }}
+      />
+      {/* Core dot */}
+      <circle
+        r={def.radius}
+        fill={def.color}
+        opacity={innerOpacity}
+        style={{
+          filter: `drop-shadow(0 0 ${Math.round(def.radius * 1.2)}px ${def.color})`,
+        }}
+      />
+      {/* Bright specular highlight */}
+      <circle
+        r={def.radius * 0.4}
+        fill="white"
+        opacity={0.55 + pulse * 0.2}
+        cx={-def.radius * 0.2}
+        cy={-def.radius * 0.2}
+      />
+    </g>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Floating hex labels (decorative data readouts near some nodes)
+// ---------------------------------------------------------------------------
+interface HexLabelProps {
+  x: number;
+  y: number;
+  frame: number;
+  idx: number;
+  color: string;
+}
+const HEX_STRINGS = [
+  "0xA3F2", "192.168.1.1", "::1/128", "TLS1.3", "SHA-256",
+  "RSA-4096", "0xDEAD", "AES-GCM", "JWT", "0xFF00",
+  "HMAC", "ECDSA", "VPN", "0x7F01", "BGP/AS",
+];
+const HexLabel: React.FC<HexLabelProps> = ({ x, y, frame, idx, color }) => {
+  const fade =
+    0.3 +
+    0.4 *
+      Math.abs(
+        Math.sin(idx * 1.3 + (frame * Math.PI * 2) / (TOTAL_FRAMES * 0.9))
+      );
+  const label = HEX_STRINGS[idx % HEX_STRINGS.length];
+  return (
+    <text
+      x={x + 18}
+      y={y - 8}
+      fill={color}
+      opacity={fade}
+      fontSize={22}
+      fontFamily="'Courier New', monospace"
+      fontWeight="600"
+      style={{ filter: `drop-shadow(0 0 6px ${color})` }}
+    >
+      {label}
+    </text>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Corner UI chrome elements
+// ---------------------------------------------------------------------------
+const CornerChrome: React.FC<{ width: number; height: number; frame: number }> = ({
+  width,
+  height,
+  frame,
+}) => {
+  const blink = frame % 90 < 45 ? 1 : 0.3;
+  const scan = ((frame / TOTAL_FRAMES) * 100).toFixed(1);
+
+  const cornerSize = 80;
+  const strokeW = 3;
+  const C = COLORS.cyan;
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}
+    >
+      {/* Top-left corner bracket */}
+      <path
+        d={`M ${cornerSize} 40 L 40 40 L 40 ${cornerSize}`}
+        stroke={C}
+        strokeWidth={strokeW}
+        fill="none"
+        opacity={0.7}
+      />
+      {/* Top-right corner bracket */}
+      <path
+        d={`M ${width - cornerSize} 40 L ${width - 40} 40 L ${width - 40} ${cornerSize}`}
+        stroke={C}
+        strokeWidth={strokeW}
+        fill="none"
+        opacity={0.7}
+      />
+      {/* Bottom-left corner bracket */}
+      <path
+        d={`M ${cornerSize} ${height - 40} L 40 ${height - 40} L 40 ${height - cornerSize}`}
+        stroke={C}
+        strokeWidth={strokeW}
+        fill="none"
+        opacity={0.7}
+      />
+      {/* Bottom-right corner bracket */}
+      <path
+        d={`M ${width - cornerSize} ${height - 40} L ${width - 40} ${height - 40} L ${width - 40} ${height - cornerSize}`}
+        stroke={C}
+        strokeWidth={strokeW}
+        fill="none"
+        opacity={0.7}
+      />
+
+      {/* Status text top-left */}
+      <text
+        x={60}
+        y={110}
+        fill={C}
+        opacity={0.6}
+        fontSize={28}
+        fontFamily="'Courier New', monospace"
+      >
+        NETWORK MONITOR v2.1
+      </text>
+      <text
+        x={60}
+        y={155}
+        fill={C}
+        opacity={0.4}
+        fontSize={22}
+        fontFamily="'Courier New', monospace"
+      >
+        NODES: {NODE_COUNT} | SCAN: {scan}%
+      </text>
+
+      {/* Blinking REC dot top-right */}
+      <circle
+        cx={width - 100}
+        cy={90}
+        r={16}
+        fill="#ef4444"
+        opacity={blink * 0.85}
+      />
+      <text
+        x={width - 74}
+        y={98}
+        fill="#ef4444"
+        opacity={blink * 0.85}
+        fontSize={26}
+        fontFamily="'Courier New', monospace"
+        fontWeight="700"
+      >
+        ● LIVE
+      </text>
+
+      {/* Bottom status bar */}
+      <rect
+        x={40}
+        y={height - 90}
+        width={width - 80}
+        height={2}
+        fill={C}
+        opacity={0.2}
+      />
+      <text
+        x={60}
+        y={height - 55}
+        fill={C}
+        opacity={0.35}
+        fontSize={22}
+        fontFamily="'Courier New', monospace"
+      >
+        SECURE CHANNEL ACTIVE | ENCRYPTION: AES-256-GCM | LATENCY: {(12 + Math.sin(frame * 0.05) * 3).toFixed(1)}ms
+      </text>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Radial burst emitting from center occasionally
+// ---------------------------------------------------------------------------
+const RadialBurst: React.FC<{ width: number; height: number; frame: number }> = ({
+  width,
+  height,
+  frame,
+}) => {
+  // A burst fires every ~300 frames, lasts ~80 frames
+  const CYCLE = 300;
+  const DURATION = 80;
+  const phase = frame % CYCLE;
+  if (phase > DURATION) return null;
+
+  const progress = phase / DURATION;
+  const maxRadius = Math.sqrt(width * width + height * height) * 0.55;
+  const radius = progress * maxRadius;
+  const opacity = (1 - progress) * 0.12;
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}
+    >
+      <circle
+        cx={width / 2}
+        cy={height / 2}
+        r={radius}
+        stroke={COLORS.cyan}
+        strokeWidth={4}
+        fill="none"
+        opacity={opacity}
+      />
+      <circle
+        cx={width / 2}
+        cy={height / 2}
+        r={radius * 0.85}
+        stroke={COLORS.blue}
+        strokeWidth={2}
+        fill="none"
+        opacity={opacity * 0.5}
+      />
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Main composition
+// ---------------------------------------------------------------------------
+export const CybersecurityNetworkMap: React.FC = () => {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+
+  // Node positions computed every frame (cheap math, no state)
+  const positions = getNodePositions(frame, width, height);
+
+  // Which nodes get hex labels (every 3rd node to avoid clutter)
+  const labelIndices = useMemo(
+    () => NODE_DEFS.map((_, i) => i).filter((i) => i % 3 === 0),
+    []
+  );
+
+  return (
+    <div
+      style={{
+        width,
+        height,
+        background: BG_COLOR,
+        position: "relative",
+        overflow: "hidden",
+        fontFamily: "'Courier New', monospace",
+      }}
+    >
+      {/* 1 — Background grid */}
+      <BackgroundGrid width={width} height={height} />
+
+      {/* 2 — Connection lines */}
+      <Connections positions={positions} width={width} height={height} />
+
+      {/* 3 — Data packets traveling along edges */}
+      <DataPackets positions={positions} frame={frame} width={width} />
+
+      {/* 4 — Nodes SVG layer */}
+      <svg
+        width={width}
+        height={height}
+        style={{ position: "absolute", top: 0, left: 0, overflow: "visible" }}
+      >
+        {positions.map((pos, i) => (
+          <Node
+            key={i}
+            x={pos.x}
+            y={pos.y}
+            def={NODE_DEFS[i]}
+            frame={frame}
+          />
+        ))}
+
+        {/* Hex labels on selected nodes */}
+        {labelIndices.map((i) => (
+          <HexLabel
+            key={`lbl-${i}`}
+            x={positions[i].x}
+            y={positions[i].y}
+            frame={frame}
+            idx={i}
+            color={NODE_DEFS[i].color}
+          />
+        ))}
+      </svg>
+
+      {/* 5 — Scan line sweep */}
+      <ScanLine frame={frame} width={width} height={height} />
+
+      {/* 6 — Radial burst pulse */}
+      <RadialBurst width={width} height={height} frame={frame} />
+
+      {/* 7 — Corner chrome / HUD */}
+      <CornerChrome width={width} height={height} frame={frame} />
+    </div>
+  );
+};
+
+export default CybersecurityNetworkMap;
