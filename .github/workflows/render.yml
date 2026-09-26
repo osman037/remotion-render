@@ -72,6 +72,9 @@ jobs:
 
       - run: npm i
 
+      - name: 🔧 Install FFmpeg
+        run: sudo apt-get install -y ffmpeg
+
       - name: 🎬 Render ${{ matrix.id }}
         run: |
           mkdir -p out
