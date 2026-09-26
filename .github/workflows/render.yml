@@ -65,28 +65,92 @@ jobs:
 
     steps:
       - uses: actions/checkout@main
+
       - uses: actions/setup-node@main
         with:
           node-version: '20'
+
       - run: npm i
 
       - name: 🎬 Render ${{ matrix.id }}
         run: |
           mkdir -p out
+
           npx remotion render \
             "${{ matrix.id }}" \
-            "out/${{ matrix.id }}.mp4" \
+            "out/${{ matrix.id }}_raw.mp4" \
             --width=${{ github.event.inputs.width || 3840 }} \
             --height=${{ github.event.inputs.height || 2160 }} \
             --fps=${{ github.event.inputs.fps || 60 }} \
             --frames=0-${{ needs.prepare.outputs.last_frame }} \
             --codec=h264 \
-            --crf=18 \
+            --crf=1 \
             --pixel-format=yuv420p \
+            --muted \
             --concurrency=2
+
+          # ── Re-encode to Adobe Stock spec: 40 Mbps, no audio ──────────────
+          # CRF=1 gives near-lossless source; ffmpeg pass gives exact bitrate
+          ffmpeg -y \
+            -i "out/${{ matrix.id }}_raw.mp4" \
+            -c:v libx264 \
+            -b:v 40M \
+            -maxrate 45M \
+            -bufsize 80M \
+            -profile:v high \
+            -level:v 5.2 \
+            -pix_fmt yuv420p \
+            -movflags +faststart \
+            -an \
+            "out/${{ matrix.id }}.mp4"
+
+          # ── Verify output with ffprobe ─────────────────────────────────────
+          echo "=== Output file info ==="
+          ffprobe -v quiet -print_format json -show_format -show_streams \
+            "out/${{ matrix.id }}.mp4" | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          fmt = d['format']
+          streams = d['streams']
+          vid = next((s for s in streams if s['codec_type'] == 'video'), None)
+          aud = next((s for s in streams if s['codec_type'] == 'audio'), None)
+
+          size_mb  = int(fmt['size']) / 1024 / 1024
+          duration = float(fmt['duration'])
+          bitrate  = int(fmt.get('bit_rate', 0)) / 1_000_000
+
+          print(f'File:       {fmt[\"filename\"]}')
+          print(f'Size:       {size_mb:.1f} MB')
+          print(f'Duration:   {duration:.2f}s')
+          print(f'Bitrate:    {bitrate:.2f} Mbps')
+          print(f'Resolution: {vid[\"width\"]}x{vid[\"height\"]}')
+          print(f'FPS:        {vid[\"r_frame_rate\"]}')
+          print(f'Codec:      {vid[\"codec_name\"]} {vid[\"profile\"]}')
+          print(f'Audio:      {\"NONE ✅\" if aud is None else \"PRESENT ❌ \" + aud[\"codec_name\"]}')
+
+          # Fail the job if quality checks don't pass
+          errors = []
+          if bitrate < 30:
+              errors.append(f'Bitrate too low: {bitrate:.1f} Mbps (need ≥30 Mbps)')
+          if vid[\"width\"] != ${{ github.event.inputs.width || 3840 }}:
+              errors.append(f'Wrong width: {vid[\"width\"]}')
+          if aud is not None:
+              errors.append('Audio stream present — must be muted for Adobe Stock')
+          if errors:
+              print()
+              for e in errors:
+                  print(f'❌ FAIL: {e}')
+              sys.exit(1)
+          else:
+              print()
+              print('✅ All Adobe Stock quality checks passed!')
+          "
+
+          # Remove raw intermediate file
+          rm "out/${{ matrix.id }}_raw.mp4"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: "${{ matrix.id }}_${{ github.event.inputs.width || 3840 }}x${{ github.event.inputs.height || 2160 }}_${{ github.event.inputs.fps || 60 }}fps"
+          name: "${{ matrix.id }}_4K_60fps_AdobeStock"
           path: "out/${{ matrix.id }}.mp4"
           retention-days: 2
