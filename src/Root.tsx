@@ -1,31 +1,37 @@
 import React from "react";
 import { Composition } from "remotion";
-import { CSRDMaterialityMatrix } from "./compositions/comp0";
-import { CBAMCertificateFlow } from "./compositions/comp1";
-import { AIAgentOrchestration } from "./compositions/comp2";
-import { EIAIActCompliance } from "./compositions/comp3";
-import { NIS2IncidentReporting } from "./compositions/comp4";
-import { ZeroTrustAccessFlow } from "./compositions/comp5";
-import { StablecoinPaymentRail } from "./compositions/comp6";
-import { RAGPipelineFlow } from "./compositions/comp7";
-import { FinOpsCloudDashboard } from "./compositions/comp8";
-import { RemotePatientMonitoring } from "./compositions/comp9";
-import { DistributedTracingWaterfall } from "./compositions/comp10";
-import { MFAExpiryTimer } from "./compositions/comp11";
+import { CheckoutPaymentFlow } from "./compositions/comp0";
+import { InsuranceClaimJourney } from "./compositions/comp1";
+import { ParcelRouteTracking } from "./compositions/comp2";
+import { SmartHomeEnergyFlow } from "./compositions/comp3";
+import { DonationThermometer } from "./compositions/comp4";
+import { StudyTimerOverlay } from "./compositions/comp5";
+import { RankingRaceCharts } from "./compositions/comp6";
+import { TravelPriceTrends } from "./compositions/comp7";
+import { WellnessTrackingDashboard } from "./compositions/comp8";
+import { ProjectTimelineGantt } from "./compositions/comp9";
+import { MLTrainingDashboard } from "./compositions/comp10";
+import { FinancialNewsGraphics } from "./compositions/comp11";
+import { EconomicIndicatorInfographics } from "./compositions/comp12";
+import { TourismStatisticsInfographics } from "./compositions/comp13";
+import { AIAnalyticsOverlay } from "./compositions/comp14";
 
 export const RemotionRoot: React.FC = () => (
   <>
-    <Composition id="CSRDMaterialityMatrix" component={CSRDMaterialityMatrix} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="CBAMCertificateFlow" component={CBAMCertificateFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="AIAgentOrchestration" component={AIAgentOrchestration} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="EIAIActCompliance" component={EIAIActCompliance} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="NIS2IncidentReporting" component={NIS2IncidentReporting} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="ZeroTrustAccessFlow" component={ZeroTrustAccessFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="StablecoinPaymentRail" component={StablecoinPaymentRail} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="RAGPipelineFlow" component={RAGPipelineFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="FinOpsCloudDashboard" component={FinOpsCloudDashboard} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="RemotePatientMonitoring" component={RemotePatientMonitoring} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="DistributedTracingWaterfall" component={DistributedTracingWaterfall} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="MFAExpiryTimer" component={MFAExpiryTimer} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="CheckoutPaymentFlow" component={CheckoutPaymentFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="InsuranceClaimJourney" component={InsuranceClaimJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="ParcelRouteTracking" component={ParcelRouteTracking} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="SmartHomeEnergyFlow" component={SmartHomeEnergyFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="DonationThermometer" component={DonationThermometer} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="StudyTimerOverlay" component={StudyTimerOverlay} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="RankingRaceCharts" component={RankingRaceCharts} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="TravelPriceTrends" component={TravelPriceTrends} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="WellnessTrackingDashboard" component={WellnessTrackingDashboard} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="ProjectTimelineGantt" component={ProjectTimelineGantt} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="MLTrainingDashboard" component={MLTrainingDashboard} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="FinancialNewsGraphics" component={FinancialNewsGraphics} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="EconomicIndicatorInfographics" component={EconomicIndicatorInfographics} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="TourismStatisticsInfographics" component={TourismStatisticsInfographics} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="AIAnalyticsOverlay" component={AIAnalyticsOverlay} width={3840} height={2160} fps={60} durationInFrames={900} />
   </>
 );
