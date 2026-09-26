@@ -1,19 +1,18 @@
 /**
- * CSRDMaterialityMatrix.tsx
+ * CheckoutPaymentFlow.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * CSRD Double Materiality Matrix: an ESG sustainability-reporting dashboard
- * animating 14 ESG topics onto an impact x financial materiality scatter
- * matrix, with 60% threshold lines, quadrant labels, an ESRS assessment
- * progress panel, and a 2025-2028 reporting timeline.
+ * A premium secure-checkout sequence: order summary -> card payment ->
+ * authorization processing -> approved confirmation with receipt.
  *
  * Register in Root.tsx:
- *   <Composition id="CSRDMaterialityMatrix" component={CSRDMaterialityMatrix}
+ *   <Composition id="CheckoutPaymentFlow" component={CheckoutPaymentFlow}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
 import React, {useMemo} from 'react';
 import {
   AbsoluteFill,
+  Easing,
   interpolate,
   spring,
   useCurrentFrame,
@@ -23,967 +22,852 @@ import {
 // ---------------------------------------------------------------------------
 // Palette
 // ---------------------------------------------------------------------------
-const BG = '#060D0A';
-const INK = '#EAF4EF';
-const MUTED = 'rgba(204,225,214,0.62)';
-const FAINT = 'rgba(204,225,214,0.34)';
+const BG = '#060A13';
+const PANEL = 'rgba(13, 20, 36, 0.88)';
+const HAIRLINE = 'rgba(148, 163, 184, 0.22)';
+const INK = '#EAF0FA';
+const MUTED = 'rgba(190, 203, 224, 0.66)';
+const FAINT = 'rgba(148, 163, 184, 0.38)';
 const EMERALD = '#34D399';
-const PILLAR_E = '#34D399';
-const PILLAR_S = '#60A5FA';
-const PILLAR_G = '#FBBF24';
+const EMERALD_DIM = 'rgba(52, 211, 153, 0.14)';
+const SKY = '#38BDF8';
 const AMBER = '#FBBF24';
-const GRID_COLOR = 'rgba(148,180,164,0.10)';
-const AXIS_COLOR = 'rgba(148,180,164,0.55)';
+const ROSE = '#FB7185';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
-// Timeline (frames at 60 fps) -> 900 frames = 15 s
-//   0-120    intro   (title, axes)
-//   120-600  build   (thresholds, topics, panel, counter)
-//   600-780  payoff  (reportable highlight, material pulse)
-//   780-900  resolve (gentle hold, glow breathing)
+// Data
 // ---------------------------------------------------------------------------
-const TITLE_FADE_START = 0;
-const TITLE_FADE_END = 60;
-const AXES_FADE_START = 60;
-const AXES_FADE_END = 120;
-const THRESHOLD_START = 200;
-const THRESHOLD_END = 280;
-const TOPIC_START = 150;
-const TOPIC_GAP = 35;
-const COUNTER_START = 220;
-const COUNTER_END = 560;
-const PANEL_START = 280;
-const CHECK_START = 330;
-const CHECK_GAP = 45;
-const PAYOFF_START = 650;
-const PAYOFF_END = 780;
-const RESOLVE_START = 780;
+const ITEMS = [
+  {name: 'Aurora Wireless Headphones', detail: 'Matte black · Qty 1', price: 249.0},
+  {name: 'Express Shipping', detail: '2–3 business days', price: 12.0},
+  {name: 'Estimated Tax', detail: 'Calculated at checkout', price: 20.88},
+];
+const TOTAL = 281.88;
+const CARD_NUMBER = '4532 1488 9031 7764';
+const ORDER_ID = 'ORD-784512';
+const EMAIL = 'you@email.com';
 
 // ---------------------------------------------------------------------------
-// Matrix geometry (device px, 4K)
+// Helpers
 // ---------------------------------------------------------------------------
-const PLOT_LEFT = 300;
-const PLOT_RIGHT = 2380;
-const PLOT_TOP = 500;
-const PLOT_BOTTOM = 1660;
-const PLOT_W = PLOT_RIGHT - PLOT_LEFT;
-const PLOT_H = PLOT_BOTTOM - PLOT_TOP;
-const THRESHOLD_PCT = 60;
-const T_MAJOR = [0, 25, 50, 75, 100];
-
-const xForPct = (p: number): number => PLOT_LEFT + (p / 100) * PLOT_W;
-const yForPct = (p: number): number => PLOT_BOTTOM - (p / 100) * PLOT_H;
-
-// ---------------------------------------------------------------------------
-// Deterministic pseudo-random (seeded) - never Math.random()
-// ---------------------------------------------------------------------------
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Data: 14 ESG topics (x = financial materiality %, y = impact materiality %)
-// material flag = top 9 by combined materiality score; reportable = above
-// both 60% thresholds (top-right quadrant).
-// ---------------------------------------------------------------------------
-type Pillar = 'E' | 'S' | 'G';
-type LabelSide = 'left' | 'right';
-
-interface Topic {
-  x: number;
-  y: number;
-  pillar: Pillar;
-  label: string;
-  side: LabelSide;
-  material: boolean;
-  reportable: boolean;
-}
-
-const PILLAR_COLOR: Record<Pillar, string> = {
-  E: PILLAR_E,
-  S: PILLAR_S,
-  G: PILLAR_G,
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+const prog = (frame: number, start: number, end: number) =>
+  clamp01((frame - start) / (end - start));
+const entr = (frame: number, delay: number, fps: number) =>
+  spring({
+    frame: Math.max(0, frame - delay),
+    fps,
+    config: {damping: 19, stiffness: 130},
+  });
+const rand = (seed: number) => {
+  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
 };
+const money = (v: number) =>
+  '$' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
-const TOPICS: Topic[] = [
-  {x: 88, y: 92, pillar: 'E', label: 'Climate change', side: 'right', material: true, reportable: true},
-  {x: 74, y: 81, pillar: 'E', label: 'Biodiversity', side: 'left', material: true, reportable: true},
-  {x: 52, y: 68, pillar: 'E', label: 'Water resources', side: 'left', material: true, reportable: false},
-  {x: 63, y: 58, pillar: 'E', label: 'Circular economy', side: 'right', material: true, reportable: false},
-  {x: 48, y: 55, pillar: 'E', label: 'Pollution', side: 'left', material: false, reportable: false},
-  {x: 70, y: 74, pillar: 'S', label: 'Own workforce', side: 'right', material: true, reportable: true},
-  {x: 66, y: 62, pillar: 'S', label: 'Value-chain workers', side: 'left', material: true, reportable: false},
-  {x: 55, y: 71, pillar: 'S', label: 'Affected communities', side: 'right', material: true, reportable: false},
-  {x: 61, y: 49, pillar: 'S', label: 'Consumers', side: 'right', material: false, reportable: false},
-  {x: 82, y: 57, pillar: 'G', label: 'Business conduct', side: 'right', material: true, reportable: false},
-  {x: 77, y: 44, pillar: 'G', label: 'Anti-corruption', side: 'right', material: false, reportable: false},
-  {x: 69, y: 38, pillar: 'G', label: 'Data privacy', side: 'left', material: false, reportable: false},
-  {x: 58, y: 66, pillar: 'S', label: 'Supply-chain labor', side: 'right', material: true, reportable: false},
-  {x: 45, y: 52, pillar: 'E', label: 'Resource use', side: 'left', material: false, reportable: false},
-];
-
-const MATERIAL_COUNT = TOPICS.filter((t) => t.material).length; // 9
+/** Opacity envelope: fade in [inA,inB], hold, fade out [outA,outB]. */
+const stageOpacity = (
+  frame: number,
+  inA: number,
+  inB: number,
+  outA: number,
+  outB: number,
+) => prog(frame, inA, inB) * (1 - prog(frame, outA, outB));
 
 // ---------------------------------------------------------------------------
-// Data: ESRS assessment checklist
-// ---------------------------------------------------------------------------
-interface EsrsRow {
-  code: string;
-  name: string;
-  status: 'verified' | 'review';
-}
-
-const CHECKLIST: EsrsRow[] = [
-  {code: 'ESRS E1', name: 'Climate change', status: 'verified'},
-  {code: 'ESRS E4', name: 'Biodiversity', status: 'verified'},
-  {code: 'ESRS S1', name: 'Own workforce', status: 'verified'},
-  {code: 'ESRS G1', name: 'Business conduct', status: 'verified'},
-  {code: 'ESRS E5', name: 'Circular economy', status: 'review'},
-];
-
-// ---------------------------------------------------------------------------
-// Data: reporting timeline years
-// ---------------------------------------------------------------------------
-const TIMELINE_YEARS = [2025, 2026, 2027, 2028];
-const TIMELINE_LEFT = 300;
-const TIMELINE_RIGHT = 3600;
-const TIMELINE_Y = 1930;
-const MILESTONE_YEAR = 2027;
-
-// ---------------------------------------------------------------------------
-// Static SVG defs (gradients / filters)
-// ---------------------------------------------------------------------------
-const Defs: React.FC = () => (
-  <defs>
-    <radialGradient id="bgGlow" cx="50%" cy="42%" r="75%">
-      <stop offset="0%" stopColor="rgba(52,211,153,0.10)" />
-      <stop offset="45%" stopColor="rgba(52,211,153,0.04)" />
-      <stop offset="100%" stopColor="rgba(6,13,10,0)" />
-    </radialGradient>
-    <radialGradient id="vignette" cx="50%" cy="50%" r="78%">
-      <stop offset="58%" stopColor="rgba(6,13,10,0)" />
-      <stop offset="100%" stopColor="rgba(1,4,3,0.78)" />
-    </radialGradient>
-    <linearGradient id="panelSheen" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stopColor="rgba(52,211,153,0.08)" />
-      <stop offset="55%" stopColor="rgba(52,211,153,0.015)" />
-      <stop offset="100%" stopColor="rgba(255,255,255,0.012)" />
-    </linearGradient>
-    <linearGradient id="quadGlow" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stopColor="rgba(52,211,153,0.16)" />
-      <stop offset="100%" stopColor="rgba(52,211,153,0.03)" />
-    </linearGradient>
-    <radialGradient id="dotCore" cx="50%" cy="35%" r="75%">
-      <stop offset="0%" stopColor="rgba(255,255,255,0.95)" />
-      <stop offset="40%" stopColor="rgba(255,255,255,0.25)" />
-      <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-    </radialGradient>
-    <filter id="glowBlur" x="-90%" y="-90%" width="280%" height="280%">
-      <feGaussianBlur stdDeviation="14" result="blur" />
-      <feMerge>
-        <feMergeNode in="blur" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
-    </filter>
-    <filter id="softBlur" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="6" result="blur" />
-      <feMerge>
-        <feMergeNode in="blur" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
-    </filter>
-  </defs>
-);
-
-// ---------------------------------------------------------------------------
-// Background: deep pine-charcoal base, emerald radial glow, vignette,
-// drifting hairline texture, slow scan sweep.
+// Background — layered glow, grid, vignette, drifting particles, sweep
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const scanY = ((frame / 900) * (2160 + 320)) % (2160 + 320) - 160;
-  const breathe = frame >= RESOLVE_START ? 0.9 + 0.1 * Math.sin((frame - RESOLVE_START) * 0.035) : 1;
-  const hairlines = useMemo(() => {
-    const rand = mulberry32(20260926);
-    return Array.from({length: 26}, (_, i) => ({
-      y: rand() * 2160,
-      x: rand() * 3840,
-      w: 180 + rand() * 520,
-      o: 0.05 + rand() * 0.08,
-    }));
-  }, []);
-  const drift = (frame * 6) % 3840;
+  const particles = useMemo(
+    () =>
+      Array.from({length: 70}, (_, i) => ({
+        x: rand(i * 3.1) * 3840,
+        y: rand(i * 7.7) * 2160,
+        r: 1.5 + rand(i * 13.3) * 3.5,
+        speed: 0.25 + rand(i * 5.9) * 0.7,
+        tw: rand(i * 9.4) * Math.PI * 2,
+      })),
+    [],
+  );
+  const sweepX = interpolate(frame, [0, 900], [-1400, 5200], {
+    easing: Easing.linear,
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
   return (
-    <>
-      <AbsoluteFill style={{backgroundColor: BG}} />
-      <AbsoluteFill
-        style={{
-          background:
-            'radial-gradient(circle at 50% 40%, rgba(52,211,153,0.10), rgba(52,211,153,0.035) 45%, rgba(6,13,10,0) 72%)',
-          opacity: breathe,
-        }}
-      />
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <Defs />
-        {/* drifting hairline texture */}
-        <g opacity={0.5}>
-          {hairlines.map((h, i) => (
-            <line
-              key={`h${i}`}
-              x1={((h.x - drift) % 3840 + 3840) % 3840}
-              y1={h.y}
-              x2={(((h.x - drift) % 3840 + 3840) % 3840) + h.w}
-              y2={h.y}
-              stroke={EMERALD}
-              strokeWidth={1}
-              opacity={h.o}
-            />
-          ))}
+    <AbsoluteFill>
+      <svg width={3840} height={2160}>
+        <defs>
+          <radialGradient id="bgGlowA" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#34D399" stopOpacity="0.20" />
+            <stop offset="100%" stopColor="#34D399" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="bgGlowB" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.16" />
+            <stop offset="100%" stopColor="#38BDF8" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="vignette" cx="50%" cy="46%" r="75%">
+            <stop offset="55%" stopColor="#000000" stopOpacity="0" />
+            <stop offset="100%" stopColor="#000000" stopOpacity="0.62" />
+          </radialGradient>
+          <filter id="softBlur" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="130" />
+          </filter>
+        </defs>
+
+        <rect width={3840} height={2160} fill={BG} />
+        {/* grid */}
+        {Array.from({length: 23}, (_, i) => (
+          <line
+            key={'v' + i}
+            x1={160 * (i + 1)}
+            y1={0}
+            x2={160 * (i + 1)}
+            y2={2160}
+            stroke="rgba(148,163,184,0.055)"
+            strokeWidth={2}
+          />
+        ))}
+        {Array.from({length: 12}, (_, i) => (
+          <line
+            key={'h' + i}
+            x1={0}
+            y1={180 * (i + 1)}
+            x2={3840}
+            y2={180 * (i + 1)}
+            stroke="rgba(148,163,184,0.055)"
+            strokeWidth={2}
+          />
+        ))}
+
+        {/* ambient glows */}
+        <ellipse cx={3150} cy={480} rx={950} ry={620} fill="url(#bgGlowA)" filter="url(#softBlur)" />
+        <ellipse cx={620} cy={1650} rx={900} ry={640} fill="url(#bgGlowB)" filter="url(#softBlur)" />
+
+        {/* drifting particles */}
+        {particles.map((p, i) => {
+          const y = (p.y - frame * p.speed * 1.6 + 2160 * 3) % 2160;
+          const tw = 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(frame / 60 + p.tw));
+          return (
+            <circle key={i} cx={p.x} cy={y} r={p.r} fill="#9FD8FF" opacity={tw * 0.5} />
+          );
+        })}
+
+        {/* slow diagonal sweep */}
+        <g transform={`translate(${sweepX} 0) rotate(18 0 1080)`} opacity={0.05}>
+          <rect x={-260} y={-600} width={520} height={3400} fill="#BFE9FF" />
         </g>
-        {/* scan sweep */}
-        <rect x={0} y={scanY - 110} width={3840} height={220} fill="rgba(52,211,153,0.030)" />
-        <line x1={0} y1={scanY + 110} x2={3840} y2={scanY + 110} stroke="rgba(52,211,153,0.12)" strokeWidth={1.5} />
-        {/* vignette */}
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#vignette)" />
+
+        <rect width={3840} height={2160} fill="url(#vignette)" />
       </svg>
-    </>
+    </AbsoluteFill>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Title block (top-left, fade + rise 0-60)
+// Header — title, security badge, step indicator
 // ---------------------------------------------------------------------------
-const TitleBlock: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [TITLE_FADE_START, TITLE_FADE_END], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const rise = interpolate(frame, [TITLE_FADE_START, TITLE_FADE_END], [34, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+const Header: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const e = entr(frame, 10, fps);
+  const y = interpolate(e, [0, 1], [60, 0]);
   return (
     <div
       style={{
         position: 'absolute',
-        top: 96 + rise,
-        left: 120,
-        opacity: fade,
+        top: 150,
+        left: 240,
+        right: 240,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        opacity: e,
+        transform: `translateY(${y}px)`,
       }}
     >
-      <div
-        style={{
-          color: EMERALD,
-          fontFamily: MONO,
-          fontSize: 30,
-          letterSpacing: 6,
-          marginBottom: 18,
-        }}
-      >
-        EU SUSTAINABILITY REPORTING
+      <div>
+        <div
+          style={{
+            fontFamily: MONO,
+            fontSize: 30,
+            letterSpacing: 8,
+            color: EMERALD,
+            marginBottom: 18,
+          }}
+        >
+          ● SECURE CHECKOUT
+        </div>
+        <div
+          style={{
+            fontFamily: FONT,
+            fontSize: 76,
+            fontWeight: 800,
+            letterSpacing: 2,
+            color: INK,
+            textShadow: '0 4px 40px rgba(56,189,248,0.25)',
+          }}
+        >
+          Payment
+        </div>
+        <div
+          style={{
+            fontFamily: MONO,
+            fontSize: 27,
+            letterSpacing: 3,
+            color: MUTED,
+            marginTop: 14,
+          }}
+        >
+          256-BIT ENCRYPTED&nbsp;&nbsp;·&nbsp;&nbsp;PCI DSS COMPLIANT
+        </div>
       </div>
-      <div
-        style={{
-          color: INK,
-          fontFamily: FONT,
-          fontWeight: 800,
-          fontSize: 84,
-          letterSpacing: -1,
-        }}
-      >
-        DOUBLE MATERIALITY ASSESSMENT
-      </div>
-      <div
-        style={{
-          color: MUTED,
-          fontFamily: FONT,
-          fontSize: 36,
-          marginTop: 16,
-        }}
-      >
-        CSRD &middot; ESRS 1 &mdash; impact &times; financial materiality
+      <div style={{textAlign: 'right', paddingTop: 26}}>
+        <div
+          style={{
+            fontFamily: MONO,
+            fontSize: 30,
+            letterSpacing: 4,
+            color: FAINT,
+          }}
+        >
+          STEP 3 OF 3
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            gap: 14,
+            marginTop: 20,
+            justifyContent: 'flex-end',
+          }}
+        >
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              style={{
+                width: 64,
+                height: 10,
+                borderRadius: 5,
+                backgroundColor: i < 2 ? EMERALD : 'rgba(148,163,184,0.25)',
+                boxShadow: i < 2 ? `0 0 18px ${EMERALD}` : 'none',
+              }}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Matrix plot: grid, ticks, axes, thresholds, quadrants, topics, payoff
+// Stage A — order summary
 // ---------------------------------------------------------------------------
-const MatrixPlot: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const axesFade = interpolate(frame, [AXES_FADE_START, AXES_FADE_END], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const captionFade = interpolate(frame, [120, 170], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+const SummaryStage: React.FC<{frame: number; fps: number}> = ({frame, fps}) => (
+  <div style={{position: 'absolute', inset: 0}}>
+    <div
+      style={{
+        fontFamily: MONO,
+        fontSize: 30,
+        letterSpacing: 7,
+        color: FAINT,
+        marginBottom: 44,
+        opacity: entr(frame, 70, fps),
+      }}
+    >
+      ORDER SUMMARY
+    </div>
+    {ITEMS.map((item, i) => {
+      const e = entr(frame, 100 + i * 45, fps);
+      return (
+        <div
+          key={i}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '30px 10px',
+            borderBottom: `2px solid ${HAIRLINE}`,
+            opacity: e,
+            transform: `translateY(${interpolate(e, [0, 1], [50, 0])}px)`,
+          }}
+        >
+          <div>
+            <div style={{fontFamily: FONT, fontSize: 46, fontWeight: 600, color: INK}}>
+              {item.name}
+            </div>
+            <div style={{fontFamily: MONO, fontSize: 28, color: FAINT, marginTop: 10, letterSpacing: 1}}>
+              {item.detail}
+            </div>
+          </div>
+          <div style={{fontFamily: MONO, fontSize: 44, color: INK}}>{money(item.price)}</div>
+        </div>
+      );
+    })}
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '44px 10px 0',
+        opacity: entr(frame, 250, fps),
+        transform: `translateY(${interpolate(entr(frame, 250, fps), [0, 1], [50, 0])}px)`,
+      }}
+    >
+      <div style={{fontFamily: FONT, fontSize: 52, fontWeight: 700, color: INK}}>
+        Total due
+      </div>
+      <div
+        style={{
+          fontFamily: MONO,
+          fontSize: 84,
+          fontWeight: 700,
+          color: EMERALD,
+          textShadow: `0 0 44px ${EMERALD_DIM}`,
+        }}
+      >
+        {money(TOTAL)}
+      </div>
+    </div>
+    <div
+      style={{
+        marginTop: 56,
+        display: 'inline-block',
+        padding: '30px 90px',
+        borderRadius: 60,
+        background: `linear-gradient(135deg, ${EMERALD}, #10B981)`,
+        boxShadow: `0 12px 60px ${EMERALD_DIM}`,
+        fontFamily: FONT,
+        fontSize: 44,
+        fontWeight: 700,
+        letterSpacing: 3,
+        color: '#04120C',
+        opacity: entr(frame, 300, fps),
+        transform: `translateY(${interpolate(entr(frame, 300, fps), [0, 1], [40, 0])}px)`,
+      }}
+    >
+      CONTINUE TO PAYMENT →
+    </div>
+  </div>
+);
 
-  // Threshold lines: fade in, then gentle marching-ants dash motion.
-  const threshFade = interpolate(frame, [THRESHOLD_START, THRESHOLD_START + 40], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const dashOffset = frame > THRESHOLD_END ? -(frame - THRESHOLD_END) * 0.18 : 0;
-
-  const tx = xForPct(THRESHOLD_PCT);
-  const ty = yForPct(THRESHOLD_PCT);
-
-  // Payoff: quadrant highlight, badge, one-time material pulse.
-  const highlightFade = interpolate(frame, [PAYOFF_START, PAYOFF_START + 50], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const badgeSpring = spring({
-    frame: frame - (PAYOFF_START + 30),
-    fps,
-    config: {damping: 200, stiffness: 90},
-  });
-  const payoffP = interpolate(frame, [PAYOFF_START + 10, PAYOFF_END], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const pulseOnce = Math.sin(payoffP * Math.PI);
-  const breathe =
-    frame >= RESOLVE_START ? 0.88 + 0.12 * Math.sin((frame - RESOLVE_START) * 0.04) : 1;
-  // Top-right quadrant label softens once the REPORTABLE badge takes over.
-  const quadLabelDim = interpolate(frame, [PAYOFF_START + 30, PAYOFF_START + 80], [1, 0.35], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  const badgeW = 460;
-  const badgeH = 96;
-  const badgeX = (tx + PLOT_RIGHT) / 2 - badgeW / 2;
-  const badgeY = ty - 210;
-
+// ---------------------------------------------------------------------------
+// Stage B — card payment
+// ---------------------------------------------------------------------------
+const PaymentStage: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  // card flips/scales in
+  const cardE = entr(frame, 350, fps);
+  const cardScale = interpolate(cardE, [0, 1], [0.82, 1]);
+  // digits type across frames 390–500
+  const typed = Math.floor(prog(frame, 390, 500) * CARD_NUMBER.length);
+  const shown = CARD_NUMBER.slice(0, typed);
+  const btnE = entr(frame, 505, fps);
+  // pay button "click" dip
+  const click = prog(frame, 540, 552) * (1 - prog(frame, 552, 566));
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <Defs />
+    <div style={{position: 'absolute', inset: 0}}>
+      <div
+        style={{
+          fontFamily: MONO,
+          fontSize: 30,
+          letterSpacing: 7,
+          color: FAINT,
+          marginBottom: 40,
+          opacity: entr(frame, 340, fps),
+        }}
+      >
+        PAYMENT METHOD — CARD
+      </div>
+      <div style={{display: 'flex', gap: 90, alignItems: 'flex-start'}}>
+        {/* credit card visual */}
+        <div
+          style={{
+            opacity: cardE,
+            transform: `scale(${cardScale}) translateY(${interpolate(cardE, [0, 1], [60, 0])}px)`,
+          }}
+        >
+          <svg width={980} height={600}>
+            <defs>
+              <linearGradient id="cardGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#123B6D" />
+                <stop offset="55%" stopColor="#0B2547" />
+                <stop offset="100%" stopColor="#071A33" />
+              </linearGradient>
+              <linearGradient id="chipGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#FDE68A" />
+                <stop offset="100%" stopColor="#B45309" />
+              </linearGradient>
+              <filter id="cardGlow" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="26" />
+              </filter>
+            </defs>
+            <rect x={30} y={40} width={920} height={520} rx={44} fill="#38BDF8" opacity={0.28} filter="url(#cardGlow)" />
+            <rect x={0} y={0} width={920} height={520} rx={44} fill="url(#cardGrad)" stroke="rgba(148,163,184,0.35)" strokeWidth={3} />
+            <rect x={70} y={90} width={130} height={100} rx={16} fill="url(#chipGrad)" />
+            <line x1={70} y1={140} x2={200} y2={140} stroke="#92400E" strokeWidth={4} opacity={0.6} />
+            <line x1={135} y1={90} x2={135} y2={190} stroke="#92400E" strokeWidth={4} opacity={0.6} />
+            <text x={70} y={300} fontFamily={MONO} fontSize={56} letterSpacing={6} fill={INK}>
+              {shown}
+              {typed < CARD_NUMBER.length && (
+                <tspan fill={SKY} opacity={0.6 + 0.4 * Math.sin(frame / 8)}>▍</tspan>
+              )}
+            </text>
+            <text x={70} y={400} fontFamily={MONO} fontSize={26} letterSpacing={4} fill={FAINT}>
+              CARD HOLDER
+            </text>
+            <text x={70} y={448} fontFamily={FONT} fontSize={38} fontWeight={600} letterSpacing={3} fill={INK}>
+              M USMAN
+            </text>
+            <text x={560} y={400} fontFamily={MONO} fontSize={26} letterSpacing={4} fill={FAINT}>
+              EXPIRES
+            </text>
+            <text x={560} y={448} fontFamily={MONO} fontSize={38} fill={INK}>
+              08/29
+            </text>
+            <text x={740} y={400} fontFamily={MONO} fontSize={26} letterSpacing={4} fill={FAINT}>
+              CVC
+            </text>
+            <text x={740} y={448} fontFamily={MONO} fontSize={38} fill={INK}>
+              •••
+            </text>
+            {/* contactless arcs */}
+            {[0, 1, 2].map((i) => (
+              <path
+                key={i}
+                d={`M ${800 + i * 26} 120 A ${44 + i * 26} ${44 + i * 26} 0 0 1 ${800 + i * 26} 190`}
+                fill="none"
+                stroke={SKY}
+                strokeWidth={7}
+                strokeLinecap="round"
+                opacity={0.35 + 0.65 * prog(frame, 430 + i * 30, 470 + i * 30)}
+              />
+            ))}
+          </svg>
+        </div>
+        {/* pay column */}
+        <div style={{flex: 1, paddingTop: 40}}>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontSize: 28,
+              letterSpacing: 3,
+              color: MUTED,
+              opacity: entr(frame, 420, fps),
+            }}
+          >
+            AMOUNT TO CHARGE
+          </div>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontSize: 120,
+              fontWeight: 700,
+              color: INK,
+              marginTop: 16,
+              opacity: entr(frame, 440, fps),
+            }}
+          >
+            {money(TOTAL)}
+          </div>
+          <div
+            style={{
+              marginTop: 70,
+              display: 'inline-block',
+              padding: '34px 110px',
+              borderRadius: 64,
+              background: `linear-gradient(135deg, ${SKY}, #0EA5E9)`,
+              boxShadow: `0 12px 60px rgba(56,189,248,0.35)`,
+              fontFamily: FONT,
+              fontSize: 48,
+              fontWeight: 800,
+              letterSpacing: 3,
+              color: '#03131D',
+              opacity: btnE,
+              transform: `scale(${(1 - click * 0.06) * interpolate(btnE, [0, 1], [0.9, 1])})`,
+            }}
+          >
+            PAY NOW
+          </div>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontSize: 26,
+              letterSpacing: 2,
+              color: FAINT,
+              marginTop: 34,
+              opacity: entr(frame, 480, fps),
+            }}
+          >
+            ▣&nbsp; Card details never touch our servers
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-      {/* minor hairline grid (every 5%) */}
-      <g opacity={axesFade * 0.55}>
-        {Array.from({length: 19}, (_, i) => (i + 1) * 5).map((p) => {
-          if (p % 25 === 0) return null;
+// ---------------------------------------------------------------------------
+// Stage C — processing
+// ---------------------------------------------------------------------------
+const STEPS = ['Encrypting details', 'Authorizing with bank', 'Confirming order'];
+const ProcessingStage: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const barP = prog(frame, 575, 700);
+  return (
+    <div style={{position: 'absolute', inset: 0, paddingTop: 60}}>
+      <div
+        style={{
+          fontFamily: MONO,
+          fontSize: 30,
+          letterSpacing: 7,
+          color: FAINT,
+          marginBottom: 50,
+          opacity: entr(frame, 565, fps),
+        }}
+      >
+        PROCESSING PAYMENT
+      </div>
+      {STEPS.map((label, i) => {
+        const start = 585 + i * 42;
+        const done = prog(frame, start, start + 30);
+        const active = prog(frame, start - 8, start) * (1 - done);
+        const e = entr(frame, start - 10, fps);
+        const angle = (frame * 9) % 360;
+        return (
+          <div
+            key={i}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 44,
+              padding: '34px 10px',
+              borderBottom: `2px solid ${HAIRLINE}`,
+              opacity: e,
+              transform: `translateX(${interpolate(e, [0, 1], [70, 0])}px)`,
+            }}
+          >
+            <svg width={86} height={86}>
+              {done >= 1 ? (
+                <g>
+                  <circle cx={43} cy={43} r={34} fill={EMERALD_DIM} stroke={EMERALD} strokeWidth={5} />
+                  <path d="M 29 43 L 39 53 L 58 32" fill="none" stroke={EMERALD} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />
+                </g>
+              ) : (
+                <g transform={`rotate(${angle} 43 43)`}>
+                  <circle cx={43} cy={43} r={32} fill="none" stroke="rgba(148,163,184,0.25)" strokeWidth={7} />
+                  <path d="M 43 11 A 32 32 0 0 1 71 27" fill="none" stroke={AMBER} strokeWidth={7} strokeLinecap="round" />
+                </g>
+              )}
+            </svg>
+            <div
+              style={{
+                fontFamily: FONT,
+                fontSize: 50,
+                fontWeight: 600,
+                color: done >= 1 ? INK : active > 0 ? INK : MUTED,
+              }}
+            >
+              {label}
+            </div>
+            <div
+              style={{
+                marginLeft: 'auto',
+                fontFamily: MONO,
+                fontSize: 30,
+                letterSpacing: 3,
+                color: done >= 1 ? EMERALD : AMBER,
+              }}
+            >
+              {done >= 1 ? 'DONE' : active > 0 ? 'WORKING' : 'QUEUED'}
+            </div>
+          </div>
+        );
+      })}
+      <div style={{marginTop: 70, opacity: entr(frame, 580, fps)}}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontFamily: MONO,
+            fontSize: 28,
+            letterSpacing: 3,
+            color: MUTED,
+            marginBottom: 20,
+          }}
+        >
+          <span>AUTHORIZATION PROGRESS</span>
+          <span>{Math.round(barP * 100)}%</span>
+        </div>
+        <div
+          style={{
+            height: 26,
+            borderRadius: 13,
+            backgroundColor: 'rgba(148,163,184,0.16)',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              width: `${barP * 100}%`,
+              height: '100%',
+              borderRadius: 13,
+              background: `linear-gradient(90deg, ${SKY}, ${EMERALD})`,
+              boxShadow: `0 0 30px rgba(52,211,153,0.5)`,
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Stage D — success
+// ---------------------------------------------------------------------------
+const SuccessStage: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const drawP = prog(frame, 730, 800);
+  const CIRC = 2 * Math.PI * 118;
+  const CHECK_LEN = 150;
+  const amount = interpolate(prog(frame, 780, 850), [0, 1], [0, TOTAL]);
+  const confetti = useMemo(
+    () =>
+      Array.from({length: 52}, (_, i) => {
+        const angle = rand(i * 1.7) * Math.PI * 2;
+        const dist = 260 + rand(i * 3.3) * 620;
+        return {
+          angle,
+          dist,
+          size: 10 + rand(i * 5.1) * 22,
+          color: [EMERALD, SKY, AMBER, '#EAF0FA'][i % 4],
+          rot: rand(i * 7.9) * 360,
+          wob: rand(i * 11.2) * Math.PI * 2,
+        };
+      }),
+    [],
+  );
+  const confP = prog(frame, 745, 880);
+  return (
+    <div style={{position: 'absolute', inset: 0}}>
+      <div style={{display: 'flex', gap: 100, alignItems: 'center', paddingTop: 40}}>
+        {/* drawn check */}
+        <div style={{opacity: prog(frame, 720, 745)}}>
+          <svg width={340} height={340}>
+            <defs>
+              <filter id="checkGlow" x="-40%" y="-40%" width="180%" height="180%">
+                <feGaussianBlur stdDeviation="18" />
+              </filter>
+            </defs>
+            <circle cx={170} cy={170} r={150} fill={EMERALD} opacity={0.22 * drawP} filter="url(#checkGlow)" />
+            <circle
+              cx={170}
+              cy={170}
+              r={118}
+              fill="none"
+              stroke={EMERALD}
+              strokeWidth={16}
+              strokeLinecap="round"
+              strokeDasharray={CIRC}
+              strokeDashoffset={CIRC * (1 - drawP)}
+              transform="rotate(-90 170 170)"
+            />
+            <path
+              d="M 118 172 L 158 212 L 228 128"
+              fill="none"
+              stroke={EMERALD}
+              strokeWidth={20}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray={CHECK_LEN}
+              strokeDashoffset={CHECK_LEN * (1 - prog(frame, 770, 820))}
+            />
+          </svg>
+        </div>
+        <div>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: 92,
+              fontWeight: 800,
+              letterSpacing: 4,
+              color: INK,
+              textShadow: `0 0 60px ${EMERALD_DIM}`,
+              opacity: entr(frame, 790, fps),
+              transform: `translateY(${interpolate(entr(frame, 790, fps), [0, 1], [50, 0])}px)`,
+            }}
+          >
+            PAYMENT APPROVED
+          </div>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontSize: 110,
+              fontWeight: 700,
+              color: EMERALD,
+              marginTop: 18,
+              opacity: entr(frame, 810, fps),
+            }}
+          >
+            {money(amount)}
+          </div>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontSize: 34,
+              letterSpacing: 4,
+              color: MUTED,
+              marginTop: 26,
+              opacity: entr(frame, 830, fps),
+            }}
+          >
+            ORDER&nbsp;&nbsp;#{ORDER_ID}
+          </div>
+        </div>
+      </div>
+      {/* confetti */}
+      <svg
+        width={2600}
+        height={1380}
+        style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}
+      >
+        {confetti.map((c, i) => {
+          const x = 1300 + Math.cos(c.angle) * c.dist * confP;
+          const y = 560 + Math.sin(c.angle) * c.dist * confP * 0.7 + confP * confP * 260;
           return (
-            <g key={`minor${p}`}>
-              <line x1={xForPct(p)} y1={PLOT_TOP} x2={xForPct(p)} y2={PLOT_BOTTOM} stroke={GRID_COLOR} strokeWidth={1} />
-              <line x1={PLOT_LEFT} y1={yForPct(p)} x2={PLOT_RIGHT} y2={yForPct(p)} stroke={GRID_COLOR} strokeWidth={1} />
-            </g>
+            <rect
+              key={i}
+              x={x}
+              y={y}
+              width={c.size}
+              height={c.size * 0.62}
+              fill={c.color}
+              opacity={(1 - confP) * 0.9}
+              transform={`rotate(${c.rot + frame * 6 + Math.sin(frame / 14 + c.wob) * 30} ${x} ${y})`}
+            />
           );
         })}
-      </g>
-
-      {/* major gridlines + % tick labels */}
-      <g opacity={axesFade}>
-        {T_MAJOR.map((p) => (
-          <g key={`major${p}`}>
-            <line
-              x1={xForPct(p)}
-              y1={PLOT_TOP}
-              x2={xForPct(p)}
-              y2={PLOT_BOTTOM}
-              stroke={p === 0 ? AXIS_COLOR : GRID_COLOR}
-              strokeWidth={p === 0 ? 2.5 : 1.5}
-            />
-            <line
-              x1={PLOT_LEFT}
-              y1={yForPct(p)}
-              x2={PLOT_RIGHT}
-              y2={yForPct(p)}
-              stroke={p === 0 ? AXIS_COLOR : GRID_COLOR}
-              strokeWidth={p === 0 ? 2.5 : 1.5}
-            />
-            <text
-              x={xForPct(p)}
-              y={PLOT_BOTTOM + 58}
-              fill={MUTED}
-              fontSize={30}
-              fontFamily={MONO}
-              textAnchor="middle"
+      </svg>
+      {/* receipt lines */}
+      <div style={{marginTop: 60, borderTop: `2px solid ${HAIRLINE}`, paddingTop: 44}}>
+        {[
+          `Receipt sent to ${EMAIL}`,
+          'Card charged: •••• •••• •••• 7764',
+          'Delivery estimate: 2–3 business days',
+        ].map((line, i) => {
+          const e = entr(frame, 840 + i * 22, fps);
+          return (
+            <div
+              key={i}
+              style={{
+                fontFamily: MONO,
+                fontSize: 32,
+                letterSpacing: 2,
+                color: MUTED,
+                marginBottom: 22,
+                opacity: e,
+                transform: `translateY(${interpolate(e, [0, 1], [30, 0])}px)`,
+              }}
             >
-              {p}%
-            </text>
-            <text
-              x={PLOT_LEFT - 30}
-              y={yForPct(p) + 11}
-              fill={MUTED}
-              fontSize={30}
-              fontFamily={MONO}
-              textAnchor="end"
-            >
-              {p}%
-            </text>
-          </g>
-        ))}
-      </g>
-
-      {/* axis baselines */}
-      <g opacity={axesFade}>
-        <line x1={PLOT_LEFT} y1={PLOT_BOTTOM} x2={PLOT_RIGHT} y2={PLOT_BOTTOM} stroke={AXIS_COLOR} strokeWidth={2.5} />
-        <line x1={PLOT_LEFT} y1={PLOT_TOP} x2={PLOT_LEFT} y2={PLOT_BOTTOM} stroke={AXIS_COLOR} strokeWidth={2.5} />
-      </g>
-
-      {/* axis titles */}
-      <g opacity={axesFade}>
-        <text
-          x={(PLOT_LEFT + PLOT_RIGHT) / 2}
-          y={PLOT_BOTTOM + 128}
-          fill={INK}
-          fontSize={34}
-          fontFamily={MONO}
-          fontWeight={700}
-          letterSpacing={4}
-          textAnchor="middle"
-        >
-          FINANCIAL MATERIALITY &#8594;
-        </text>
-        <text
-          x={150}
-          y={(PLOT_TOP + PLOT_BOTTOM) / 2}
-          fill={INK}
-          fontSize={34}
-          fontFamily={MONO}
-          fontWeight={700}
-          letterSpacing={4}
-          textAnchor="middle"
-          transform={`rotate(-90 150 ${(PLOT_TOP + PLOT_BOTTOM) / 2})`}
-        >
-          &#8593; IMPACT MATERIALITY
-        </text>
-      </g>
-
-      {/* plot caption */}
-      <text
-        x={PLOT_LEFT}
-        y={PLOT_TOP - 34}
-        fill={FAINT}
-        fontSize={26}
-        fontFamily={MONO}
-        letterSpacing={2}
-        opacity={captionFade}
-      >
-        14 topics plotted &middot; score = stakeholder + evidence weighting
-      </text>
-
-      {/* payoff quadrant highlight (top-right) */}
-      {highlightFade > 0 && (
-        <g opacity={highlightFade * breathe}>
-          <rect
-            x={tx}
-            y={PLOT_TOP}
-            width={PLOT_RIGHT - tx}
-            height={ty - PLOT_TOP}
-            fill="url(#quadGlow)"
-            stroke={EMERALD}
-            strokeWidth={2.5}
-            strokeDasharray="22 16"
-            filter="url(#softBlur)"
-          />
-        </g>
-      )}
-
-      {/* 60% threshold lines (marching ants) */}
-      <g opacity={threshFade}>
-        <line
-          x1={tx}
-          y1={PLOT_TOP}
-          x2={tx}
-          y2={PLOT_BOTTOM}
-          stroke={AMBER}
-          strokeWidth={3}
-          strokeDasharray="20 16"
-          strokeDashoffset={dashOffset}
-          style={{filter: `drop-shadow(0 0 10px ${AMBER}88)`}}
-        />
-        <line
-          x1={PLOT_LEFT}
-          y1={ty}
-          x2={PLOT_RIGHT}
-          y2={ty}
-          stroke={AMBER}
-          strokeWidth={3}
-          strokeDasharray="20 16"
-          strokeDashoffset={dashOffset}
-          style={{filter: `drop-shadow(0 0 10px ${AMBER}88)`}}
-        />
-        <text x={tx + 18} y={PLOT_TOP + 48} fill={AMBER} fontSize={28} fontFamily={MONO} fontWeight={700} opacity={0.9}>
-          60% threshold
-        </text>
-        <text x={PLOT_RIGHT - 18} y={ty - 18} fill={AMBER} fontSize={28} fontFamily={MONO} fontWeight={700} textAnchor="end" opacity={0.9}>
-          60% threshold
-        </text>
-      </g>
-
-      {/* quadrant labels */}
-      <g opacity={axesFade}>
-        <text
-          x={(tx + PLOT_RIGHT) / 2}
-          y={PLOT_TOP + 110}
-          fill={FAINT}
-          fontSize={28}
-          fontFamily={MONO}
-          letterSpacing={3}
-          textAnchor="middle"
-          opacity={quadLabelDim}
-        >
-          REPORTABLE &mdash; disclose
-        </text>
-        <text
-          x={(PLOT_LEFT + tx) / 2}
-          y={PLOT_TOP + 110}
-          fill={FAINT}
-          fontSize={28}
-          fontFamily={MONO}
-          letterSpacing={3}
-          textAnchor="middle"
-        >
-          IMPACT-FOCUSED
-        </text>
-        <text
-          x={(tx + PLOT_RIGHT) / 2}
-          y={PLOT_BOTTOM - 60}
-          fill={FAINT}
-          fontSize={28}
-          fontFamily={MONO}
-          letterSpacing={3}
-          textAnchor="middle"
-        >
-          FINANCIALLY MATERIAL
-        </text>
-        <text
-          x={(PLOT_LEFT + tx) / 2}
-          y={PLOT_BOTTOM - 60}
-          fill={FAINT}
-          fontSize={28}
-          fontFamily={MONO}
-          letterSpacing={3}
-          textAnchor="middle"
-        >
-          MONITORED
-        </text>
-      </g>
-
-      {/* payoff badge */}
-      {badgeSpring > 0.001 && (
-        <g
-          opacity={Math.min(1, badgeSpring)}
-          transform={`translate(${badgeX + badgeW / 2}, ${badgeY + badgeH / 2}) scale(${(0.85 + 0.15 * badgeSpring) * breathe}) translate(${-(
-            badgeX + badgeW / 2
-          )}, ${-(badgeY + badgeH / 2)})`}
-        >
-          <rect
-            x={badgeX}
-            y={badgeY}
-            width={badgeW}
-            height={badgeH}
-            rx={20}
-            fill="rgba(6,20,14,0.92)"
-            stroke={EMERALD}
-            strokeWidth={3}
-            filter="url(#glowBlur)"
-          />
-          <text
-            x={badgeX + badgeW / 2}
-            y={badgeY + 62}
-            fill={EMERALD}
-            fontSize={42}
-            fontFamily={MONO}
-            fontWeight={800}
-            letterSpacing={6}
-            textAnchor="middle"
-            style={{filter: `drop-shadow(0 0 14px ${EMERALD})`}}
-          >
-            REPORTABLE
-          </text>
-        </g>
-      )}
-
-      {/* topics */}
-      {TOPICS.map((t, k) => {
-        const s = spring({
-          frame: frame - (TOPIC_START + k * TOPIC_GAP),
-          fps,
-          config: {damping: 200, stiffness: 90, mass: 1},
-        });
-        if (s <= 0.001) return null;
-        const color = PILLAR_COLOR[t.pillar];
-        const cx = xForPct(t.x);
-        const cy = yForPct(t.y);
-        const rise = (1 - s) * 26;
-        const scalePulse = t.material ? 1 + 0.22 * pulseOnce : 1;
-        const labelGap = 56;
-        const labelX = t.side === 'right' ? cx + labelGap : cx - labelGap;
-        const anchor = t.side === 'right' ? 'start' : 'end';
-        const lineX1 = t.side === 'right' ? cx + 34 : cx - 34;
-        const lineX2 = t.side === 'right' ? cx + labelGap - 12 : cx - labelGap + 12;
-        // reportable topics get an expanding ring during payoff
-        const ringR = 30 + 46 * payoffP;
-        const ringO = t.reportable ? (1 - payoffP) * 0.85 : 0;
-        return (
-          <g key={`topic${k}`} opacity={Math.min(1, s)}>
-            <g transform={`translate(0, ${rise}) scale(${scalePulse})`} style={{transformOrigin: `${cx}px ${cy}px`}}>
-              {ringO > 0.01 && (
-                <circle cx={cx} cy={cy} r={ringR} fill="none" stroke={color} strokeWidth={3.5} opacity={ringO} />
-              )}
-              <circle cx={cx} cy={cy} r={52} fill={color} opacity={0.16} filter="url(#glowBlur)" />
-              <circle
-                cx={cx}
-                cy={cy}
-                r={26}
-                fill={color}
-                opacity={0.95}
-                style={{filter: `drop-shadow(0 0 18px ${color})`}}
-              />
-              <circle cx={cx} cy={cy} r={26} fill="url(#dotCore)" opacity={0.5} />
-              <circle cx={cx} cy={cy} r={26} fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth={2} />
-              {t.material && (
-                <circle cx={cx} cy={cy} r={38} fill="none" stroke={color} strokeWidth={2} opacity={0.45} strokeDasharray="8 10" />
-              )}
-              {/* leader line */}
-              <line x1={lineX1} y1={cy} x2={lineX2} y2={cy} stroke={color} strokeWidth={1.5} opacity={0.55} />
-              <circle cx={lineX1} cy={cy} r={4} fill={color} opacity={0.8} />
-              {/* label */}
-              <text
-                x={labelX}
-                y={cy + 9}
-                fill={t.material ? INK : MUTED}
-                fontSize={26}
-                fontFamily={MONO}
-                fontWeight={t.material ? 700 : 500}
-                textAnchor={anchor}
-                style={t.material ? {textShadow: `0 0 12px ${color}66`} : undefined}
-              >
-                {t.label}
-              </text>
-              <text
-                x={labelX}
-                y={cy + 44}
-                fill={FAINT}
-                fontSize={22}
-                fontFamily={MONO}
-                textAnchor={anchor}
-              >
-                {t.pillar} &middot; {t.x}/{t.y}
-              </text>
-            </g>
-          </g>
-        );
-      })}
-    </svg>
+              <span style={{color: EMERALD}}>✓&nbsp;&nbsp;</span>
+              {line}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Right panel: assessment progress, ESRS checklist, material counter, legend
+// Main panel + footer
 // ---------------------------------------------------------------------------
-const PANEL_X = 2520;
-const PANEL_Y = 420;
-const PANEL_W = 1080;
-const PANEL_H = 1280;
-
-const RightPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const panelSpring = spring({
-    frame: frame - PANEL_START,
-    fps,
-    config: {damping: 200, stiffness: 90},
-  });
-  if (panelSpring <= 0.001) return null;
-
-  const count = Math.round(
-    interpolate(frame, [COUNTER_START, COUNTER_END], [0, MATERIAL_COUNT], {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    })
-  );
-  const barW = ((PANEL_X + 60 + 960) - (PANEL_X + 60)) * (count / TOPICS.length);
-
-  const rows = useMemo(() => CHECKLIST, []);
-  const legendItems: {pillar: Pillar; label: string}[] = [
-    {pillar: 'E', label: 'Environmental'},
-    {pillar: 'S', label: 'Social'},
-    {pillar: 'G', label: 'Governance'},
-  ];
-
+const MainPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const e = entr(frame, 30, fps);
   return (
-    <svg
-      width={3840}
-      height={2160}
+    <div
       style={{
         position: 'absolute',
-        top: 0,
-        left: 0,
-        opacity: Math.min(1, panelSpring),
-        transform: `translateX(${(1 - panelSpring) * 90}px)`,
+        left: 620,
+        top: 400,
+        width: 2600,
+        height: 1330,
+        borderRadius: 48,
+        backgroundColor: PANEL,
+        border: `3px solid ${HAIRLINE}`,
+        boxShadow: '0 40px 140px rgba(0,0,0,0.55), inset 0 2px 0 rgba(234,240,250,0.08)',
+        opacity: e,
+        transform: `translateY(${interpolate(e, [0, 1], [90, 0])}px)`,
+        overflow: 'hidden',
       }}
     >
-      <Defs />
-      {/* panel frame */}
-      <rect
-        x={PANEL_X}
-        y={PANEL_Y}
-        width={PANEL_W}
-        height={PANEL_H}
-        rx={28}
-        fill="url(#panelSheen)"
-        stroke="rgba(52,211,153,0.30)"
-        strokeWidth={2.5}
+      {/* top sheen */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 220,
+          background: 'linear-gradient(180deg, rgba(234,240,250,0.06), rgba(234,240,250,0))',
+          pointerEvents: 'none',
+        }}
       />
-      <line x1={PANEL_X + 60} y1={PANEL_Y + 128} x2={PANEL_X + PANEL_W - 60} y2={PANEL_Y + 128} stroke={GRID_COLOR} strokeWidth={1.5} />
-
-      <text
-        x={PANEL_X + 60}
-        y={PANEL_Y + 92}
-        fill={INK}
-        fontSize={34}
-        fontFamily={MONO}
-        fontWeight={800}
-        letterSpacing={5}
-      >
-        ASSESSMENT PROGRESS
-      </text>
-      <text x={PANEL_X + PANEL_W - 60} y={PANEL_Y + 92} fill={FAINT} fontSize={26} fontFamily={MONO} textAnchor="end">
-        CSRD &middot; ESRS 1
-      </text>
-
-      {/* ESRS checklist rows */}
-      {rows.map((row, i) => {
-        const s = spring({
-          frame: frame - (CHECK_START + i * CHECK_GAP),
-          fps,
-          config: {damping: 200, stiffness: 95},
-        });
-        if (s <= 0.001) return null;
-        const y = PANEL_Y + 220 + i * 118;
-        const done = row.status === 'verified';
-        const accent = done ? EMERALD : AMBER;
-        const checkP = interpolate(frame, [CHECK_START + i * CHECK_GAP, CHECK_START + i * CHECK_GAP + 40], [0, 1], {
-          extrapolateLeft: 'clamp',
-          extrapolateRight: 'clamp',
-        });
-        return (
-          <g key={`row${i}`} opacity={Math.min(1, s)} transform={`translate(${(1 - s) * 34}, 0)`}>
-            <rect
-              x={PANEL_X + 60}
-              y={y - 30}
-              width={46}
-              height={46}
-              rx={10}
-              fill="rgba(6,13,10,0.6)"
-              stroke={accent}
-              strokeWidth={2.5}
-            />
-            {done ? (
-              <path
-                d={`M ${PANEL_X + 70} ${y - 6} L ${PANEL_X + 80} ${y + 5} L ${PANEL_X + 98} ${y - 16}`}
-                fill="none"
-                stroke={EMERALD}
-                strokeWidth={5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                pathLength={1}
-                strokeDasharray={1}
-                strokeDashoffset={1 - checkP}
-                style={{filter: `drop-shadow(0 0 8px ${EMERALD})`}}
-              />
-            ) : (
-              <circle cx={PANEL_X + 83} cy={y - 7} r={13} fill="none" stroke={AMBER} strokeWidth={4}>
-                <animate attributeName="opacity" values="1;0.35;1" dur="1.6s" repeatCount="indefinite" />
-              </circle>
-            )}
-            <text x={PANEL_X + 130} y={y + 6} fill={INK} fontSize={31} fontFamily={MONO} fontWeight={600}>
-              {row.code} &mdash; {row.name}
-            </text>
-            <text
-              x={PANEL_X + PANEL_W - 60}
-              y={y + 6}
-              fill={accent}
-              fontSize={26}
-              fontFamily={MONO}
-              fontWeight={700}
-              letterSpacing={2}
-              textAnchor="end"
-            >
-              {done ? '\u2713 VERIFIED' : '\u25D0 IN REVIEW'}
-            </text>
-          </g>
-        );
-      })}
-
-      {/* divider before counter */}
-      <line
-        x1={PANEL_X + 60}
-        y1={PANEL_Y + 810}
-        x2={PANEL_X + PANEL_W - 60}
-        y2={PANEL_Y + 810}
-        stroke={GRID_COLOR}
-        strokeWidth={1.5}
-      />
-
-      {/* material counter */}
-      <g>
-        <text
-          x={PANEL_X + 60}
-          y={PANEL_Y + 990}
-          fill={EMERALD}
-          fontSize={168}
-          fontFamily={MONO}
-          fontWeight={800}
-          style={{textShadow: `0 0 40px ${EMERALD}99`}}
-        >
-          {count}
-        </text>
-        <text x={PANEL_X + 230} y={PANEL_Y + 940} fill={MUTED} fontSize={36} fontFamily={FONT}>
-          of {TOPICS.length} topics
-        </text>
-        <text x={PANEL_X + 230} y={PANEL_Y + 990} fill={INK} fontSize={44} fontFamily={FONT} fontWeight={700}>
-          material
-        </text>
-        {/* progress bar */}
-        <rect
-          x={PANEL_X + 60}
-          y={PANEL_Y + 1040}
-          width={960}
-          height={12}
-          rx={6}
-          fill="rgba(255,255,255,0.07)"
-        />
-        <rect
-          x={PANEL_X + 60}
-          y={PANEL_Y + 1040}
-          width={barW}
-          height={12}
-          rx={6}
-          fill={EMERALD}
-          style={{filter: `drop-shadow(0 0 12px ${EMERALD}aa)`}}
-        />
-        <text x={PANEL_X + 60} y={PANEL_Y + 1100} fill={FAINT} fontSize={24} fontFamily={MONO} letterSpacing={1}>
-          {Math.round((count / TOPICS.length) * 100)}% of assessed topics meet a threshold
-        </text>
-      </g>
-
-      {/* pillar legend */}
-      <g>
-        <text x={PANEL_X + 60} y={PANEL_Y + 1190} fill={FAINT} fontSize={26} fontFamily={MONO} letterSpacing={4}>
-          PILLARS
-        </text>
-        {legendItems.map((li, i) => (
-          <g key={`legend${li.pillar}`} transform={`translate(${PANEL_X + 60 + i * 330}, ${PANEL_Y + 1216})`}>
-            <circle cx={16} cy={0} r={16} fill={PILLAR_COLOR[li.pillar]} style={{filter: `drop-shadow(0 0 10px ${PILLAR_COLOR[li.pillar]})`}} />
-            <text x={46} y={10} fill={MUTED} fontSize={28} fontFamily={MONO}>
-              {li.pillar} &middot; {li.label}
-            </text>
-          </g>
-        ))}
-      </g>
-    </svg>
+      <div style={{position: 'absolute', inset: '70px 110px'}}>
+        <div style={{opacity: stageOpacity(frame, 40, 80, 300, 340)}}>
+          <SummaryStage frame={frame} fps={fps} />
+        </div>
+        <div style={{opacity: stageOpacity(frame, 320, 360, 540, 580)}}>
+          <PaymentStage frame={frame} fps={fps} />
+        </div>
+        <div style={{opacity: stageOpacity(frame, 560, 600, 700, 740)}}>
+          <ProcessingStage frame={frame} fps={fps} />
+        </div>
+        <div style={{opacity: prog(frame, 720, 760)}}>
+          <SuccessStage frame={frame} fps={fps} />
+        </div>
+      </div>
+    </div>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Bottom strip: 2025-2028 reporting timeline + footer note
-// ---------------------------------------------------------------------------
-const BottomStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({
-    frame: frame - 380,
-    fps,
-    config: {damping: 200, stiffness: 90},
-  });
-  if (s <= 0.001) return null;
-
-  const yearX = (yr: number): number =>
-    TIMELINE_LEFT + ((yr - TIMELINE_YEARS[0]) / (TIMELINE_YEARS[TIMELINE_YEARS.length - 1] - TIMELINE_YEARS[0])) * (TIMELINE_RIGHT - TIMELINE_LEFT);
-  const mx = yearX(MILESTONE_YEAR);
-  const pulse = 0.5 + 0.5 * Math.sin(frame * 0.09);
-  const markerOn = frame > 520;
-
+const Footer: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const e = entr(frame, 60, fps);
   return (
-    <svg
-      width={3840}
-      height={2160}
+    <div
       style={{
         position: 'absolute',
-        top: 0,
-        left: 0,
-        opacity: Math.min(1, s),
-        transform: `translateY(${(1 - s) * 40}px)`,
+        bottom: 120,
+        left: 240,
+        right: 240,
+        display: 'flex',
+        justifyContent: 'space-between',
+        fontFamily: MONO,
+        fontSize: 27,
+        letterSpacing: 4,
+        color: FAINT,
+        opacity: e,
       }}
     >
-      <Defs />
-      {/* baseline */}
-      <line x1={TIMELINE_LEFT} y1={TIMELINE_Y} x2={TIMELINE_RIGHT} y2={TIMELINE_Y} stroke={AXIS_COLOR} strokeWidth={2.5} />
-      {TIMELINE_YEARS.map((yr) => (
-        <g key={`yr${yr}`}>
-          <line x1={yearX(yr)} y1={TIMELINE_Y - 18} x2={yearX(yr)} y2={TIMELINE_Y + 18} stroke={AXIS_COLOR} strokeWidth={2.5} />
-          <text
-            x={yearX(yr)}
-            y={TIMELINE_Y + 72}
-            fill={yr === MILESTONE_YEAR ? AMBER : MUTED}
-            fontSize={32}
-            fontFamily={MONO}
-            fontWeight={yr === MILESTONE_YEAR ? 800 : 500}
-            textAnchor="middle"
-            style={yr === MILESTONE_YEAR ? {textShadow: `0 0 16px ${AMBER}` } : undefined}
-          >
-            {yr}
-          </text>
-        </g>
-      ))}
-      {/* FY2027 milestone marker */}
-      {markerOn && (
-        <g>
-          <circle cx={mx} cy={TIMELINE_Y} r={26 + pulse * 14} fill={AMBER} opacity={0.18} />
-          <g transform={`rotate(45 ${mx} ${TIMELINE_Y})`}>
-            <rect x={mx - 16} y={TIMELINE_Y - 16} width={32} height={32} fill={AMBER} style={{filter: `drop-shadow(0 0 16px ${AMBER})`}} />
-          </g>
-          <text
-            x={mx}
-            y={TIMELINE_Y - 56}
-            fill={AMBER}
-            fontSize={32}
-            fontFamily={MONO}
-            fontWeight={800}
-            letterSpacing={3}
-            textAnchor="middle"
-          >
-            FY2027 &mdash; ESRS mandatory
-          </text>
-        </g>
-      )}
-      {/* footer note */}
-      <text x={1920} y={2100} fill={FAINT} fontSize={26} fontFamily={FONT} textAnchor="middle">
-        Double materiality: report topics material from either impact or financial perspective. Revised ESRS ~61% fewer datapoints.
-      </text>
-    </svg>
+      <span>CARD&nbsp;&nbsp;·&nbsp;&nbsp;BANK TRANSFER&nbsp;&nbsp;·&nbsp;&nbsp;WALLET</span>
+      <span style={{color: MUTED}}>◈&nbsp;&nbsp;FRAUD MONITORING ACTIVE</span>
+      <span>DEMO PREVIEW</span>
+    </div>
   );
 };
 
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const CSRDMaterialityMatrix: React.FC = () => {
+export const CheckoutPaymentFlow: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
-      <TitleBlock frame={frame} />
-      <MatrixPlot frame={frame} fps={fps} />
-      <RightPanel frame={frame} fps={fps} />
-      <BottomStrip frame={frame} fps={fps} />
+      <Header frame={frame} fps={fps} />
+      <MainPanel frame={frame} fps={fps} />
+      <Footer frame={frame} fps={fps} />
     </AbsoluteFill>
   );
 };
 
-export default CSRDMaterialityMatrix;
+export default CheckoutPaymentFlow;
