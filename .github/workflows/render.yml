@@ -1,4 +1,27 @@
-🎬 Render Remotion Video
+name: 🎬 Render Remotion Video
+
+# ---------------------------------------------------------------------------
+# YAML RULE THAT BROKE THIS FILE (the "error in your yaml syntax on line 92"):
+#
+# A `run: |` block is a YAML *literal block scalar*. Every non-empty line of the
+# script must be indented MORE than the key that introduces it. `run:` sits at
+# column 9, so all script lines must start with >= 9 spaces (this file uses 10).
+#
+# A line indented less than that silently ENDS the block scalar, and YAML then
+# tries to parse `');` as a normal mapping line -> "could not find expected ':'".
+#
+# The old "Validate composition syntax" step did exactly that: its inline
+# node -e block contained a real line break where the two characters  \  n
+# were meant, i.e.
+#
+#     line 91:  ... content.split('      <-- string literal left open
+#     line 92:  ');                        <-- continued at COLUMN 1 (0 spaces!)
+#
+# which un-indented everything after it and killed the block scalar at line 92.
+#
+# Rule of thumb: never put a multi-line JS/Python string literal inside a
+# `run:` block; use a single-line string (or a script file committed to the repo).
+# ---------------------------------------------------------------------------
 
 on:
   workflow_dispatch:
@@ -39,20 +62,19 @@ jobs:
         run: |
           BULK='${{ github.event.inputs.compositions_json }}'
           SINGLE='${{ github.event.inputs.composition_id }}'
-          if [ -n "$BULK" ] && [ "$BULK" != "null" ] && [ "$BULK" != "" ]; then
-            echo "matrix={\"include\":$(echo $BULK)}" >> $GITHUB_OUTPUT
-          elif [ -n "$SINGLE" ] && [ "$SINGLE" != "" ]; then
-            echo "matrix={\"include\":[{\"id\":\"$SINGLE\",\"file\":\"composition\"}]}" >> $GITHUB_OUTPUT
+          if [ -n "$BULK" ] && [ "$BULK" != "null" ]; then
+            echo "matrix={\"include\":$BULK}" >> "$GITHUB_OUTPUT"
+          elif [ -n "$SINGLE" ]; then
+            echo "matrix={\"include\":[{\"id\":\"$SINGLE\"}]}" >> "$GITHUB_OUTPUT"
           else
-            echo "matrix={\"include\":[{\"id\":\"CybersecurityNetworkMap\",\"file\":\"composition\"}]}" >> $GITHUB_OUTPUT
+            echo "matrix={\"include\":[{\"id\":\"CybersecurityNetworkMap\"}]}" >> "$GITHUB_OUTPUT"
           fi
 
       - id: calc
         run: |
           FPS=${{ github.event.inputs.fps || 60 }}
           SECS=${{ github.event.inputs.duration_seconds || 15 }}
-          LAST=$(( FPS * SECS - 1 ))
-          echo "last_frame=$LAST" >> $GITHUB_OUTPUT
+          echo "last_frame=$(( FPS * SECS - 1 ))" >> "$GITHUB_OUTPUT"
 
   render:
     needs: prepare
@@ -79,7 +101,7 @@ jobs:
         run: |
           mkdir -p out
 
-          # Step 1 — Remotion render at near-lossless quality, no audio
+          # Step 1 - Remotion render at near-lossless quality, no audio
           npx remotion render \
             "${{ matrix.id }}" \
             "out/${{ matrix.id }}_raw.mp4" \
@@ -93,7 +115,7 @@ jobs:
             --muted \
             --concurrency=2
 
-          # Step 2 — Re-encode to Adobe Stock spec: 40 Mbps target, 35 Mbps minimum, no audio
+          # Step 2 - Re-encode to Adobe Stock spec: 40 Mbps target, 35 Mbps min, no audio
           ffmpeg -y \
             -i "out/${{ matrix.id }}_raw.mp4" \
             -c:v libx264 \
@@ -108,54 +130,59 @@ jobs:
             -an \
             "out/${{ matrix.id }}.mp4"
 
-          # Remove intermediate raw file
-          rm "out/${{ matrix.id }}_raw.mp4"
+          rm -f "out/${{ matrix.id }}_raw.mp4"
 
-          # Step 3 — Verify with ffprobe
+      - name: ✅ Verify Adobe Stock spec
+        run: |
+          FILE="out/${{ matrix.id }}.mp4"
+
+          WIDTH=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$FILE")
+          HEIGHT=$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$FILE")
+          FPS=$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "$FILE")
+          CODEC=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "$FILE")
+          DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$FILE")
+          BITRATE=$(ffprobe -v error -show_entries format=bit_rate -of csv=p=0 "$FILE")
+          SIZE=$(stat -c %s "$FILE")
+          AUDIO=$(ffprobe -v error -select_streams a -show_entries stream=codec_name -of csv=p=0 "$FILE")
+
+          MBPS=$(awk -v b="$BITRATE" 'BEGIN { printf "%.2f", b / 1000000 }')
+          MB=$(awk -v s="$SIZE" 'BEGIN { printf "%.1f", s / 1048576 }')
+
           echo "=== Output file info ==="
-          ffprobe -v quiet -print_format json -show_format -show_streams \
-            "out/${{ matrix.id }}.mp4" > /tmp/probe.json
+          echo "File:       $FILE"
+          echo "Size:       $MB MB"
+          echo "Duration:   $DURATION s"
+          echo "Bitrate:    $MBPS Mbps"
+          echo "Resolution: ${WIDTH}x${HEIGHT}"
+          echo "FPS:        $FPS"
+          echo "Codec:      $CODEC"
+          echo "Audio:      ${AUDIO:-NONE}"
 
-          python3 - << 'PYEOF'
-          import json, sys
-          d = json.load(open('/tmp/probe.json'))
-          fmt     = d['format']
-          streams = d['streams']
-          vid = next((s for s in streams if s['codec_type'] == 'video'), None)
-          aud = next((s for s in streams if s['codec_type'] == 'audio'), None)
+          FAILED=0
 
-          size_mb  = int(fmt['size']) / 1024 / 1024
-          duration = float(fmt['duration'])
-          bitrate  = int(fmt.get('bit_rate', 0)) / 1_000_000
+          if ! awk -v b="$BITRATE" 'BEGIN { exit !(b / 1000000 >= 20) }'; then
+            echo "❌ FAIL: Bitrate too low: $MBPS Mbps (need >= 20 Mbps)"
+            FAILED=1
+          fi
 
-          print(f"File:       {fmt['filename']}")
-          print(f"Size:       {size_mb:.1f} MB")
-          print(f"Duration:   {duration:.2f}s")
-          print(f"Bitrate:    {bitrate:.2f} Mbps")
-          print(f"Resolution: {vid['width']}x{vid['height']}")
-          print(f"FPS:        {vid['r_frame_rate']}")
-          print(f"Codec:      {vid['codec_name']} {vid['profile']}")
-          print(f"Audio:      {'NONE ✅' if aud is None else 'PRESENT ❌ ' + aud['codec_name']}")
+          if [ -n "$AUDIO" ]; then
+            echo "❌ FAIL: Audio stream present ($AUDIO) - must be muted for Adobe Stock"
+            FAILED=1
+          fi
 
-          errors = []
-          if bitrate < 20:
-              errors.append(f"Bitrate too low: {bitrate:.1f} Mbps (need >= 20 Mbps)")
-          if aud is not None:
-              errors.append("Audio stream present — must be muted for Adobe Stock")
+          if [ "$WIDTH" != "${{ github.event.inputs.width || 3840 }}" ]; then
+            echo "❌ FAIL: Wrong width: $WIDTH"
+            FAILED=1
+          fi
 
-          if errors:
-              print()
-              for e in errors:
-                  print(f"❌ FAIL: {e}")
-              sys.exit(1)
-          else:
-              print()
-              print("✅ All Adobe Stock quality checks passed!")
-          PYEOF
+          if [ "$FAILED" -ne 0 ]; then
+            exit 1
+          fi
+
+          echo "✅ All Adobe Stock quality checks passed!"
 
       - uses: actions/upload-artifact@v4
         with:
           name: "${{ matrix.id }}_4K_60fps_AdobeStock"
           path: "out/${{ matrix.id }}.mp4"
           retention-days: 2
-EOF
