@@ -1,18 +1,19 @@
 /**
- * CheckoutPaymentFlow.tsx
+ * EVChargingAvailabilityMap.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * A premium secure-checkout sequence: order summary -> card payment ->
- * authorization processing -> approved confirmation with receipt.
+ * Live EV charging network availability map: status-ringed station pins
+ * (green = available, amber = charging, blue = in queue), kW badges, queue
+ * counters, and a route that draws from the driver marker to the nearest
+ * available fast charger with a ticking ETA, ending in a charge-start payoff.
  *
  * Register in Root.tsx:
- *   <Composition id="CheckoutPaymentFlow" component={CheckoutPaymentFlow}
+ *   <Composition id="EVChargingAvailabilityMap" component={EVChargingAvailabilityMap}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
 import React, {useMemo} from 'react';
 import {
   AbsoluteFill,
-  Easing,
   interpolate,
   spring,
   useCurrentFrame,
@@ -22,238 +23,257 @@ import {
 // ---------------------------------------------------------------------------
 // Palette
 // ---------------------------------------------------------------------------
-const BG = '#060A13';
-const PANEL = 'rgba(13, 20, 36, 0.88)';
-const HAIRLINE = 'rgba(148, 163, 184, 0.22)';
-const INK = '#EAF0FA';
-const MUTED = 'rgba(190, 203, 224, 0.66)';
-const FAINT = 'rgba(148, 163, 184, 0.38)';
-const EMERALD = '#34D399';
-const EMERALD_DIM = 'rgba(52, 211, 153, 0.14)';
-const SKY = '#38BDF8';
-const AMBER = '#FBBF24';
-const ROSE = '#FB7185';
-
+const BG = '#060B12';
+const INK = '#EAF2FB';
+const MUTED = 'rgba(180,198,216,0.62)';
+const AVAIL = '#34D399'; // green - available
+const CHARGE = '#FBBF24'; // amber - charging
+const QUEUE = '#60A5FA'; // blue - queue
+const TEAL = '#2DD4BF';
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
-// Data
+// Timeline (frames at 60 fps, 900 = 15 s)
 // ---------------------------------------------------------------------------
-const ITEMS = [
-  {name: 'Aurora Wireless Headphones', detail: 'Matte black · Qty 1', price: 249.0},
-  {name: 'Express Shipping', detail: '2–3 business days', price: 12.0},
-  {name: 'Estimated Tax', detail: 'Calculated at checkout', price: 20.88},
-];
-const TOTAL = 281.88;
-const CARD_NUMBER = '4532 1488 9031 7764';
-const ORDER_ID = 'ORD-784512';
-const EMAIL = 'you@email.com';
+const MAP_START = 20;
+const STATIONS_START = 90;
+const ROUTE_START = 260;
+const ROUTE_END = 560;
+const ARRIVE_START = 560;
+const PAYOFF_END = 720;
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Deterministic pseudo-random helper
 // ---------------------------------------------------------------------------
-const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-const prog = (frame: number, start: number, end: number) =>
-  clamp01((frame - start) / (end - start));
-const entr = (frame: number, delay: number, fps: number) =>
-  spring({
-    frame: Math.max(0, frame - delay),
-    fps,
-    config: {damping: 19, stiffness: 130},
-  });
 const rand = (seed: number) => {
   const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
 };
-const money = (v: number) =>
-  '$' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-
-/** Opacity envelope: fade in [inA,inB], hold, fade out [outA,outB]. */
-const stageOpacity = (
-  frame: number,
-  inA: number,
-  inB: number,
-  outA: number,
-  outB: number,
-) => prog(frame, inA, inB) * (1 - prog(frame, outA, outB));
 
 // ---------------------------------------------------------------------------
-// Background — layered glow, grid, vignette, drifting particles, sweep
+// Map geometry
+// ---------------------------------------------------------------------------
+const MAP_LEFT = 220;
+const MAP_RIGHT = 3620;
+const MAP_TOP = 330;
+const MAP_BOTTOM = 1920;
+
+interface Station {
+  id: number;
+  x: number; // 0..1 across map
+  y: number; // 0..1 down map
+  name: string;
+  kw: number;
+  status: 'avail' | 'charging' | 'queue';
+  queue: number;
+  ports: number;
+  free: number;
+}
+
+// Nine stations spread across the map
+const STATIONS: Station[] = [
+  {id: 0, x: 0.13, y: 0.24, name: 'HARBOUR POINT', kw: 350, status: 'avail', queue: 0, ports: 12, free: 7},
+  {id: 1, x: 0.33, y: 0.14, name: 'NORTHGATE PLAZA', kw: 180, status: 'charging', queue: 0, ports: 8, free: 0},
+  {id: 2, x: 0.52, y: 0.30, name: 'MIDTOWN EXCHANGE', kw: 350, status: 'queue', queue: 3, ports: 10, free: 0},
+  {id: 3, x: 0.70, y: 0.16, name: 'AIRPORT TERMINAL', kw: 250, status: 'charging', queue: 0, ports: 6, free: 0},
+  {id: 4, x: 0.86, y: 0.38, name: 'RIVERSIDE DEPOT', kw: 180, status: 'avail', queue: 0, ports: 8, free: 5},
+  {id: 5, x: 0.22, y: 0.62, name: 'OLD TOWN HUB', kw: 120, status: 'queue', queue: 2, ports: 6, free: 0},
+  {id: 6, x: 0.44, y: 0.55, name: 'CENTRAL YARDS', kw: 350, status: 'avail', queue: 0, ports: 14, free: 9},
+  {id: 7, x: 0.63, y: 0.72, name: 'SOUTHPORT MALL', kw: 250, status: 'charging', queue: 0, ports: 8, free: 0},
+  {id: 8, x: 0.84, y: 0.66, name: 'MARINA DRIVE', kw: 350, status: 'avail', queue: 0, ports: 10, free: 6},
+];
+
+// Driver starts bottom-left; nearest available fast charger is CENTRAL YARDS (id 6)
+const DRIVER = {x: 0.06, y: 0.88};
+const TARGET = STATIONS[6];
+const statusColor = (s: Station['status']) =>
+  s === 'avail' ? AVAIL : s === 'charging' ? CHARGE : QUEUE;
+
+// ---------------------------------------------------------------------------
+// Static defs
+// ---------------------------------------------------------------------------
+const Defs: React.FC = () => (
+  <defs>
+    <radialGradient id="bgGlow" cx="50%" cy="42%" r="72%">
+      <stop offset="0%" stopColor="rgba(45,212,191,0.10)" />
+      <stop offset="55%" stopColor="rgba(45,212,191,0.03)" />
+      <stop offset="100%" stopColor="rgba(6,11,18,0)" />
+    </radialGradient>
+    <radialGradient id="vignette" cx="50%" cy="50%" r="75%">
+      <stop offset="60%" stopColor="rgba(6,11,18,0)" />
+      <stop offset="100%" stopColor="rgba(2,4,8,0.74)" />
+    </radialGradient>
+    <linearGradient id="routeGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={TEAL} />
+      <stop offset="100%" stopColor={AVAIL} />
+    </linearGradient>
+    <filter id="pinGlow" x="-90%" y="-90%" width="280%" height="280%">
+      <feGaussianBlur stdDeviation="11" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <filter id="softBlur" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="6" />
+    </filter>
+  </defs>
+);
+
+// ---------------------------------------------------------------------------
+// Background: layered glow, vignette, faint map streets, scan sweep
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const particles = useMemo(
-    () =>
-      Array.from({length: 70}, (_, i) => ({
-        x: rand(i * 3.1) * 3840,
-        y: rand(i * 7.7) * 2160,
-        r: 1.5 + rand(i * 13.3) * 3.5,
-        speed: 0.25 + rand(i * 5.9) * 0.7,
-        tw: rand(i * 9.4) * Math.PI * 2,
-      })),
-    [],
-  );
-  const sweepX = interpolate(frame, [0, 900], [-1400, 5200], {
-    easing: Easing.linear,
+  const sweep = useMemo(() => {
+    const cols = 21;
+    const rows = 12;
+    const lines: {x1: number; y1: number; x2: number; y2: number; w: number}[] = [];
+    for (let i = 0; i <= cols; i++) {
+      const x = MAP_LEFT + (i / cols) * (MAP_RIGHT - MAP_LEFT) + (rand(i) - 0.5) * 90;
+      lines.push({x1: x, y1: MAP_TOP, x2: x + (rand(i + 40) - 0.5) * 160, y2: MAP_BOTTOM, w: i % 5 === 0 ? 3 : 1.5});
+    }
+    for (let j = 0; j <= rows; j++) {
+      const y = MAP_TOP + (j / rows) * (MAP_BOTTOM - MAP_TOP) + (rand(j + 90) - 0.5) * 70;
+      lines.push({x1: MAP_LEFT, y1: y, x2: MAP_RIGHT, y2: y + (rand(j + 140) - 0.5) * 120, w: j % 4 === 0 ? 3 : 1.5});
+    }
+    return lines;
+  }, []);
+
+  const fade = interpolate(frame, [MAP_START, MAP_START + 80], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
+
+  const scanX = MAP_LEFT + ((frame / 900) * (MAP_RIGHT - MAP_LEFT + 400)) - 200;
+
   return (
-    <AbsoluteFill>
-      <svg width={3840} height={2160}>
-        <defs>
-          <radialGradient id="bgGlowA" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#34D399" stopOpacity="0.20" />
-            <stop offset="100%" stopColor="#34D399" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="bgGlowB" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.16" />
-            <stop offset="100%" stopColor="#38BDF8" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="vignette" cx="50%" cy="46%" r="75%">
-            <stop offset="55%" stopColor="#000000" stopOpacity="0" />
-            <stop offset="100%" stopColor="#000000" stopOpacity="0.62" />
-          </radialGradient>
-          <filter id="softBlur" x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation="130" />
-          </filter>
-        </defs>
-
-        <rect width={3840} height={2160} fill={BG} />
-        {/* grid */}
-        {Array.from({length: 23}, (_, i) => (
-          <line
-            key={'v' + i}
-            x1={160 * (i + 1)}
-            y1={0}
-            x2={160 * (i + 1)}
-            y2={2160}
-            stroke="rgba(148,163,184,0.055)"
-            strokeWidth={2}
+    <>
+      <AbsoluteFill style={{backgroundColor: BG}} />
+      <AbsoluteFill
+        style={{
+          background:
+            'radial-gradient(circle at 50% 40%, rgba(45,212,191,0.10), rgba(45,212,191,0.03) 45%, rgba(6,11,18,0) 72%)',
+        }}
+      />
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <g opacity={fade * 0.55}>
+          {sweep.map((l, i) => (
+            <line
+              key={`st${i}`}
+              x1={l.x1}
+              y1={l.y1}
+              x2={l.x2}
+              y2={l.y2}
+              stroke={i % 7 === 0 ? 'rgba(96,165,250,0.10)' : 'rgba(148,163,184,0.07)'}
+              strokeWidth={l.w}
+            />
+          ))}
+          {/* river curve */}
+          <path
+            d={`M ${MAP_LEFT - 60} 1450 C 900 1380, 1400 1600, 2100 1520 S 3300 1700, ${MAP_RIGHT + 60} 1620`}
+            fill="none"
+            stroke="rgba(96,165,250,0.14)"
+            strokeWidth={46}
+            strokeLinecap="round"
+            opacity={0.7}
           />
-        ))}
-        {Array.from({length: 12}, (_, i) => (
-          <line
-            key={'h' + i}
-            x1={0}
-            y1={180 * (i + 1)}
-            x2={3840}
-            y2={180 * (i + 1)}
-            stroke="rgba(148,163,184,0.055)"
-            strokeWidth={2}
+          <path
+            d={`M ${MAP_LEFT - 60} 1450 C 900 1380, 1400 1600, 2100 1520 S 3300 1700, ${MAP_RIGHT + 60} 1620`}
+            fill="none"
+            stroke="rgba(96,165,250,0.20)"
+            strokeWidth={3}
+            strokeLinecap="round"
           />
-        ))}
-
-        {/* ambient glows */}
-        <ellipse cx={3150} cy={480} rx={950} ry={620} fill="url(#bgGlowA)" filter="url(#softBlur)" />
-        <ellipse cx={620} cy={1650} rx={900} ry={640} fill="url(#bgGlowB)" filter="url(#softBlur)" />
-
-        {/* drifting particles */}
-        {particles.map((p, i) => {
-          const y = (p.y - frame * p.speed * 1.6 + 2160 * 3) % 2160;
-          const tw = 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(frame / 60 + p.tw));
-          return (
-            <circle key={i} cx={p.x} cy={y} r={p.r} fill="#9FD8FF" opacity={tw * 0.5} />
-          );
-        })}
-
-        {/* slow diagonal sweep */}
-        <g transform={`translate(${sweepX} 0) rotate(18 0 1080)`} opacity={0.05}>
-          <rect x={-260} y={-600} width={520} height={3400} fill="#BFE9FF" />
         </g>
-
-        <rect width={3840} height={2160} fill="url(#vignette)" />
+        {/* district labels */}
+        <g opacity={fade * 0.8}>
+          <text x={640} y={480} fill="rgba(148,163,184,0.30)" fontSize={30} fontFamily={MONO} letterSpacing={8}>
+            HARBOUR DISTRICT
+          </text>
+          <text x={2450} y={560} fill="rgba(148,163,184,0.30)" fontSize={30} fontFamily={MONO} letterSpacing={8}>
+            MIDTOWN
+          </text>
+          <text x={1500} y={1700} fill="rgba(148,163,184,0.30)" fontSize={30} fontFamily={MONO} letterSpacing={8}>
+            OLD TOWN
+          </text>
+          <text x={3030} y={1330} fill="rgba(148,163,184,0.30)" fontSize={30} fontFamily={MONO} letterSpacing={8}>
+            RIVERSIDE
+          </text>
+        </g>
+        {/* scanning sweep */}
+        <rect x={scanX - 70} y={MAP_TOP} width={140} height={MAP_BOTTOM - MAP_TOP} fill="rgba(45,212,191,0.030)" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#vignette)" />
       </svg>
-    </AbsoluteFill>
+    </>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Header — title, security badge, step indicator
+// Title bar + network stats
 // ---------------------------------------------------------------------------
-const Header: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 10, fps);
-  const y = interpolate(e, [0, 1], [60, 0]);
+const TitleBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const fade = interpolate(frame, [0, 50], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const rise = interpolate(frame, [0, 50], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+
+  const count = (to: number, start: number) => {
+    const t = interpolate(frame, [start, start + 70], [0, 1], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    return Math.round(to * (1 - Math.pow(1 - t, 3)));
+  };
+
+  const stats = [
+    {label: 'CHARGERS FREE', value: count(27, 70), color: AVAIL},
+    {label: 'VEHICLES QUEUED', value: count(11, 90), color: QUEUE},
+    {label: 'AVG POWER', value: `${count(164, 110)}`, unit: 'kW', color: CHARGE},
+  ];
+
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 150,
-        left: 240,
-        right: 240,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        opacity: e,
-        transform: `translateY(${y}px)`,
-      }}
-    >
-      <div>
-        <div
-          style={{
-            fontFamily: MONO,
-            fontSize: 30,
-            letterSpacing: 8,
-            color: EMERALD,
-            marginBottom: 18,
-          }}
-        >
-          ● SECURE CHECKOUT
-        </div>
-        <div
-          style={{
-            fontFamily: FONT,
-            fontSize: 76,
-            fontWeight: 800,
-            letterSpacing: 2,
-            color: INK,
-            textShadow: '0 4px 40px rgba(56,189,248,0.25)',
-          }}
-        >
-          Payment
-        </div>
-        <div
-          style={{
-            fontFamily: MONO,
-            fontSize: 27,
-            letterSpacing: 3,
-            color: MUTED,
-            marginTop: 14,
-          }}
-        >
-          256-BIT ENCRYPTED&nbsp;&nbsp;·&nbsp;&nbsp;PCI DSS COMPLIANT
-        </div>
-      </div>
-      <div style={{textAlign: 'right', paddingTop: 26}}>
-        <div
-          style={{
-            fontFamily: MONO,
-            fontSize: 30,
-            letterSpacing: 4,
-            color: FAINT,
-          }}
-        >
-          STEP 3 OF 3
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            gap: 14,
-            marginTop: 20,
-            justifyContent: 'flex-end',
-          }}
-        >
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
+    <div style={{position: 'absolute', top: 84 + rise, left: 220, right: 220, opacity: fade}}>
+      <div style={{display: 'flex', alignItems: 'baseline', justifyContent: 'space-between'}}>
+        <div>
+          <div style={{display: 'flex', alignItems: 'baseline', gap: 30}}>
+            <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 82, letterSpacing: -1}}>
+              CHARGE NETWORK
+            </span>
+            <span
               style={{
-                width: 64,
-                height: 10,
-                borderRadius: 5,
-                backgroundColor: i < 2 ? EMERALD : 'rgba(148,163,184,0.25)',
-                boxShadow: i < 2 ? `0 0 18px ${EMERALD}` : 'none',
+                color: AVAIL,
+                fontFamily: MONO,
+                fontSize: 36,
+                fontWeight: 700,
+                border: `2px solid ${AVAIL}`,
+                borderRadius: 10,
+                padding: '6px 18px',
               }}
-            />
+            >
+              LIVE
+            </span>
+          </div>
+          <div style={{color: MUTED, fontFamily: FONT, fontSize: 34, marginTop: 14}}>
+            Real-time charger availability &middot; city grid &middot; 9 hubs
+          </div>
+        </div>
+        <div style={{display: 'flex', gap: 40}}>
+          {stats.map((s) => (
+            <div key={s.label} style={{textAlign: 'right'}}>
+              <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, letterSpacing: 2}}>{s.label}</div>
+              <div
+                style={{
+                  color: s.color,
+                  fontFamily: MONO,
+                  fontWeight: 800,
+                  fontSize: 76,
+                  textShadow: `0 0 26px ${s.color}55`,
+                }}
+              >
+                {s.value}
+                {s.unit && <span style={{fontSize: 34, marginLeft: 6}}>{s.unit}</span>}
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -262,594 +282,383 @@ const Header: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Stage A — order summary
+// Legend chips
 // ---------------------------------------------------------------------------
-const SummaryStage: React.FC<{frame: number; fps: number}> = ({frame, fps}) => (
-  <div style={{position: 'absolute', inset: 0}}>
+const Legend: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [140, 190], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const items = [
+    {c: AVAIL, t: 'AVAILABLE'},
+    {c: CHARGE, t: 'CHARGING'},
+    {c: QUEUE, t: 'QUEUE'},
+  ];
+  return (
     <div
       style={{
-        fontFamily: MONO,
-        fontSize: 30,
-        letterSpacing: 7,
-        color: FAINT,
-        marginBottom: 44,
-        opacity: entr(frame, 70, fps),
-      }}
-    >
-      ORDER SUMMARY
-    </div>
-    {ITEMS.map((item, i) => {
-      const e = entr(frame, 100 + i * 45, fps);
-      return (
-        <div
-          key={i}
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '30px 10px',
-            borderBottom: `2px solid ${HAIRLINE}`,
-            opacity: e,
-            transform: `translateY(${interpolate(e, [0, 1], [50, 0])}px)`,
-          }}
-        >
-          <div>
-            <div style={{fontFamily: FONT, fontSize: 46, fontWeight: 600, color: INK}}>
-              {item.name}
-            </div>
-            <div style={{fontFamily: MONO, fontSize: 28, color: FAINT, marginTop: 10, letterSpacing: 1}}>
-              {item.detail}
-            </div>
-          </div>
-          <div style={{fontFamily: MONO, fontSize: 44, color: INK}}>{money(item.price)}</div>
-        </div>
-      );
-    })}
-    <div
-      style={{
+        position: 'absolute',
+        left: 220,
+        bottom: 78,
         display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '44px 10px 0',
-        opacity: entr(frame, 250, fps),
-        transform: `translateY(${interpolate(entr(frame, 250, fps), [0, 1], [50, 0])}px)`,
+        gap: 44,
+        opacity: fade,
       }}
     >
-      <div style={{fontFamily: FONT, fontSize: 52, fontWeight: 700, color: INK}}>
-        Total due
-      </div>
-      <div
-        style={{
-          fontFamily: MONO,
-          fontSize: 84,
-          fontWeight: 700,
-          color: EMERALD,
-          textShadow: `0 0 44px ${EMERALD_DIM}`,
-        }}
-      >
-        {money(TOTAL)}
-      </div>
-    </div>
-    <div
-      style={{
-        marginTop: 56,
-        display: 'inline-block',
-        padding: '30px 90px',
-        borderRadius: 60,
-        background: `linear-gradient(135deg, ${EMERALD}, #10B981)`,
-        boxShadow: `0 12px 60px ${EMERALD_DIM}`,
-        fontFamily: FONT,
-        fontSize: 44,
-        fontWeight: 700,
-        letterSpacing: 3,
-        color: '#04120C',
-        opacity: entr(frame, 300, fps),
-        transform: `translateY(${interpolate(entr(frame, 300, fps), [0, 1], [40, 0])}px)`,
-      }}
-    >
-      CONTINUE TO PAYMENT →
-    </div>
-  </div>
-);
-
-// ---------------------------------------------------------------------------
-// Stage B — card payment
-// ---------------------------------------------------------------------------
-const PaymentStage: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  // card flips/scales in
-  const cardE = entr(frame, 350, fps);
-  const cardScale = interpolate(cardE, [0, 1], [0.82, 1]);
-  // digits type across frames 390–500
-  const typed = Math.floor(prog(frame, 390, 500) * CARD_NUMBER.length);
-  const shown = CARD_NUMBER.slice(0, typed);
-  const btnE = entr(frame, 505, fps);
-  // pay button "click" dip
-  const click = prog(frame, 540, 552) * (1 - prog(frame, 552, 566));
-  return (
-    <div style={{position: 'absolute', inset: 0}}>
-      <div
-        style={{
-          fontFamily: MONO,
-          fontSize: 30,
-          letterSpacing: 7,
-          color: FAINT,
-          marginBottom: 40,
-          opacity: entr(frame, 340, fps),
-        }}
-      >
-        PAYMENT METHOD — CARD
-      </div>
-      <div style={{display: 'flex', gap: 90, alignItems: 'flex-start'}}>
-        {/* credit card visual */}
-        <div
-          style={{
-            opacity: cardE,
-            transform: `scale(${cardScale}) translateY(${interpolate(cardE, [0, 1], [60, 0])}px)`,
-          }}
-        >
-          <svg width={980} height={600}>
-            <defs>
-              <linearGradient id="cardGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#123B6D" />
-                <stop offset="55%" stopColor="#0B2547" />
-                <stop offset="100%" stopColor="#071A33" />
-              </linearGradient>
-              <linearGradient id="chipGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#FDE68A" />
-                <stop offset="100%" stopColor="#B45309" />
-              </linearGradient>
-              <filter id="cardGlow" x="-30%" y="-30%" width="160%" height="160%">
-                <feGaussianBlur stdDeviation="26" />
-              </filter>
-            </defs>
-            <rect x={30} y={40} width={920} height={520} rx={44} fill="#38BDF8" opacity={0.28} filter="url(#cardGlow)" />
-            <rect x={0} y={0} width={920} height={520} rx={44} fill="url(#cardGrad)" stroke="rgba(148,163,184,0.35)" strokeWidth={3} />
-            <rect x={70} y={90} width={130} height={100} rx={16} fill="url(#chipGrad)" />
-            <line x1={70} y1={140} x2={200} y2={140} stroke="#92400E" strokeWidth={4} opacity={0.6} />
-            <line x1={135} y1={90} x2={135} y2={190} stroke="#92400E" strokeWidth={4} opacity={0.6} />
-            <text x={70} y={300} fontFamily={MONO} fontSize={56} letterSpacing={6} fill={INK}>
-              {shown}
-              {typed < CARD_NUMBER.length && (
-                <tspan fill={SKY} opacity={0.6 + 0.4 * Math.sin(frame / 8)}>▍</tspan>
-              )}
-            </text>
-            <text x={70} y={400} fontFamily={MONO} fontSize={26} letterSpacing={4} fill={FAINT}>
-              CARD HOLDER
-            </text>
-            <text x={70} y={448} fontFamily={FONT} fontSize={38} fontWeight={600} letterSpacing={3} fill={INK}>
-              M USMAN
-            </text>
-            <text x={560} y={400} fontFamily={MONO} fontSize={26} letterSpacing={4} fill={FAINT}>
-              EXPIRES
-            </text>
-            <text x={560} y={448} fontFamily={MONO} fontSize={38} fill={INK}>
-              08/29
-            </text>
-            <text x={740} y={400} fontFamily={MONO} fontSize={26} letterSpacing={4} fill={FAINT}>
-              CVC
-            </text>
-            <text x={740} y={448} fontFamily={MONO} fontSize={38} fill={INK}>
-              •••
-            </text>
-            {/* contactless arcs */}
-            {[0, 1, 2].map((i) => (
-              <path
-                key={i}
-                d={`M ${800 + i * 26} 120 A ${44 + i * 26} ${44 + i * 26} 0 0 1 ${800 + i * 26} 190`}
-                fill="none"
-                stroke={SKY}
-                strokeWidth={7}
-                strokeLinecap="round"
-                opacity={0.35 + 0.65 * prog(frame, 430 + i * 30, 470 + i * 30)}
-              />
-            ))}
-          </svg>
-        </div>
-        {/* pay column */}
-        <div style={{flex: 1, paddingTop: 40}}>
+      {items.map((it) => (
+        <div key={it.t} style={{display: 'flex', alignItems: 'center', gap: 16}}>
           <div
             style={{
-              fontFamily: MONO,
-              fontSize: 28,
-              letterSpacing: 3,
-              color: MUTED,
-              opacity: entr(frame, 420, fps),
-            }}
-          >
-            AMOUNT TO CHARGE
-          </div>
-          <div
-            style={{
-              fontFamily: MONO,
-              fontSize: 120,
-              fontWeight: 700,
-              color: INK,
-              marginTop: 16,
-              opacity: entr(frame, 440, fps),
-            }}
-          >
-            {money(TOTAL)}
-          </div>
-          <div
-            style={{
-              marginTop: 70,
-              display: 'inline-block',
-              padding: '34px 110px',
-              borderRadius: 64,
-              background: `linear-gradient(135deg, ${SKY}, #0EA5E9)`,
-              boxShadow: `0 12px 60px rgba(56,189,248,0.35)`,
-              fontFamily: FONT,
-              fontSize: 48,
-              fontWeight: 800,
-              letterSpacing: 3,
-              color: '#03131D',
-              opacity: btnE,
-              transform: `scale(${(1 - click * 0.06) * interpolate(btnE, [0, 1], [0.9, 1])})`,
-            }}
-          >
-            PAY NOW
-          </div>
-          <div
-            style={{
-              fontFamily: MONO,
-              fontSize: 26,
-              letterSpacing: 2,
-              color: FAINT,
-              marginTop: 34,
-              opacity: entr(frame, 480, fps),
-            }}
-          >
-            ▣&nbsp; Card details never touch our servers
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Stage C — processing
-// ---------------------------------------------------------------------------
-const STEPS = ['Encrypting details', 'Authorizing with bank', 'Confirming order'];
-const ProcessingStage: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const barP = prog(frame, 575, 700);
-  return (
-    <div style={{position: 'absolute', inset: 0, paddingTop: 60}}>
-      <div
-        style={{
-          fontFamily: MONO,
-          fontSize: 30,
-          letterSpacing: 7,
-          color: FAINT,
-          marginBottom: 50,
-          opacity: entr(frame, 565, fps),
-        }}
-      >
-        PROCESSING PAYMENT
-      </div>
-      {STEPS.map((label, i) => {
-        const start = 585 + i * 42;
-        const done = prog(frame, start, start + 30);
-        const active = prog(frame, start - 8, start) * (1 - done);
-        const e = entr(frame, start - 10, fps);
-        const angle = (frame * 9) % 360;
-        return (
-          <div
-            key={i}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 44,
-              padding: '34px 10px',
-              borderBottom: `2px solid ${HAIRLINE}`,
-              opacity: e,
-              transform: `translateX(${interpolate(e, [0, 1], [70, 0])}px)`,
-            }}
-          >
-            <svg width={86} height={86}>
-              {done >= 1 ? (
-                <g>
-                  <circle cx={43} cy={43} r={34} fill={EMERALD_DIM} stroke={EMERALD} strokeWidth={5} />
-                  <path d="M 29 43 L 39 53 L 58 32" fill="none" stroke={EMERALD} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />
-                </g>
-              ) : (
-                <g transform={`rotate(${angle} 43 43)`}>
-                  <circle cx={43} cy={43} r={32} fill="none" stroke="rgba(148,163,184,0.25)" strokeWidth={7} />
-                  <path d="M 43 11 A 32 32 0 0 1 71 27" fill="none" stroke={AMBER} strokeWidth={7} strokeLinecap="round" />
-                </g>
-              )}
-            </svg>
-            <div
-              style={{
-                fontFamily: FONT,
-                fontSize: 50,
-                fontWeight: 600,
-                color: done >= 1 ? INK : active > 0 ? INK : MUTED,
-              }}
-            >
-              {label}
-            </div>
-            <div
-              style={{
-                marginLeft: 'auto',
-                fontFamily: MONO,
-                fontSize: 30,
-                letterSpacing: 3,
-                color: done >= 1 ? EMERALD : AMBER,
-              }}
-            >
-              {done >= 1 ? 'DONE' : active > 0 ? 'WORKING' : 'QUEUED'}
-            </div>
-          </div>
-        );
-      })}
-      <div style={{marginTop: 70, opacity: entr(frame, 580, fps)}}>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            fontFamily: MONO,
-            fontSize: 28,
-            letterSpacing: 3,
-            color: MUTED,
-            marginBottom: 20,
-          }}
-        >
-          <span>AUTHORIZATION PROGRESS</span>
-          <span>{Math.round(barP * 100)}%</span>
-        </div>
-        <div
-          style={{
-            height: 26,
-            borderRadius: 13,
-            backgroundColor: 'rgba(148,163,184,0.16)',
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              width: `${barP * 100}%`,
-              height: '100%',
+              width: 26,
+              height: 26,
               borderRadius: 13,
-              background: `linear-gradient(90deg, ${SKY}, ${EMERALD})`,
-              boxShadow: `0 0 30px rgba(52,211,153,0.5)`,
+              background: it.c,
+              boxShadow: `0 0 18px ${it.c}`,
             }}
           />
+          <span style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>{it.t}</span>
         </div>
-      </div>
+      ))}
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Stage D — success
+// Station pins with status rings, kW badges, queue counters
 // ---------------------------------------------------------------------------
-const SuccessStage: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const drawP = prog(frame, 730, 800);
-  const CIRC = 2 * Math.PI * 118;
-  const CHECK_LEN = 150;
-  const amount = interpolate(prog(frame, 780, 850), [0, 1], [0, TOTAL]);
-  const confetti = useMemo(
-    () =>
-      Array.from({length: 52}, (_, i) => {
-        const angle = rand(i * 1.7) * Math.PI * 2;
-        const dist = 260 + rand(i * 3.3) * 620;
-        return {
-          angle,
-          dist,
-          size: 10 + rand(i * 5.1) * 22,
-          color: [EMERALD, SKY, AMBER, '#EAF0FA'][i % 4],
-          rot: rand(i * 7.9) * 360,
-          wob: rand(i * 11.2) * Math.PI * 2,
-        };
-      }),
-    [],
-  );
-  const confP = prog(frame, 745, 880);
+const Stations: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const px = (s: Station) => MAP_LEFT + s.x * (MAP_RIGHT - MAP_LEFT);
+  const py = (s: Station) => MAP_TOP + s.y * (MAP_BOTTOM - MAP_TOP);
+
   return (
-    <div style={{position: 'absolute', inset: 0}}>
-      <div style={{display: 'flex', gap: 100, alignItems: 'center', paddingTop: 40}}>
-        {/* drawn check */}
-        <div style={{opacity: prog(frame, 720, 745)}}>
-          <svg width={340} height={340}>
-            <defs>
-              <filter id="checkGlow" x="-40%" y="-40%" width="180%" height="180%">
-                <feGaussianBlur stdDeviation="18" />
-              </filter>
-            </defs>
-            <circle cx={170} cy={170} r={150} fill={EMERALD} opacity={0.22 * drawP} filter="url(#checkGlow)" />
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      {STATIONS.map((st, i) => {
+        const appearAt = STATIONS_START + i * 26;
+        const s = spring({frame: frame - appearAt, fps, config: {damping: 200, stiffness: 100}});
+        if (s <= 0.001) return null;
+        const c = statusColor(st.status);
+        const x = px(st);
+        const y = py(st);
+        // pulsing outer ring
+        const pulse = 0.5 + 0.5 * Math.sin(frame * 0.07 + i * 1.3);
+        const ringR = 44 + pulse * 14;
+        // port availability arc
+        const portFrac = st.free / st.ports;
+        const circ = 2 * Math.PI * 62;
+        const isTarget = st.id === TARGET.id;
+
+        return (
+          <g key={`stn${st.id}`} opacity={Math.min(1, s)} transform={`translate(${x}, ${y}) scale(${0.6 + 0.4 * s})`}>
+            {/* glow halo */}
+            <circle r={52} fill={c} opacity={0.16} filter="url(#pinGlow)" />
+            {/* pulsing status ring */}
             <circle
-              cx={170}
-              cy={170}
-              r={118}
+              r={ringR}
               fill="none"
-              stroke={EMERALD}
-              strokeWidth={16}
-              strokeLinecap="round"
-              strokeDasharray={CIRC}
-              strokeDashoffset={CIRC * (1 - drawP)}
-              transform="rotate(-90 170 170)"
+              stroke={c}
+              strokeWidth={5}
+              opacity={0.55 + pulse * 0.3}
+              style={{filter: `drop-shadow(0 0 12px ${c})`}}
             />
+            {/* port ring */}
+            <circle
+              r={62}
+              fill="none"
+              stroke="rgba(148,163,184,0.22)"
+              strokeWidth={7}
+            />
+            <circle
+              r={62}
+              fill="none"
+              stroke={c}
+              strokeWidth={7}
+              strokeLinecap="round"
+              strokeDasharray={circ}
+              strokeDashoffset={circ * (1 - portFrac * s)}
+              transform="rotate(-90)"
+              opacity={0.95}
+            />
+            {/* pin body */}
+            <circle r={34} fill="#0B1420" stroke={c} strokeWidth={3.5} />
+            {/* lightning bolt */}
             <path
-              d="M 118 172 L 158 212 L 228 128"
-              fill="none"
-              stroke={EMERALD}
-              strokeWidth={20}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeDasharray={CHECK_LEN}
-              strokeDashoffset={CHECK_LEN * (1 - prog(frame, 770, 820))}
+              d="M 4 -16 L -9 4 L -1 4 L -4 17 L 10 -3 L 1 -3 Z"
+              fill={c}
+              opacity={0.95}
+              style={{filter: `drop-shadow(0 0 8px ${c})`}}
             />
-          </svg>
-        </div>
-        <div>
-          <div
-            style={{
-              fontFamily: FONT,
-              fontSize: 92,
-              fontWeight: 800,
-              letterSpacing: 4,
-              color: INK,
-              textShadow: `0 0 60px ${EMERALD_DIM}`,
-              opacity: entr(frame, 790, fps),
-              transform: `translateY(${interpolate(entr(frame, 790, fps), [0, 1], [50, 0])}px)`,
-            }}
-          >
-            PAYMENT APPROVED
-          </div>
-          <div
-            style={{
-              fontFamily: MONO,
-              fontSize: 110,
-              fontWeight: 700,
-              color: EMERALD,
-              marginTop: 18,
-              opacity: entr(frame, 810, fps),
-            }}
-          >
-            {money(amount)}
-          </div>
-          <div
-            style={{
-              fontFamily: MONO,
-              fontSize: 34,
-              letterSpacing: 4,
-              color: MUTED,
-              marginTop: 26,
-              opacity: entr(frame, 830, fps),
-            }}
-          >
-            ORDER&nbsp;&nbsp;#{ORDER_ID}
-          </div>
-        </div>
-      </div>
-      {/* confetti */}
-      <svg
-        width={2600}
-        height={1380}
-        style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}
-      >
-        {confetti.map((c, i) => {
-          const x = 1300 + Math.cos(c.angle) * c.dist * confP;
-          const y = 560 + Math.sin(c.angle) * c.dist * confP * 0.7 + confP * confP * 260;
-          return (
-            <rect
-              key={i}
-              x={x}
-              y={y}
-              width={c.size}
-              height={c.size * 0.62}
-              fill={c.color}
-              opacity={(1 - confP) * 0.9}
-              transform={`rotate(${c.rot + frame * 6 + Math.sin(frame / 14 + c.wob) * 30} ${x} ${y})`}
-            />
-          );
-        })}
-      </svg>
-      {/* receipt lines */}
-      <div style={{marginTop: 60, borderTop: `2px solid ${HAIRLINE}`, paddingTop: 44}}>
-        {[
-          `Receipt sent to ${EMAIL}`,
-          'Card charged: •••• •••• •••• 7764',
-          'Delivery estimate: 2–3 business days',
-        ].map((line, i) => {
-          const e = entr(frame, 840 + i * 22, fps);
-          return (
-            <div
-              key={i}
-              style={{
-                fontFamily: MONO,
-                fontSize: 32,
-                letterSpacing: 2,
-                color: MUTED,
-                marginBottom: 22,
-                opacity: e,
-                transform: `translateY(${interpolate(e, [0, 1], [30, 0])}px)`,
-              }}
+            {/* station name */}
+            <text
+              x={0}
+              y={-104}
+              fill={INK}
+              fontSize={30}
+              fontFamily={FONT}
+              fontWeight={700}
+              textAnchor="middle"
+              style={{textShadow: '0 2px 10px rgba(0,0,0,0.9)'}}
             >
-              <span style={{color: EMERALD}}>✓&nbsp;&nbsp;</span>
-              {line}
-            </div>
-          );
-        })}
-      </div>
-    </div>
+              {st.name}
+            </text>
+            {/* kW badge */}
+            <g transform="translate(64, -96)">
+              <rect x={0} y={-30} width={168} height={58} rx={12} fill="rgba(8,13,22,0.92)" stroke="rgba(148,163,184,0.35)" strokeWidth={2} />
+              <text x={84} y={10} fill={TEAL} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+                {st.kw} kW
+              </text>
+            </g>
+            {/* queue chip */}
+            {st.status === 'queue' && (
+              <g transform="translate(-190, 66)">
+                <rect x={0} y={-34} width={262} height={62} rx={12} fill="rgba(8,13,22,0.92)" stroke={QUEUE} strokeWidth={2.5} />
+                <text x={131} y={12} fill={QUEUE} fontSize={33} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+                  {st.queue} IN QUEUE
+                </text>
+              </g>
+            )}
+            {/* available chip */}
+            {st.status === 'avail' && (
+              <g transform="translate(-178, 66)">
+                <rect x={0} y={-34} width={238} height={62} rx={12} fill="rgba(8,13,22,0.92)" stroke={AVAIL} strokeWidth={2.5} />
+                <text x={119} y={12} fill={AVAIL} fontSize={33} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+                  {st.free} FREE
+                </text>
+              </g>
+            )}
+            {/* charging chip */}
+            {st.status === 'charging' && (
+              <g transform="translate(-196, 66)">
+                <rect x={0} y={-34} width={274} height={62} rx={12} fill="rgba(8,13,22,0.92)" stroke={CHARGE} strokeWidth={2.5} />
+                <text x={137} y={12} fill={CHARGE} fontSize={33} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+                  ALL IN USE
+                </text>
+              </g>
+            )}
+            {/* target reticle on CENTRAL YARDS */}
+            {isTarget && (
+              <g>
+                <circle
+                  r={110}
+                  fill="none"
+                  stroke={AVAIL}
+                  strokeWidth={3}
+                  strokeDasharray="22 18"
+                  opacity={0.85}
+                >
+                  <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="6s" repeatCount="indefinite" />
+                </circle>
+                <circle r={110} fill="none" stroke={AVAIL} strokeWidth={1.5} opacity={0.4} />
+              </g>
+            )}
+            )}
+          </g>
+        );
+      })}
+    </svg>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Main panel + footer
+// Driver marker + route to nearest available charger
 // ---------------------------------------------------------------------------
-const MainPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 30, fps);
+const Route: React.FC<{frame: number}> = ({frame}) => {
+  const sx = MAP_LEFT + DRIVER.x * (MAP_RIGHT - MAP_LEFT);
+  const sy = MAP_TOP + DRIVER.y * (MAP_BOTTOM - MAP_TOP);
+  const tx = MAP_LEFT + TARGET.x * (MAP_RIGHT - MAP_LEFT);
+  const ty = MAP_TOP + TARGET.y * (MAP_BOTTOM - MAP_TOP);
+
+  // Route with a waypoint bend for a natural road feel
+  const mx = sx + (tx - sx) * 0.45;
+  const my = Math.min(sy, ty) - 160;
+  const path = `M ${sx} ${sy} Q ${mx} ${my} ${tx} ${ty - 70}`;
+
+  const draw = interpolate(frame, [ROUTE_START, ROUTE_END], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  // traveling dot along the quadratic bezier
+  const quad = (t: number) => {
+    const ax = (1 - t) * (1 - t) * sx + 2 * (1 - t) * t * mx + t * t * tx;
+    const ay = (1 - t) * (1 - t) * sy + 2 * (1 - t) * t * my + t * t * (ty - 70);
+    return {x: ax, y: ay};
+  };
+  const dot = quad(draw);
+
+  const driverIn = interpolate(frame, [ROUTE_START - 40, ROUTE_START], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  // ETA counts down 04:48 -> 00:00 across the route
+  const etaSec = Math.round(interpolate(frame, [ROUTE_START, ROUTE_END], [288, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  }));
+  const etaStr = `${String(Math.floor(etaSec / 60)).padStart(2, '0')}:${String(etaSec % 60).padStart(2, '0')}`;
+
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      {/* driver marker */}
+      <g opacity={driverIn}>
+        <circle cx={sx} cy={sy} r={30} fill={TEAL} opacity={0.25} filter="url(#pinGlow)" />
+        <circle cx={sx} cy={sy} r={16} fill={TEAL} style={{filter: 'drop-shadow(0 0 14px rgba(45,212,191,0.9))'}} />
+        <circle cx={sx} cy={sy} r={46} fill="none" stroke={TEAL} strokeWidth={3} opacity={0.6} />
+        <text x={sx} y={sy + 92} fill={INK} fontSize={30} fontFamily={MONO} fontWeight={700} textAnchor="middle">
+          YOU
+        </text>
+      </g>
+
+      {/* route */}
+      {draw > 0.001 && (
+        <g>
+          <path
+            d={path}
+            fill="none"
+            stroke="rgba(45,212,191,0.25)"
+            strokeWidth={14}
+            strokeLinecap="round"
+            opacity={0.5}
+          />
+          <path
+            d={path}
+            fill="none"
+            stroke="url(#routeGrad)"
+            strokeWidth={7}
+            strokeLinecap="round"
+            pathLength={1}
+            strokeDasharray={1}
+            strokeDashoffset={1 - draw}
+            style={{filter: 'drop-shadow(0 0 16px rgba(52,211,153,0.7))'}}
+          />
+          {/* traveling car dot */}
+          <circle cx={dot.x} cy={dot.y} r={26} fill={AVAIL} opacity={0.22} filter="url(#pinGlow)" />
+          <circle cx={dot.x} cy={dot.y} r={13} fill="#FFFFFF" style={{filter: 'drop-shadow(0 0 12px rgba(255,255,255,0.9))'}} />
+          {/* ETA pill follows the dot */}
+          <g transform={`translate(${dot.x}, ${dot.y - 84})`}>
+            <rect x={-130} y={-40} width={260} height={78} rx={16} fill="rgba(8,13,22,0.94)" stroke={AVAIL} strokeWidth={2.5} />
+            <text x={0} y={-6} fill={MUTED} fontSize={24} fontFamily={MONO} letterSpacing={2} textAnchor="middle">
+              ETA
+            </text>
+            <text x={0} y={30} fill={AVAIL} fontSize={38} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+              {etaStr}
+            </text>
+          </g>
+        </g>
+      )}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Arrival payoff: charge ring + "CHARGING STARTED" stamp
+// ---------------------------------------------------------------------------
+const Payoff: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const tx = MAP_LEFT + TARGET.x * (MAP_RIGHT - MAP_LEFT);
+  const ty = MAP_TOP + TARGET.y * (MAP_BOTTOM - MAP_TOP);
+
+  const bloom = spring({frame: frame - ARRIVE_START, fps, config: {damping: 200, stiffness: 80}});
+  const stamp = spring({frame: frame - (ARRIVE_START + 40), fps, config: {damping: 200, stiffness: 120}});
+
+  // charge % fills 18 -> 64 across the payoff window
+  const pct = Math.round(interpolate(frame, [ARRIVE_START + 60, 880], [18, 64], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  }));
+  const circ = 2 * Math.PI * 150;
+
+  if (bloom <= 0.001) return null;
+
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g transform={`translate(${tx}, ${ty})`} opacity={Math.min(1, bloom)}>
+        {/* expanding shockwave */}
+        <circle
+          r={60 + bloom * 320}
+          fill="none"
+          stroke={AVAIL}
+          strokeWidth={6 * (1 - bloom) + 1}
+          opacity={(1 - bloom) * 0.8}
+        />
+        {/* charge ring */}
+        <circle r={150} fill="rgba(6,11,18,0.88)" stroke="rgba(52,211,153,0.25)" strokeWidth={16} />
+        <circle
+          r={150}
+          fill="none"
+          stroke={AVAIL}
+          strokeWidth={16}
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={circ * (1 - pct / 100)}
+          transform="rotate(-90)"
+          style={{filter: 'drop-shadow(0 0 20px rgba(52,211,153,0.8))'}}
+        />
+        <text x={0} y={-8} fill={INK} fontSize={84} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+          {pct}%
+        </text>
+        <text x={0} y={44} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={3} textAnchor="middle">
+          BATTERY
+        </text>
+      </g>
+      {/* stamp banner */}
+      {stamp > 0.001 && (
+        <g opacity={Math.min(1, stamp)}>
+          <g transform={`translate(${tx}, ${ty - 330}) scale(${0.7 + 0.3 * stamp})`}>
+            <rect x={-360} y={-58} width={720} height={116} rx={22} fill="rgba(6,20,16,0.95)" stroke={AVAIL} strokeWidth={4} />
+            <text x={0} y={22} fill={AVAIL} fontSize={58} fontFamily={FONT} fontWeight={800} letterSpacing={4} textAnchor="middle">
+              CHARGING STARTED
+            </text>
+          </g>
+        </g>
+      )}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Bottom ticker: live network feed
+// ---------------------------------------------------------------------------
+const Ticker: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [220, 270], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const items = [
+    'NORTHGATE PLAZA — all 8 ports occupied',
+    'CENTRAL YARDS — 9 of 14 free · fastest route',
+    'MIDTOWN EXCHANGE — 3 vehicles queued',
+    'SOUTHPORT MALL — charge session complete, port freed',
+    'MARINA DRIVE — 6 of 10 free · 350 kW',
+    'OLD TOWN HUB — 2 vehicles queued',
+  ];
+  const w = 3840;
+  const speed = 4.2;
+  const totalW = 6400;
+  const x = w - ((frame * speed) % (totalW + w));
   return (
     <div
       style={{
         position: 'absolute',
-        left: 620,
-        top: 400,
-        width: 2600,
-        height: 1330,
-        borderRadius: 48,
-        backgroundColor: PANEL,
-        border: `3px solid ${HAIRLINE}`,
-        boxShadow: '0 40px 140px rgba(0,0,0,0.55), inset 0 2px 0 rgba(234,240,250,0.08)',
-        opacity: e,
-        transform: `translateY(${interpolate(e, [0, 1], [90, 0])}px)`,
+        bottom: 160,
+        left: 0,
+        width: 3840,
+        height: 74,
         overflow: 'hidden',
+        opacity: fade,
+        borderTop: '1px solid rgba(148,163,184,0.16)',
+        borderBottom: '1px solid rgba(148,163,184,0.16)',
+        background: 'rgba(6,11,18,0.55)',
       }}
     >
-      {/* top sheen */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 220,
-          background: 'linear-gradient(180deg, rgba(234,240,250,0.06), rgba(234,240,250,0))',
-          pointerEvents: 'none',
-        }}
-      />
-      <div style={{position: 'absolute', inset: '70px 110px'}}>
-        <div style={{opacity: stageOpacity(frame, 40, 80, 300, 340)}}>
-          <SummaryStage frame={frame} fps={fps} />
-        </div>
-        <div style={{opacity: stageOpacity(frame, 320, 360, 540, 580)}}>
-          <PaymentStage frame={frame} fps={fps} />
-        </div>
-        <div style={{opacity: stageOpacity(frame, 560, 600, 700, 740)}}>
-          <ProcessingStage frame={frame} fps={fps} />
-        </div>
-        <div style={{opacity: prog(frame, 720, 760)}}>
-          <SuccessStage frame={frame} fps={fps} />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const Footer: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 60, fps);
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 120,
-        left: 240,
-        right: 240,
-        display: 'flex',
-        justifyContent: 'space-between',
-        fontFamily: MONO,
-        fontSize: 27,
-        letterSpacing: 4,
-        color: FAINT,
-        opacity: e,
-      }}
-    >
-      <span>CARD&nbsp;&nbsp;·&nbsp;&nbsp;BANK TRANSFER&nbsp;&nbsp;·&nbsp;&nbsp;WALLET</span>
-      <span style={{color: MUTED}}>◈&nbsp;&nbsp;FRAUD MONITORING ACTIVE</span>
-      <span>DEMO PREVIEW</span>
+      <svg width={3840} height={74} style={{position: 'absolute', top: 0, left: 0}}>
+        <g transform={`translate(${x}, 47)`}>
+          {items.map((t, i) => (
+            <text
+              key={`tk${i}`}
+              x={i * 1060}
+              fill={i % 2 === 0 ? 'rgba(180,198,216,0.75)' : 'rgba(52,211,153,0.75)'}
+              fontSize={30}
+              fontFamily={MONO}
+            >
+              ● {t}
+            </text>
+          ))}
+        </g>
+      </svg>
     </div>
   );
 };
@@ -857,17 +666,21 @@ const Footer: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const CheckoutPaymentFlow: React.FC = () => {
+export const EVChargingAvailabilityMap: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
+
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
-      <Header frame={frame} fps={fps} />
-      <MainPanel frame={frame} fps={fps} />
-      <Footer frame={frame} fps={fps} />
+      <TitleBar frame={frame} fps={fps} />
+      <Stations frame={frame} fps={fps} />
+      <Route frame={frame} />
+      <Payoff frame={frame} fps={fps} />
+      <Ticker frame={frame} />
+      <Legend frame={frame} />
     </AbsoluteFill>
   );
 };
 
-export default CheckoutPaymentFlow;
+export default EVChargingAvailabilityMap;
