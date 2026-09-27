@@ -135,15 +135,24 @@ jobs:
       - name: ✅ Verify Adobe Stock spec
         run: |
           FILE="out/${{ matrix.id }}.mp4"
+          EXPECTED_WIDTH="${{ github.event.inputs.width || 3840 }}"
 
-          WIDTH=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$FILE")
-          HEIGHT=$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$FILE")
-          FPS=$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "$FILE")
-          CODEC=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "$FILE")
-          DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$FILE")
-          BITRATE=$(ffprobe -v error -show_entries format=bit_rate -of csv=p=0 "$FILE")
+          # probe() prints exactly one bare value. `-of default=nokey=1:noprint_wrappers=1`
+          # avoids the CSV writer, and the extra `tr -d ',\r '` also tolerates the
+          # trailing field separator some ffprobe builds append (the runners printed
+          # "3840," for csv=p=0, which made the width check fail).
+          probe() {
+            ffprobe -v error -of default=nokey=1:noprint_wrappers=1 "$@" "$FILE" | tr -d ',\r ' | head -n 1
+          }
+
+          WIDTH=$(probe -select_streams v:0 -show_entries stream=width)
+          HEIGHT=$(probe -select_streams v:0 -show_entries stream=height)
+          FPS=$(probe -select_streams v:0 -show_entries stream=r_frame_rate)
+          CODEC=$(probe -select_streams v:0 -show_entries stream=codec_name)
+          DURATION=$(probe -show_entries format=duration)
+          BITRATE=$(probe -show_entries format=bit_rate)
+          AUDIO=$(probe -select_streams a -show_entries stream=codec_name)
           SIZE=$(stat -c %s "$FILE")
-          AUDIO=$(ffprobe -v error -select_streams a -show_entries stream=codec_name -of csv=p=0 "$FILE")
 
           MBPS=$(awk -v b="$BITRATE" 'BEGIN { printf "%.2f", b / 1000000 }')
           MB=$(awk -v s="$SIZE" 'BEGIN { printf "%.1f", s / 1048576 }')
@@ -153,7 +162,7 @@ jobs:
           echo "Size:       $MB MB"
           echo "Duration:   $DURATION s"
           echo "Bitrate:    $MBPS Mbps"
-          echo "Resolution: ${WIDTH}x${HEIGHT}"
+          echo "Resolution: ${WIDTH}x${HEIGHT} (expected width: $EXPECTED_WIDTH)"
           echo "FPS:        $FPS"
           echo "Codec:      $CODEC"
           echo "Audio:      ${AUDIO:-NONE}"
@@ -170,8 +179,11 @@ jobs:
             FAILED=1
           fi
 
-          if [ "$WIDTH" != "${{ github.event.inputs.width || 3840 }}" ]; then
-            echo "❌ FAIL: Wrong width: $WIDTH"
+          if [ -z "$WIDTH" ]; then
+            echo "❌ FAIL: Could not read the video width from $FILE"
+            FAILED=1
+          elif [ "$WIDTH" != "$EXPECTED_WIDTH" ]; then
+            echo "❌ FAIL: Wrong width: $WIDTH (expected $EXPECTED_WIDTH)"
             FAILED=1
           fi
 
