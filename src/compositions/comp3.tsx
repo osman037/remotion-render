@@ -192,7 +192,7 @@ const PremiumFlow: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 
   const landed = Array.from({length: N_COINS}, (_, i) =>
     frame >= COIN_START + i * COIN_STAGGER + 70 ? 1 : 0
-  ).reduce((a, b) => a + b, 0);
+  ).reduce<number>((a, b) => a + b, 0);
   const poolTotal = 420 * landed;
   const pulse = 0.5 + 0.5 * Math.sin(frame * 0.08);
 
@@ -351,11 +351,11 @@ const DeductibleBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => 
           const cx = x0 + 40 + i * 560;
           return (
             <g key={`chip${i}`} opacity={Math.min(1, s)} transform={`translate(${cx}, 0) scale(${0.7 + 0.3 * Math.min(1, s)})`}>
-              <rect x={0} y={1252} width={500} height={72} rx={16} fill="rgba(7,25,32,0.94)" stroke={f.t > 0.6 ? TEAL : 'rgba(148,163,184,0.4)'} strokeWidth={2.5} />
+              <rect x={0} y={1252} width={500} height={72} rx={16} fill="rgba(7,25,32,0.94)" stroke={s > 0.6 ? TEAL : 'rgba(148,163,184,0.4)'} strokeWidth={2.5} />
               <text x={24} y={1300} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={1}>
                 {c.label}
               </text>
-              <text x={476} y={1300} fill={f.t > 0.6 ? TEAL_BRIGHT : INK} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="end">
+              <text x={476} y={1300} fill={s > 0.6 ? TEAL_BRIGHT : INK} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="end">
                 ${c.amount}
               </text>
             </g>
