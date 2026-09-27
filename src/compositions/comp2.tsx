@@ -1,17 +1,17 @@
 /**
- * LoyaltyTierProgression.tsx
+ * EVChargingAvailabilityMap.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * Loyalty tier climb: a member card hops up a stepped BRONZE -> SILVER ->
- * GOLD ladder while the annual spend bar fills past each threshold, perk
- * icons unlock with checkmarks per tier, and the GOLD tier flares with a
- * radiant payoff at the climax.
+ * Live EV charging network availability map: status-ringed station pins
+ * (green = available, amber = charging, blue = in queue), kW badges, queue
+ * counters, and a route that draws from the driver marker to the nearest
+ * available fast charger with a ticking ETA, ending in a charge-start payoff.
  *
  * Register in Root.tsx:
- *   <Composition id="LoyaltyTierProgression" component={LoyaltyTierProgression}
+ *   <Composition id="EVChargingAvailabilityMap" component={EVChargingAvailabilityMap}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
-import React from 'react';
+import React, {useMemo} from 'react';
 import {
   AbsoluteFill,
   interpolate,
@@ -21,201 +21,189 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (bronze / silver / gold on deep navy)
+// Palette
 // ---------------------------------------------------------------------------
-const BG = '#080B1A';
-const INK = '#EEF1FA';
-const MUTED = 'rgba(190,200,225,0.62)';
-const BRONZE = '#E8A75D';
-const BRONZE_DEEP = '#8A5A2B';
-const SILVER = '#DDE4F2';
-const SILVER_DEEP = '#7C8699';
-const GOLD = '#F5C044';
-const GOLD_DEEP = '#9A6B14';
-const VIOLET = '#8B7CF6';
+const BG = '#060B12';
+const INK = '#EAF2FB';
+const MUTED = 'rgba(180,198,216,0.62)';
+const AVAIL = '#34D399'; // green - available
+const CHARGE = '#FBBF24'; // amber - charging
+const QUEUE = '#60A5FA'; // blue - queue
+const TEAL = '#2DD4BF';
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
 // Timeline (frames at 60 fps, 900 = 15 s)
 // ---------------------------------------------------------------------------
-const COL_START = 40;
-const CARD_AT = 140;
-const HOP1_START = 300;
-const HOP1_END = 360;
-const HOP2_START = 480;
-const HOP2_END = 540;
-const SPEND_START = 140;
-const SPEND_END = 640;
-const FLARE_AT = 640;
-const PILL_AT = 660;
-const STATS_START = 740;
+const MAP_START = 20;
+const STATIONS_START = 90;
+const ROUTE_START = 260;
+const ROUTE_END = 560;
+const ARRIVE_START = 560;
+const PAYOFF_END = 720;
 
 // ---------------------------------------------------------------------------
-// Tier data
+// Deterministic pseudo-random helper
 // ---------------------------------------------------------------------------
-interface Perk {
-  label: string;
-  icon: 'mult' | 'gift' | 'tag' | 'truck' | 'bolt' | 'clock' | 'crown';
-  mult?: string;
-}
-interface Tier {
+const rand = (seed: number) => {
+  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+// ---------------------------------------------------------------------------
+// Map geometry
+// ---------------------------------------------------------------------------
+const MAP_LEFT = 220;
+const MAP_RIGHT = 3620;
+const MAP_TOP = 330;
+const MAP_BOTTOM = 1920;
+
+interface Station {
+  id: number;
+  x: number; // 0..1 across map
+  y: number; // 0..1 down map
   name: string;
-  color: string;
-  deep: string;
-  threshold: string;
-  spendAt: number;
-  perks: Perk[];
+  kw: number;
+  status: 'avail' | 'charging' | 'queue';
+  queue: number;
+  ports: number;
+  free: number;
 }
-const TIERS: Tier[] = [
-  {
-    name: 'BRONZE',
-    color: BRONZE,
-    deep: BRONZE_DEEP,
-    threshold: 'JOIN FREE',
-    spendAt: 0,
-    perks: [
-      {label: 'EARN 1x POINTS', icon: 'mult', mult: '1x'},
-      {label: 'BIRTHDAY REWARD', icon: 'gift'},
-      {label: 'MEMBER PRICING', icon: 'tag'},
-    ],
-  },
-  {
-    name: 'SILVER',
-    color: SILVER,
-    deep: SILVER_DEEP,
-    threshold: 'SPEND $1,500+ / YEAR',
-    spendAt: 1500,
-    perks: [
-      {label: 'EARN 1.5x POINTS', icon: 'mult', mult: '1.5x'},
-      {label: 'FREE SHIPPING', icon: 'truck'},
-      {label: 'PRIORITY SUPPORT', icon: 'bolt'},
-    ],
-  },
-  {
-    name: 'GOLD',
-    color: GOLD,
-    deep: GOLD_DEEP,
-    threshold: 'SPEND $3,500+ / YEAR',
-    spendAt: 3500,
-    perks: [
-      {label: 'EARN 2x POINTS', icon: 'mult', mult: '2x'},
-      {label: 'EARLY ACCESS', icon: 'clock'},
-      {label: 'VIP EVENTS', icon: 'crown'},
-    ],
-  },
+
+// Nine stations spread across the map
+const STATIONS: Station[] = [
+  {id: 0, x: 0.13, y: 0.24, name: 'HARBOUR POINT', kw: 350, status: 'avail', queue: 0, ports: 12, free: 7},
+  {id: 1, x: 0.33, y: 0.14, name: 'NORTHGATE PLAZA', kw: 180, status: 'charging', queue: 0, ports: 8, free: 0},
+  {id: 2, x: 0.52, y: 0.30, name: 'MIDTOWN EXCHANGE', kw: 350, status: 'queue', queue: 3, ports: 10, free: 0},
+  {id: 3, x: 0.70, y: 0.16, name: 'AIRPORT TERMINAL', kw: 250, status: 'charging', queue: 0, ports: 6, free: 0},
+  {id: 4, x: 0.86, y: 0.38, name: 'RIVERSIDE DEPOT', kw: 180, status: 'avail', queue: 0, ports: 8, free: 5},
+  {id: 5, x: 0.22, y: 0.62, name: 'OLD TOWN HUB', kw: 120, status: 'queue', queue: 2, ports: 6, free: 0},
+  {id: 6, x: 0.44, y: 0.55, name: 'CENTRAL YARDS', kw: 350, status: 'avail', queue: 0, ports: 14, free: 9},
+  {id: 7, x: 0.63, y: 0.72, name: 'SOUTHPORT MALL', kw: 250, status: 'charging', queue: 0, ports: 8, free: 0},
+  {id: 8, x: 0.84, y: 0.66, name: 'MARINA DRIVE', kw: 350, status: 'avail', queue: 0, ports: 10, free: 6},
 ];
-const UNLOCK_BASE = [180, 400, 580];
-const unlockAt = (j: number, k: number) => UNLOCK_BASE[j] + k * 24;
 
-// ---------------------------------------------------------------------------
-// Geometry
-// ---------------------------------------------------------------------------
-const COL_X = [250, 1330, 2410];
-const COL_W = 1080;
-const TIER_CARD_W = 600;
-const TIER_CARD_H = 440;
-const STEP_TOP = [1560, 1210, 860];
-const STEP_H = 110;
-const tierCardY = (j: number) => STEP_TOP[j] - TIER_CARD_H;
-
-const MC_W = 460;
-const MC_H = 280;
-const mcRest = (j: number) => ({x: COL_X[j] + 620, y: STEP_TOP[j] - MC_H});
-
-const BAR_X = 400;
-const BAR_W = 3040;
-const BAR_Y = 1700;
-const BAR_MAX = 4000;
-const FINAL_SPEND = 3940;
-
-const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
-const money = (n: number) => '$' + fmt(n);
+// Driver starts bottom-left; nearest available fast charger is CENTRAL YARDS (id 6)
+const DRIVER = {x: 0.06, y: 0.88};
+const TARGET = STATIONS[6];
+const statusColor = (s: Station['status']) =>
+  s === 'avail' ? AVAIL : s === 'charging' ? CHARGE : QUEUE;
 
 // ---------------------------------------------------------------------------
 // Static defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="bgGlow" cx="50%" cy="38%" r="72%">
-      <stop offset="0%" stopColor="rgba(245,192,68,0.09)" />
-      <stop offset="50%" stopColor="rgba(139,124,246,0.05)" />
-      <stop offset="100%" stopColor="rgba(8,11,26,0)" />
+    <radialGradient id="bgGlow" cx="50%" cy="42%" r="72%">
+      <stop offset="0%" stopColor="rgba(45,212,191,0.10)" />
+      <stop offset="55%" stopColor="rgba(45,212,191,0.03)" />
+      <stop offset="100%" stopColor="rgba(6,11,18,0)" />
     </radialGradient>
     <radialGradient id="vignette" cx="50%" cy="50%" r="75%">
-      <stop offset="60%" stopColor="rgba(8,11,26,0)" />
-      <stop offset="100%" stopColor="rgba(2,3,8,0.74)" />
+      <stop offset="60%" stopColor="rgba(6,11,18,0)" />
+      <stop offset="100%" stopColor="rgba(2,4,8,0.74)" />
     </radialGradient>
-    <linearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stopColor="#FFD98A" />
-      <stop offset="55%" stopColor={GOLD} />
-      <stop offset="100%" stopColor="#D9931F" />
+    <linearGradient id="routeGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={TEAL} />
+      <stop offset="100%" stopColor={AVAIL} />
     </linearGradient>
-    <linearGradient id="bronzeGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="#F0BE7E" />
-      <stop offset="100%" stopColor={BRONZE_DEEP} />
-    </linearGradient>
-    <linearGradient id="silverGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="#F2F6FF" />
-      <stop offset="100%" stopColor={SILVER_DEEP} />
-    </linearGradient>
-    <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={BRONZE} />
-      <stop offset="55%" stopColor={SILVER} />
-      <stop offset="100%" stopColor={GOLD} />
-    </linearGradient>
-    <linearGradient id="cardGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stopColor="#141B3D" />
-      <stop offset="100%" stopColor="#0A0E24" />
-    </linearGradient>
-    <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="10" result="blur" />
+    <filter id="pinGlow" x="-90%" y="-90%" width="280%" height="280%">
+      <feGaussianBlur stdDeviation="11" result="blur" />
       <feMerge>
         <feMergeNode in="blur" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
-    <filter id="bigBlur" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="30" />
+    <filter id="softBlur" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="6" />
     </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background
+// Background: layered glow, vignette, faint map streets, scan sweep
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [0, 80], [0, 1], {
+  const sweep = useMemo(() => {
+    const cols = 21;
+    const rows = 12;
+    const lines: {x1: number; y1: number; x2: number; y2: number; w: number}[] = [];
+    for (let i = 0; i <= cols; i++) {
+      const x = MAP_LEFT + (i / cols) * (MAP_RIGHT - MAP_LEFT) + (rand(i) - 0.5) * 90;
+      lines.push({x1: x, y1: MAP_TOP, x2: x + (rand(i + 40) - 0.5) * 160, y2: MAP_BOTTOM, w: i % 5 === 0 ? 3 : 1.5});
+    }
+    for (let j = 0; j <= rows; j++) {
+      const y = MAP_TOP + (j / rows) * (MAP_BOTTOM - MAP_TOP) + (rand(j + 90) - 0.5) * 70;
+      lines.push({x1: MAP_LEFT, y1: y, x2: MAP_RIGHT, y2: y + (rand(j + 140) - 0.5) * 120, w: j % 4 === 0 ? 3 : 1.5});
+    }
+    return lines;
+  }, []);
+
+  const fade = interpolate(frame, [MAP_START, MAP_START + 80], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const sweepX = ((frame / 900) * (3840 + 600)) % (3840 + 600) - 300;
+
+  const scanX = MAP_LEFT + ((frame / 900) * (MAP_RIGHT - MAP_LEFT + 400)) - 200;
+
   return (
     <>
       <AbsoluteFill style={{backgroundColor: BG}} />
       <AbsoluteFill
         style={{
           background:
-            'radial-gradient(circle at 50% 38%, rgba(245,192,68,0.09), rgba(139,124,246,0.05) 50%, rgba(8,11,26,0) 72%)',
+            'radial-gradient(circle at 50% 40%, rgba(45,212,191,0.10), rgba(45,212,191,0.03) 45%, rgba(6,11,18,0) 72%)',
         }}
       />
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs />
-        <g opacity={fade * 0.5}>
-          {Array.from({length: 26}).map((_, i) => (
+        <g opacity={fade * 0.55}>
+          {sweep.map((l, i) => (
             <line
-              key={`dg${i}`}
-              x1={-400 + i * 180}
-              y1={2160}
-              x2={200 + i * 180}
-              y2={0}
-              stroke="rgba(190,200,225,0.05)"
-              strokeWidth={2}
+              key={`st${i}`}
+              x1={l.x1}
+              y1={l.y1}
+              x2={l.x2}
+              y2={l.y2}
+              stroke={i % 7 === 0 ? 'rgba(96,165,250,0.10)' : 'rgba(148,163,184,0.07)'}
+              strokeWidth={l.w}
             />
           ))}
+          {/* river curve */}
+          <path
+            d={`M ${MAP_LEFT - 60} 1450 C 900 1380, 1400 1600, 2100 1520 S 3300 1700, ${MAP_RIGHT + 60} 1620`}
+            fill="none"
+            stroke="rgba(96,165,250,0.14)"
+            strokeWidth={46}
+            strokeLinecap="round"
+            opacity={0.7}
+          />
+          <path
+            d={`M ${MAP_LEFT - 60} 1450 C 900 1380, 1400 1600, 2100 1520 S 3300 1700, ${MAP_RIGHT + 60} 1620`}
+            fill="none"
+            stroke="rgba(96,165,250,0.20)"
+            strokeWidth={3}
+            strokeLinecap="round"
+          />
         </g>
-        <circle cx={2710} cy={640} r={560} fill="rgba(245,192,68,0.06)" filter="url(#bigBlur)" opacity={fade} />
-        <rect x={sweepX - 110} y={0} width={220} height={2160} fill="rgba(245,192,68,0.02)" />
+        {/* district labels */}
+        <g opacity={fade * 0.8}>
+          <text x={640} y={480} fill="rgba(148,163,184,0.30)" fontSize={30} fontFamily={MONO} letterSpacing={8}>
+            HARBOUR DISTRICT
+          </text>
+          <text x={2450} y={560} fill="rgba(148,163,184,0.30)" fontSize={30} fontFamily={MONO} letterSpacing={8}>
+            MIDTOWN
+          </text>
+          <text x={1500} y={1700} fill="rgba(148,163,184,0.30)" fontSize={30} fontFamily={MONO} letterSpacing={8}>
+            OLD TOWN
+          </text>
+          <text x={3030} y={1330} fill="rgba(148,163,184,0.30)" fontSize={30} fontFamily={MONO} letterSpacing={8}>
+            RIVERSIDE
+          </text>
+        </g>
+        {/* scanning sweep */}
+        <rect x={scanX - 70} y={MAP_TOP} width={140} height={MAP_BOTTOM - MAP_TOP} fill="rgba(45,212,191,0.030)" />
         <rect x={0} y={0} width={3840} height={2160} fill="url(#vignette)" />
       </svg>
     </>
@@ -223,51 +211,70 @@ const Background: React.FC<{frame: number}> = ({frame}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Title bar
+// Title bar + network stats
 // ---------------------------------------------------------------------------
-const TitleBar: React.FC<{frame: number}> = ({frame}) => {
+const TitleBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
   const fade = interpolate(frame, [0, 50], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const rise = interpolate(frame, [0, 50], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+
+  const count = (to: number, start: number) => {
+    const t = interpolate(frame, [start, start + 70], [0, 1], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    return Math.round(to * (1 - Math.pow(1 - t, 3)));
+  };
+
+  const stats = [
+    {label: 'CHARGERS FREE', value: count(27, 70), color: AVAIL},
+    {label: 'VEHICLES QUEUED', value: count(11, 90), color: QUEUE},
+    {label: 'AVG POWER', value: `${count(164, 110)}`, unit: 'kW', color: CHARGE},
+  ];
+
   return (
     <div style={{position: 'absolute', top: 84 + rise, left: 220, right: 220, opacity: fade}}>
       <div style={{display: 'flex', alignItems: 'baseline', justifyContent: 'space-between'}}>
         <div>
           <div style={{display: 'flex', alignItems: 'baseline', gap: 30}}>
             <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 82, letterSpacing: -1}}>
-              LOYALTY TIERS
+              CHARGE NETWORK
             </span>
             <span
               style={{
-                color: GOLD,
+                color: AVAIL,
                 fontFamily: MONO,
                 fontSize: 36,
                 fontWeight: 700,
-                border: `2px solid ${GOLD}`,
+                border: `2px solid ${AVAIL}`,
                 borderRadius: 10,
                 padding: '6px 18px',
               }}
             >
-              TIER PROGRESSION
+              LIVE
             </span>
           </div>
           <div style={{color: MUTED, fontFamily: FONT, fontSize: 34, marginTop: 14}}>
-            Climb from Bronze to Gold &middot; richer perks unlock at every step
+            Real-time charger availability &middot; city grid &middot; 9 hubs
           </div>
         </div>
-        <div
-          style={{
-            color: VIOLET,
-            fontFamily: MONO,
-            fontSize: 32,
-            fontWeight: 700,
-            letterSpacing: 2,
-            border: `2px solid rgba(139,124,246,0.55)`,
-            borderRadius: 14,
-            padding: '12px 26px',
-            background: 'rgba(139,124,246,0.10)',
-          }}
-        >
-          MEMBER NO. 2481
+        <div style={{display: 'flex', gap: 40}}>
+          {stats.map((s) => (
+            <div key={s.label} style={{textAlign: 'right'}}>
+              <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, letterSpacing: 2}}>{s.label}</div>
+              <div
+                style={{
+                  color: s.color,
+                  fontFamily: MONO,
+                  fontWeight: 800,
+                  fontSize: 76,
+                  textShadow: `0 0 26px ${s.color}55`,
+                }}
+              >
+                {s.value}
+                {s.unit && <span style={{fontSize: 34, marginLeft: 6}}>{s.unit}</span>}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -275,484 +282,383 @@ const TitleBar: React.FC<{frame: number}> = ({frame}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Perk icon glyphs (simple geometric)
+// Legend chips
 // ---------------------------------------------------------------------------
-const PerkIcon: React.FC<{icon: Perk['icon']; mult?: string; color: string}> = ({icon, mult, color}) => {
-  switch (icon) {
-    case 'mult':
-      return (
-        <text x={0} y={9} fill={color} fontSize={24} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-          {mult}
-        </text>
-      );
-    case 'gift':
-      return (
-        <g stroke={color} strokeWidth={4.5} fill="none">
-          <rect x={-17} y={-7} width={34} height={26} rx={4} />
-          <line x1={0} y1={-7} x2={0} y2={19} />
-          <rect x={-21} y={-18} width={42} height={11} rx={3} />
-          <path d="M -5 -18 C -14 -30 -2 -32 -2 -20 M 5 -18 C 14 -30 2 -32 2 -20" />
-        </g>
-      );
-    case 'tag':
-      return (
-        <g>
-          <path d="M -16 -12 L 5 -19 L 19 -5 L -2 16 L -19 5 Z" fill="none" stroke={color} strokeWidth={4.5} strokeLinejoin="round" />
-          <circle cx={2} cy={-3} r={4} fill={color} />
-        </g>
-      );
-    case 'truck':
-      return (
-        <g stroke={color} strokeWidth={4.5} fill="none">
-          <rect x={-23} y={-12} width={30} height={21} rx={3} />
-          <path d="M 7 -5 L 21 -5 L 21 9 L 7 9 Z" />
-          <circle cx={-12} cy={14} r={5.5} fill={color} stroke="none" />
-          <circle cx={12} cy={14} r={5.5} fill={color} stroke="none" />
-        </g>
-      );
-    case 'bolt':
-      return <path d="M 5 -21 L -10 3 L -2 3 L -5 21 L 10 -4 L 2 -4 Z" fill={color} />;
-    case 'clock':
-      return (
-        <g stroke={color} strokeWidth={4.5} fill="none">
-          <circle r={18} />
-          <line x1={0} y1={0} x2={0} y2={-11} strokeLinecap="round" />
-          <line x1={0} y1={0} x2={8} y2={4} strokeLinecap="round" />
-        </g>
-      );
-    case 'crown':
-      return <path d="M -19 11 L -16 -9 L -6 2 L 0 -12 L 6 2 L 16 -9 L 19 11 Z" fill={color} opacity={0.95} />;
-    default:
-      return null;
-  }
-};
-
-// ---------------------------------------------------------------------------
-// Tier columns: stepped ladder with perk lists
-// ---------------------------------------------------------------------------
-const tierReachedAt = (j: number) => [CARD_AT, HOP1_END, HOP2_END][j];
-
-const TierColumns: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <Defs />
-      {TIERS.map((tier, j) => {
-        const s = spring({
-          frame: frame - (COL_START + j * 45),
-          fps,
-          config: {damping: 200, stiffness: 95},
-        });
-        if (s <= 0.001) return null;
-        const x = COL_X[j];
-        const y = tierCardY(j);
-        const reached = frame >= tierReachedAt(j);
-        const gradId = j === 0 ? 'bronzeGrad' : j === 1 ? 'silverGrad' : 'goldGrad';
-
-        return (
-          <g key={`tier${j}`} opacity={Math.min(1, s)} transform={`translate(0, ${(1 - s) * 70})`}>
-            {/* platform step */}
-            <rect
-              x={x}
-              y={STEP_TOP[j]}
-              width={COL_W}
-              height={STEP_H}
-              rx={20}
-              fill={`url(#${gradId})`}
-              opacity={0.92}
-              style={reached ? {filter: `drop-shadow(0 0 26px ${tier.color}88)`} : undefined}
-            />
-            <rect x={x + 24} y={STEP_TOP[j] + 12} width={COL_W - 48} height={8} rx={4} fill="rgba(255,255,255,0.32)" />
-            <text
-              x={x + COL_W / 2}
-              y={STEP_TOP[j] + 74}
-              fill="rgba(10,14,36,0.72)"
-              fontSize={32}
-              fontFamily={MONO}
-              fontWeight={700}
-              letterSpacing={4}
-              textAnchor="middle"
-            >
-              STEP {j + 1} / 3
-            </text>
-            {/* tier card */}
-            <rect
-              x={x}
-              y={y}
-              width={TIER_CARD_W}
-              height={TIER_CARD_H}
-              rx={28}
-              fill="rgba(12,16,36,0.92)"
-              stroke={tier.color}
-              strokeWidth={reached ? 5 : 2.5}
-              opacity={reached ? 1 : 0.78}
-              style={reached ? {filter: `drop-shadow(0 0 30px ${tier.color}66)`} : undefined}
-            />
-            {/* medal */}
-            <circle cx={x + 92} cy={y + 92} r={50} fill={`url(#${gradId})`} style={{filter: `drop-shadow(0 0 14px ${tier.color}77)`}} />
-            <text x={x + 92} y={y + 110} fill="#0A0E24" fontSize={48} fontFamily={FONT} fontWeight={800} textAnchor="middle">
-              {tier.name[0]}
-            </text>
-            {/* name + threshold */}
-            <text x={x + 166} y={y + 88} fill={tier.color} fontSize={56} fontFamily={FONT} fontWeight={800} letterSpacing={2}>
-              {tier.name}
-            </text>
-            <text x={x + 166} y={y + 140} fill={MUTED} fontSize={27} fontFamily={MONO} letterSpacing={1}>
-              {tier.threshold}
-            </text>
-            <line x1={x + 48} y1={y + 180} x2={x + TIER_CARD_W - 48} y2={y + 180} stroke="rgba(190,200,225,0.16)" strokeWidth={1.5} />
-            {/* perks */}
-            {tier.perks.map((pk, k) => {
-              const rowY = y + 234 + k * 80;
-              const ua = unlockAt(j, k);
-              const pop = spring({frame: frame - ua, fps, config: {damping: 200, stiffness: 170}});
-              const unlocked = pop > 0.001;
-              return (
-                <g key={`pk${j}${k}`}>
-                  <circle
-                    cx={x + 82}
-                    cy={rowY}
-                    r={30}
-                    fill={unlocked ? 'rgba(255,255,255,0.06)' : 'rgba(190,200,225,0.05)'}
-                    stroke={unlocked ? tier.color : 'rgba(190,200,225,0.25)'}
-                    strokeWidth={3}
-                  />
-                  <g transform={`translate(${x + 82}, ${rowY})`}>
-                    <PerkIcon icon={pk.icon} mult={pk.mult} color={unlocked ? tier.color : 'rgba(190,200,225,0.35)'} />
-                  </g>
-                  <text
-                    x={x + 130}
-                    y={rowY + 11}
-                    fill={unlocked ? INK : 'rgba(190,200,225,0.42)'}
-                    fontSize={31}
-                    fontFamily={FONT}
-                    fontWeight={700}
-                    letterSpacing={1}
-                  >
-                    {pk.label}
-                  </text>
-                  {unlocked && (
-                    <g opacity={Math.min(1, pop)} transform={`translate(${x + TIER_CARD_W - 66}, ${rowY}) scale(${0.5 + 0.5 * pop})`}>
-                      <circle r={24} fill={tier.color} style={{filter: `drop-shadow(0 0 12px ${tier.color})`}} />
-                      <path d="M -10 1 L -3 9 L 11 -9" fill="none" stroke="#0A0E24" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" />
-                    </g>
-                  )}
-                </g>
-              );
-            })}
-          </g>
-        );
-      })}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Spend progress bar with tier threshold markers
-// ---------------------------------------------------------------------------
-const SpendBar: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [100, 150], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const spend = interpolate(frame, [SPEND_START, SPEND_END], [0, FINAL_SPEND], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const frac = spend / BAR_MAX;
-  const xFor = (v: number) => BAR_X + (v / BAR_MAX) * BAR_W;
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g opacity={fade}>
-        <text x={BAR_X} y={BAR_Y - 40} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={4}>
-          ANNUAL SPEND
-        </text>
-        <text x={BAR_X + BAR_W} y={BAR_Y - 28} fill={GOLD} fontSize={64} fontFamily={MONO} fontWeight={800} textAnchor="end" style={{filter: 'drop-shadow(0 0 18px rgba(245,192,68,0.5))'}}>
-          {money(spend)}
-        </text>
-        <rect x={BAR_X} y={BAR_Y} width={BAR_W} height={34} rx={17} fill="rgba(190,200,225,0.10)" />
-        {frac > 0.001 && (
-          <rect
-            x={BAR_X}
-            y={BAR_Y}
-            width={BAR_W * frac}
-            height={34}
-            rx={17}
-            fill="url(#barGrad)"
-            style={{filter: 'drop-shadow(0 0 16px rgba(245,192,68,0.55))'}}
-          />
-        )}
-        {frac > 0.001 && (
-          <circle cx={xFor(spend)} cy={BAR_Y + 17} r={25} fill={GOLD} opacity={0.9} style={{filter: 'drop-shadow(0 0 18px rgba(245,192,68,0.9))'}} />
-        )}
-        {TIERS.map((t, j) => {
-          const mx = xFor(t.spendAt);
-          const passed = spend >= t.spendAt;
-          return (
-            <g key={`mk${j}`}>
-              <line x1={mx} y1={BAR_Y - 14} x2={mx} y2={BAR_Y + 48} stroke={passed ? t.color : 'rgba(190,200,225,0.35)'} strokeWidth={4} />
-              <circle cx={mx} cy={BAR_Y - 22} r={13} fill={passed ? t.color : 'rgba(190,200,225,0.25)'} style={passed ? {filter: `drop-shadow(0 0 12px ${t.color})`} : undefined} />
-              <text x={mx} y={BAR_Y + 94} fill={passed ? t.color : MUTED} fontSize={29} fontFamily={MONO} fontWeight={700} letterSpacing={2} textAnchor="middle">
-                {t.spendAt === 0 ? '$0' : money(t.spendAt)} &middot; {t.name}
-              </text>
-            </g>
-          );
-        })}
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Member card climbing the ladder
-// ---------------------------------------------------------------------------
-const cardPose = (frame: number) => {
-  const b = mcRest(0);
-  const sv = mcRest(1);
-  const g = mcRest(2);
-  const bob = Math.sin(frame * 0.08) * 6;
-  if (frame < HOP1_START) return {x: b.x, y: b.y + bob, rot: 0, tier: 0};
-  if (frame < HOP1_END) {
-    const t = (frame - HOP1_START) / (HOP1_END - HOP1_START);
-    return {
-      x: b.x + (sv.x - b.x) * t,
-      y: b.y + (sv.y - b.y) * t - Math.sin(t * Math.PI) * 280,
-      rot: Math.sin(t * Math.PI) * 9,
-      tier: 1,
-    };
-  }
-  if (frame < HOP2_START) return {x: sv.x, y: sv.y + bob, rot: 0, tier: 1};
-  if (frame < HOP2_END) {
-    const t = (frame - HOP2_START) / (HOP2_END - HOP2_START);
-    return {
-      x: sv.x + (g.x - sv.x) * t,
-      y: sv.y + (g.y - sv.y) * t - Math.sin(t * Math.PI) * 280,
-      rot: Math.sin(t * Math.PI) * 9,
-      tier: 2,
-    };
-  }
-  return {x: g.x, y: g.y + bob, rot: 0, tier: 2};
-};
-
-const MemberCard: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - CARD_AT, fps, config: {damping: 200, stiffness: 110}});
-  if (s <= 0.001) return null;
-  const p = cardPose(frame);
-  const tier = TIERS[p.tier];
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <Defs />
-      <g
-        opacity={Math.min(1, s)}
-        transform={`translate(${p.x + MC_W / 2}, ${p.y + MC_H / 2}) rotate(${p.rot}) scale(${0.6 + 0.4 * s}) translate(${-MC_W / 2}, ${-MC_H / 2})`}
-      >
-        <rect
-          x={0}
-          y={0}
-          width={MC_W}
-          height={MC_H}
-          rx={26}
-          fill="url(#cardGrad)"
-          stroke={tier.color}
-          strokeWidth={5}
-          style={{filter: `drop-shadow(0 16px 40px rgba(0,0,0,0.55)) drop-shadow(0 0 28px ${tier.color}55)`}}
-        />
-        <rect x={20} y={20} width={MC_W - 40} height={MC_H - 40} rx={18} fill="none" stroke={tier.color} strokeWidth={1.5} opacity={0.5} />
-        <text x={38} y={62} fill={MUTED} fontSize={24} fontFamily={MONO} letterSpacing={4}>
-          LOYALTY MEMBER
-        </text>
-        <rect x={38} y={88} width={82} height={62} rx={10} fill="url(#goldGrad)" opacity={0.9} />
-        <line x1={38} y1={119} x2={120} y2={119} stroke="#0A0E24" strokeWidth={3} opacity={0.6} />
-        <line x1={79} y1={88} x2={79} y2={150} stroke="#0A0E24" strokeWidth={3} opacity={0.6} />
-        <text x={38} y={216} fill={tier.color} fontSize={60} fontFamily={FONT} fontWeight={800} letterSpacing={3} style={{filter: `drop-shadow(0 0 14px ${tier.color}66)`}}>
-          {tier.name}
-        </text>
-        <text x={38} y={258} fill={INK} fontSize={30} fontFamily={MONO} fontWeight={700} letterSpacing={1}>
-          24,860 PTS
-        </text>
-        <text x={MC_W - 38} y={258} fill={MUTED} fontSize={24} fontFamily={MONO} letterSpacing={2} textAnchor="end">
-          NO. 2481
-        </text>
-        <circle cx={MC_W - 84} cy={80} r={54} fill="none" stroke={tier.color} strokeWidth={3} opacity={0.35} />
-        <circle cx={MC_W - 84} cy={80} r={34} fill="none" stroke={tier.color} strokeWidth={2} opacity={0.25} />
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Gold flare payoff: flash, rays, shockwaves, achievement pill
-// ---------------------------------------------------------------------------
-const GoldFlare: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const flash = interpolate(frame, [FLARE_AT, FLARE_AT + 45], [0.22, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const raysFade = interpolate(frame, [FLARE_AT, FLARE_AT + 30, 850, 890], [0, 1, 1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const w1 = interpolate(frame, [FLARE_AT, FLARE_AT + 60], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const w2 = interpolate(frame, [FLARE_AT + 22, FLARE_AT + 82], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-
-  const pill = spring({frame: frame - PILL_AT, fps, config: {damping: 200, stiffness: 90}});
-
-  // flare centers on the gold tier card
-  const cx = COL_X[2] + TIER_CARD_W / 2;
-  const cy = tierCardY(2) + TIER_CARD_H / 2;
-  const twinkle = (ph: number) => 0.4 + 0.6 * Math.abs(Math.sin(frame * 0.11 + ph));
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      <Defs />
-      {raysFade > 0.001 && (
-        <g opacity={raysFade * 0.5}>
-          {Array.from({length: 16}).map((_, i) => {
-            const a = ((i * 360) / 16 + frame * 0.35) * (Math.PI / 180);
-            return (
-              <line
-                key={`ray${i}`}
-                x1={cx + Math.cos(a) * 300}
-                y1={cy + Math.sin(a) * 300}
-                x2={cx + Math.cos(a) * 520}
-                y2={cy + Math.sin(a) * 520}
-                stroke={GOLD}
-                strokeWidth={7}
-                strokeLinecap="round"
-              />
-            );
-          })}
-        </g>
-      )}
-      {w1 < 1 && (
-        <circle cx={cx} cy={cy} r={240 + w1 * 460} fill="none" stroke={GOLD} strokeWidth={10 * (1 - w1) + 2} opacity={(1 - w1) * 0.8} style={{filter: 'drop-shadow(0 0 24px rgba(245,192,68,0.8))'}} />
-      )}
-      {w2 < 1 && (
-        <circle cx={cx} cy={cy} r={240 + w2 * 460} fill="none" stroke="#FFE1A0" strokeWidth={6 * (1 - w2) + 2} opacity={(1 - w2) * 0.6} />
-      )}
-      {frame >= FLARE_AT &&
-        [
-          {dx: -480, dy: -240, ph: 0},
-          {dx: 500, dy: -260, ph: 1.3},
-          {dx: 540, dy: 240, ph: 2.5},
-          {dx: -540, dy: 220, ph: 3.7},
-          {dx: 420, dy: -180, ph: 4.6},
-        ].map((sp, i) => (
-          <g key={`gsp${i}`} opacity={twinkle(sp.ph)} transform={`translate(${cx + sp.dx}, ${cy + sp.dy})`}>
-            <path
-              d="M 0 -30 L 8 -8 L 30 0 L 8 8 L 0 30 L -8 8 L -30 0 L -8 -8 Z"
-              fill="#FFE1A0"
-              style={{filter: 'drop-shadow(0 0 14px rgba(245,192,68,0.9))'}}
-            />
-          </g>
-        ))}
-      {/* achievement pill above the gold card */}
-      {pill > 0.001 && (
-        <g opacity={Math.min(1, pill)} transform={`translate(${cx}, 320) scale(${0.5 + 0.5 * pill})`}>
-          <rect x={-400} y={-58} width={800} height={116} rx={58} fill="url(#goldGrad)" style={{filter: 'drop-shadow(0 0 44px rgba(245,192,68,0.85))'}} />
-          <text x={0} y={22} fill="#1A1206" fontSize={58} fontFamily={FONT} fontWeight={800} letterSpacing={3} textAnchor="middle">
-            GOLD STATUS ACHIEVED
-          </text>
-        </g>
-      )}
-      {flash > 0.001 && <rect x={0} y={0} width={3840} height={2160} fill={GOLD} opacity={flash} />}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Bottom stat cards
-// ---------------------------------------------------------------------------
-const StatsRow: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const points = Math.round(
-    interpolate(frame, [200, 700], [0, 48200], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})
-  );
-  let unlocked = 0;
-  TIERS.forEach((t, j) =>
-    t.perks.forEach((_, k) => {
-      if (frame >= unlockAt(j, k)) unlocked++;
-    })
-  );
-  const tierIdx = frame < HOP1_END ? 0 : frame < HOP2_END ? 1 : 2;
-  const tierColor = [BRONZE, SILVER, GOLD][tierIdx];
-
-  const cards = [
-    {label: 'POINTS EARNED', value: fmt(points), color: GOLD},
-    {label: 'PERKS UNLOCKED', value: `${unlocked}/9`, color: VIOLET},
-    {label: 'CURRENT TIER', value: TIERS[tierIdx].name, color: tierColor},
+const Legend: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [140, 190], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const items = [
+    {c: AVAIL, t: 'AVAILABLE'},
+    {c: CHARGE, t: 'CHARGING'},
+    {c: QUEUE, t: 'QUEUE'},
   ];
-
-  const cardW = 860;
-  const gap = 60;
-  const totalW = cards.length * cardW + (cards.length - 1) * gap;
-  const startX = (3840 - totalW) / 2;
-  const y = 1820;
-
   return (
-    <div style={{position: 'absolute', left: 0, top: 0, width: 3840, height: 2160, pointerEvents: 'none'}}>
-      {cards.map((c, k) => {
-        const s = spring({
-          frame: frame - (STATS_START + k * 24),
-          fps,
-          config: {damping: 200, stiffness: 95},
-        });
-        if (s <= 0.001) return null;
-        return (
+    <div
+      style={{
+        position: 'absolute',
+        left: 220,
+        bottom: 78,
+        display: 'flex',
+        gap: 44,
+        opacity: fade,
+      }}
+    >
+      {items.map((it) => (
+        <div key={it.t} style={{display: 'flex', alignItems: 'center', gap: 16}}>
           <div
-            key={c.label}
             style={{
-              position: 'absolute',
-              left: startX + k * (cardW + gap),
-              top: y + (1 - s) * 50,
-              width: cardW,
-              height: 200,
-              borderRadius: 26,
-              background:
-                'linear-gradient(160deg, rgba(245,192,68,0.09), rgba(139,124,246,0.05) 60%, rgba(255,255,255,0.02))',
-              border: '1.5px solid rgba(245,192,68,0.30)',
-              padding: '30px 48px',
-              opacity: Math.min(1, s),
+              width: 26,
+              height: 26,
+              borderRadius: 13,
+              background: it.c,
+              boxShadow: `0 0 18px ${it.c}`,
             }}
-          >
-            <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>{c.label}</div>
-            <div
-              style={{
-                color: c.color,
-                fontFamily: MONO,
-                fontWeight: 800,
-                fontSize: 76,
-                lineHeight: 1.2,
-                marginTop: 8,
-                textShadow: `0 0 26px ${c.color}55`,
-              }}
-            >
-              {c.value}
-            </div>
-          </div>
-        );
-      })}
+          />
+          <span style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>{it.t}</span>
+        </div>
+      ))}
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Footer
+// Station pins with status rings, kW badges, queue counters
 // ---------------------------------------------------------------------------
-const Footer: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [800, 850], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+const Stations: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const px = (s: Station) => MAP_LEFT + s.x * (MAP_RIGHT - MAP_LEFT);
+  const py = (s: Station) => MAP_TOP + s.y * (MAP_BOTTOM - MAP_TOP);
+
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      {STATIONS.map((st, i) => {
+        const appearAt = STATIONS_START + i * 26;
+        const s = spring({frame: frame - appearAt, fps, config: {damping: 200, stiffness: 100}});
+        if (s <= 0.001) return null;
+        const c = statusColor(st.status);
+        const x = px(st);
+        const y = py(st);
+        // pulsing outer ring
+        const pulse = 0.5 + 0.5 * Math.sin(frame * 0.07 + i * 1.3);
+        const ringR = 44 + pulse * 14;
+        // port availability arc
+        const portFrac = st.free / st.ports;
+        const circ = 2 * Math.PI * 62;
+        const isTarget = st.id === TARGET.id;
+
+        return (
+          <g key={`stn${st.id}`} opacity={Math.min(1, s)} transform={`translate(${x}, ${y}) scale(${0.6 + 0.4 * s})`}>
+            {/* glow halo */}
+            <circle r={52} fill={c} opacity={0.16} filter="url(#pinGlow)" />
+            {/* pulsing status ring */}
+            <circle
+              r={ringR}
+              fill="none"
+              stroke={c}
+              strokeWidth={5}
+              opacity={0.55 + pulse * 0.3}
+              style={{filter: `drop-shadow(0 0 12px ${c})`}}
+            />
+            {/* port ring */}
+            <circle
+              r={62}
+              fill="none"
+              stroke="rgba(148,163,184,0.22)"
+              strokeWidth={7}
+            />
+            <circle
+              r={62}
+              fill="none"
+              stroke={c}
+              strokeWidth={7}
+              strokeLinecap="round"
+              strokeDasharray={circ}
+              strokeDashoffset={circ * (1 - portFrac * s)}
+              transform="rotate(-90)"
+              opacity={0.95}
+            />
+            {/* pin body */}
+            <circle r={34} fill="#0B1420" stroke={c} strokeWidth={3.5} />
+            {/* lightning bolt */}
+            <path
+              d="M 4 -16 L -9 4 L -1 4 L -4 17 L 10 -3 L 1 -3 Z"
+              fill={c}
+              opacity={0.95}
+              style={{filter: `drop-shadow(0 0 8px ${c})`}}
+            />
+            {/* station name */}
+            <text
+              x={0}
+              y={-104}
+              fill={INK}
+              fontSize={30}
+              fontFamily={FONT}
+              fontWeight={700}
+              textAnchor="middle"
+              style={{textShadow: '0 2px 10px rgba(0,0,0,0.9)'}}
+            >
+              {st.name}
+            </text>
+            {/* kW badge */}
+            <g transform="translate(64, -96)">
+              <rect x={0} y={-30} width={168} height={58} rx={12} fill="rgba(8,13,22,0.92)" stroke="rgba(148,163,184,0.35)" strokeWidth={2} />
+              <text x={84} y={10} fill={TEAL} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+                {st.kw} kW
+              </text>
+            </g>
+            {/* queue chip */}
+            {st.status === 'queue' && (
+              <g transform="translate(-190, 66)">
+                <rect x={0} y={-34} width={262} height={62} rx={12} fill="rgba(8,13,22,0.92)" stroke={QUEUE} strokeWidth={2.5} />
+                <text x={131} y={12} fill={QUEUE} fontSize={33} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+                  {st.queue} IN QUEUE
+                </text>
+              </g>
+            )}
+            {/* available chip */}
+            {st.status === 'avail' && (
+              <g transform="translate(-178, 66)">
+                <rect x={0} y={-34} width={238} height={62} rx={12} fill="rgba(8,13,22,0.92)" stroke={AVAIL} strokeWidth={2.5} />
+                <text x={119} y={12} fill={AVAIL} fontSize={33} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+                  {st.free} FREE
+                </text>
+              </g>
+            )}
+            {/* charging chip */}
+            {st.status === 'charging' && (
+              <g transform="translate(-196, 66)">
+                <rect x={0} y={-34} width={274} height={62} rx={12} fill="rgba(8,13,22,0.92)" stroke={CHARGE} strokeWidth={2.5} />
+                <text x={137} y={12} fill={CHARGE} fontSize={33} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+                  ALL IN USE
+                </text>
+              </g>
+            )}
+            {/* target reticle on CENTRAL YARDS */}
+            {isTarget && (
+              <g>
+                <circle
+                  r={110}
+                  fill="none"
+                  stroke={AVAIL}
+                  strokeWidth={3}
+                  strokeDasharray="22 18"
+                  opacity={0.85}
+                >
+                  <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="6s" repeatCount="indefinite" />
+                </circle>
+                <circle r={110} fill="none" stroke={AVAIL} strokeWidth={1.5} opacity={0.4} />
+              </g>
+            )}
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Driver marker + route to nearest available charger
+// ---------------------------------------------------------------------------
+const Route: React.FC<{frame: number}> = ({frame}) => {
+  const sx = MAP_LEFT + DRIVER.x * (MAP_RIGHT - MAP_LEFT);
+  const sy = MAP_TOP + DRIVER.y * (MAP_BOTTOM - MAP_TOP);
+  const tx = MAP_LEFT + TARGET.x * (MAP_RIGHT - MAP_LEFT);
+  const ty = MAP_TOP + TARGET.y * (MAP_BOTTOM - MAP_TOP);
+
+  // Route with a waypoint bend for a natural road feel
+  const mx = sx + (tx - sx) * 0.45;
+  const my = Math.min(sy, ty) - 160;
+  const path = `M ${sx} ${sy} Q ${mx} ${my} ${tx} ${ty - 70}`;
+
+  const draw = interpolate(frame, [ROUTE_START, ROUTE_END], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  // traveling dot along the quadratic bezier
+  const quad = (t: number) => {
+    const ax = (1 - t) * (1 - t) * sx + 2 * (1 - t) * t * mx + t * t * tx;
+    const ay = (1 - t) * (1 - t) * sy + 2 * (1 - t) * t * my + t * t * (ty - 70);
+    return {x: ax, y: ay};
+  };
+  const dot = quad(draw);
+
+  const driverIn = interpolate(frame, [ROUTE_START - 40, ROUTE_START], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  // ETA counts down 04:48 -> 00:00 across the route
+  const etaSec = Math.round(interpolate(frame, [ROUTE_START, ROUTE_END], [288, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  }));
+  const etaStr = `${String(Math.floor(etaSec / 60)).padStart(2, '0')}:${String(etaSec % 60).padStart(2, '0')}`;
+
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      {/* driver marker */}
+      <g opacity={driverIn}>
+        <circle cx={sx} cy={sy} r={30} fill={TEAL} opacity={0.25} filter="url(#pinGlow)" />
+        <circle cx={sx} cy={sy} r={16} fill={TEAL} style={{filter: 'drop-shadow(0 0 14px rgba(45,212,191,0.9))'}} />
+        <circle cx={sx} cy={sy} r={46} fill="none" stroke={TEAL} strokeWidth={3} opacity={0.6} />
+        <text x={sx} y={sy + 92} fill={INK} fontSize={30} fontFamily={MONO} fontWeight={700} textAnchor="middle">
+          YOU
+        </text>
+      </g>
+
+      {/* route */}
+      {draw > 0.001 && (
+        <g>
+          <path
+            d={path}
+            fill="none"
+            stroke="rgba(45,212,191,0.25)"
+            strokeWidth={14}
+            strokeLinecap="round"
+            opacity={0.5}
+          />
+          <path
+            d={path}
+            fill="none"
+            stroke="url(#routeGrad)"
+            strokeWidth={7}
+            strokeLinecap="round"
+            pathLength={1}
+            strokeDasharray={1}
+            strokeDashoffset={1 - draw}
+            style={{filter: 'drop-shadow(0 0 16px rgba(52,211,153,0.7))'}}
+          />
+          {/* traveling car dot */}
+          <circle cx={dot.x} cy={dot.y} r={26} fill={AVAIL} opacity={0.22} filter="url(#pinGlow)" />
+          <circle cx={dot.x} cy={dot.y} r={13} fill="#FFFFFF" style={{filter: 'drop-shadow(0 0 12px rgba(255,255,255,0.9))'}} />
+          {/* ETA pill follows the dot */}
+          <g transform={`translate(${dot.x}, ${dot.y - 84})`}>
+            <rect x={-130} y={-40} width={260} height={78} rx={16} fill="rgba(8,13,22,0.94)" stroke={AVAIL} strokeWidth={2.5} />
+            <text x={0} y={-6} fill={MUTED} fontSize={24} fontFamily={MONO} letterSpacing={2} textAnchor="middle">
+              ETA
+            </text>
+            <text x={0} y={30} fill={AVAIL} fontSize={38} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+              {etaStr}
+            </text>
+          </g>
+        </g>
+      )}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Arrival payoff: charge ring + "CHARGING STARTED" stamp
+// ---------------------------------------------------------------------------
+const Payoff: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const tx = MAP_LEFT + TARGET.x * (MAP_RIGHT - MAP_LEFT);
+  const ty = MAP_TOP + TARGET.y * (MAP_BOTTOM - MAP_TOP);
+
+  const bloom = spring({frame: frame - ARRIVE_START, fps, config: {damping: 200, stiffness: 80}});
+  const stamp = spring({frame: frame - (ARRIVE_START + 40), fps, config: {damping: 200, stiffness: 120}});
+
+  // charge % fills 18 -> 64 across the payoff window
+  const pct = Math.round(interpolate(frame, [ARRIVE_START + 60, 880], [18, 64], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  }));
+  const circ = 2 * Math.PI * 150;
+
+  if (bloom <= 0.001) return null;
+
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g transform={`translate(${tx}, ${ty})`} opacity={Math.min(1, bloom)}>
+        {/* expanding shockwave */}
+        <circle
+          r={60 + bloom * 320}
+          fill="none"
+          stroke={AVAIL}
+          strokeWidth={6 * (1 - bloom) + 1}
+          opacity={(1 - bloom) * 0.8}
+        />
+        {/* charge ring */}
+        <circle r={150} fill="rgba(6,11,18,0.88)" stroke="rgba(52,211,153,0.25)" strokeWidth={16} />
+        <circle
+          r={150}
+          fill="none"
+          stroke={AVAIL}
+          strokeWidth={16}
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={circ * (1 - pct / 100)}
+          transform="rotate(-90)"
+          style={{filter: 'drop-shadow(0 0 20px rgba(52,211,153,0.8))'}}
+        />
+        <text x={0} y={-8} fill={INK} fontSize={84} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+          {pct}%
+        </text>
+        <text x={0} y={44} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={3} textAnchor="middle">
+          BATTERY
+        </text>
+      </g>
+      {/* stamp banner */}
+      {stamp > 0.001 && (
+        <g opacity={Math.min(1, stamp)}>
+          <g transform={`translate(${tx}, ${ty - 330}) scale(${0.7 + 0.3 * stamp})`}>
+            <rect x={-360} y={-58} width={720} height={116} rx={22} fill="rgba(6,20,16,0.95)" stroke={AVAIL} strokeWidth={4} />
+            <text x={0} y={22} fill={AVAIL} fontSize={58} fontFamily={FONT} fontWeight={800} letterSpacing={4} textAnchor="middle">
+              CHARGING STARTED
+            </text>
+          </g>
+        </g>
+      )}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Bottom ticker: live network feed
+// ---------------------------------------------------------------------------
+const Ticker: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [220, 270], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const items = [
+    'NORTHGATE PLAZA — all 8 ports occupied',
+    'CENTRAL YARDS — 9 of 14 free · fastest route',
+    'MIDTOWN EXCHANGE — 3 vehicles queued',
+    'SOUTHPORT MALL — charge session complete, port freed',
+    'MARINA DRIVE — 6 of 10 free · 350 kW',
+    'OLD TOWN HUB — 2 vehicles queued',
+  ];
+  const w = 3840;
+  const speed = 4.2;
+  const totalW = 6400;
+  const x = w - ((frame * speed) % (totalW + w));
   return (
     <div
       style={{
         position: 'absolute',
-        bottom: 44,
+        bottom: 160,
         left: 0,
         width: 3840,
-        textAlign: 'center',
-        color: 'rgba(190,200,225,0.5)',
-        fontFamily: FONT,
-        fontSize: 26,
+        height: 74,
+        overflow: 'hidden',
         opacity: fade,
+        borderTop: '1px solid rgba(148,163,184,0.16)',
+        borderBottom: '1px solid rgba(148,163,184,0.16)',
+        background: 'rgba(6,11,18,0.55)',
       }}
     >
-      Illustrative loyalty program visualization &middot; sample spend values shown
+      <svg width={3840} height={74} style={{position: 'absolute', top: 0, left: 0}}>
+        <g transform={`translate(${x}, 47)`}>
+          {items.map((t, i) => (
+            <text
+              key={`tk${i}`}
+              x={i * 1060}
+              fill={i % 2 === 0 ? 'rgba(180,198,216,0.75)' : 'rgba(52,211,153,0.75)'}
+              fontSize={30}
+              fontFamily={MONO}
+            >
+              ● {t}
+            </text>
+          ))}
+        </g>
+      </svg>
     </div>
   );
 };
@@ -760,22 +666,21 @@ const Footer: React.FC<{frame: number}> = ({frame}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const LoyaltyTierProgression: React.FC = () => {
+export const EVChargingAvailabilityMap: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
-      <TitleBar frame={frame} />
-      <TierColumns frame={frame} fps={fps} />
-      <SpendBar frame={frame} />
-      <GoldFlare frame={frame} fps={fps} />
-      <MemberCard frame={frame} fps={fps} />
-      <StatsRow frame={frame} fps={fps} />
-      <Footer frame={frame} />
+      <TitleBar frame={frame} fps={fps} />
+      <Stations frame={frame} fps={fps} />
+      <Route frame={frame} />
+      <Payoff frame={frame} fps={fps} />
+      <Ticker frame={frame} />
+      <Legend frame={frame} />
     </AbsoluteFill>
   );
 };
 
-export default LoyaltyTierProgression;
+export default EVChargingAvailabilityMap;
