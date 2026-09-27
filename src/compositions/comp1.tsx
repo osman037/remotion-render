@@ -1,17 +1,17 @@
 /**
- * CustomsClearanceFlow.tsx
+ * TelehealthVisitJourney.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * Port clearance arc: a cargo container rolls into frame, document icons
- * stack and verify one by one, a scanner beam sweeps the container, the
- * import-duty counter settles, a CLEARED stamp slams down, a dotted route
- * line extends, and a haulier truck rolls out of the yard.
+ * A virtual care journey in five stages: phone booking -> calendar fills ->
+ * waiting room with a live queue counter -> video consult connects (doctor
+ * avatar + waveform + timer) -> Rx slip flies to the pharmacy pin.
+ * Checkmarks land on a progress rail as each stage completes.
  *
  * Register in Root.tsx:
- *   <Composition id="CustomsClearanceFlow" component={CustomsClearanceFlow}
+ *   <Composition id="TelehealthVisitJourney" component={TelehealthVisitJourney}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
-import React, {useMemo} from 'react';
+import React from 'react';
 import {
   AbsoluteFill,
   interpolate,
@@ -21,121 +21,104 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette: dark slate + amber/teal
+// Palette (teal / sky clinical on deep navy)
 // ---------------------------------------------------------------------------
-const BG = '#0B1017';
-const INK = '#EAF1F8';
-const MUTED = 'rgba(170,188,208,0.62)';
-const AMBER = '#F5A524';
+const BG = '#060B14';
+const INK = '#EAF2FB';
+const MUTED = 'rgba(180,198,216,0.62)';
 const TEAL = '#2DD4BF';
+const TEAL_DEEP = '#0E7C6E';
+const SKY = '#60A5FA';
+const MINT = '#6EE7B7';
+const LIVE_RED = '#F87171';
+const SLATE = '#14202E';
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
 // Timeline (frames at 60 fps, 900 = 15 s)
 // ---------------------------------------------------------------------------
-const ARRIVE_START = 80;
-const ARRIVE_END = 260;
-const DOC_STARTS = [280, 330, 380, 430];
-const SCAN_FRAME_AT = 520;
-const SCAN_START = 540;
-const SCAN_END = 680;
-const DUTY_START = 690;
-const DUTY_END = 790;
-const STAMP_AT = 800;
-const ROUTE_START = 800;
-const ROUTE_END = 860;
-const TRUCK_START = 790;
-const TRUCK_END = 905;
+const CARD_Y = 560;
+const CARD_H = 980;
+const CARD_W = 640;
+const STAGE_X = [240, 920, 1600, 2280, 2960];
+const CHECK_AT = [200, 330, 480, 640, 780];
+const RAIL_Y = 430;
+const BANNER_AT = 800;
+const STATS_START = 820;
 
-// ---------------------------------------------------------------------------
-// Geometry
-// ---------------------------------------------------------------------------
-const GROUND_Y = 1500;
-const CTN = {w: 1200, h: 450, y: 1050, restX: 420}; // rest: 420..1620 x, 1050..1500 y
+const nodeX = (j: number) => STAGE_X[j] + CARD_W / 2; // 560,1240,1920,2600,3280
 
 // ---------------------------------------------------------------------------
 // Static defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="bgGlowAmber" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stopColor="rgba(245,165,36,0.12)" />
-      <stop offset="100%" stopColor="rgba(245,165,36,0)" />
-    </radialGradient>
-    <radialGradient id="bgGlowTeal" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stopColor="rgba(45,212,191,0.10)" />
-      <stop offset="100%" stopColor="rgba(45,212,191,0)" />
+    <radialGradient id="bgGlow" cx="50%" cy="36%" r="72%">
+      <stop offset="0%" stopColor="rgba(45,212,191,0.09)" />
+      <stop offset="50%" stopColor="rgba(96,165,250,0.05)" />
+      <stop offset="100%" stopColor="rgba(6,11,20,0)" />
     </radialGradient>
     <radialGradient id="vignette" cx="50%" cy="50%" r="75%">
-      <stop offset="60%" stopColor="rgba(11,16,23,0)" />
-      <stop offset="100%" stopColor="rgba(2,4,8,0.76)" />
+      <stop offset="60%" stopColor="rgba(6,11,20,0)" />
+      <stop offset="100%" stopColor="rgba(2,4,9,0.74)" />
     </radialGradient>
-    <linearGradient id="containerGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="#D99A35" />
-      <stop offset="55%" stopColor="#B57A24" />
-      <stop offset="100%" stopColor="#8A5A1C" />
+    <linearGradient id="tealGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stopColor="#5EEAD4" />
+      <stop offset="100%" stopColor={TEAL_DEEP} />
     </linearGradient>
-    <linearGradient id="boxGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="#1C2635" />
-      <stop offset="100%" stopColor="#101724" />
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="rgba(96,165,250,0.16)" />
+      <stop offset="100%" stopColor="rgba(96,165,250,0.03)" />
     </linearGradient>
-    <linearGradient id="beamGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor="rgba(245,165,36,0)" />
-      <stop offset="50%" stopColor="rgba(245,165,36,0.55)" />
-      <stop offset="100%" stopColor="rgba(245,165,36,0)" />
-    </linearGradient>
-    <linearGradient id="steelGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="#46586E" />
-      <stop offset="100%" stopColor="#232E3E" />
-    </linearGradient>
-    <filter id="glowBlur" x="-80%" y="-80%" width="260%" height="260%">
+    <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
       <feGaussianBlur stdDeviation="10" result="blur" />
       <feMerge>
         <feMergeNode in="blur" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
+    <filter id="bigBlur" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="28" />
+    </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background: layered glow, faint yard grid, drifting streaks, vignette
+// Background
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const grid = useMemo(
-    () =>
-      Array.from({length: 30}, (_, i) => ({
-        x: (i / 29) * 3840,
-      })),
-    []
-  );
-  const drift = (frame * 0.5) % 300;
+  const fade = interpolate(frame, [0, 80], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const sweepX = ((frame / 900) * (3840 + 600)) % (3840 + 600) - 300;
   return (
     <>
       <AbsoluteFill style={{backgroundColor: BG}} />
+      <AbsoluteFill
+        style={{
+          background:
+            'radial-gradient(circle at 50% 36%, rgba(45,212,191,0.09), rgba(96,165,250,0.05) 50%, rgba(6,11,20,0) 72%)',
+        }}
+      />
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs />
-        <ellipse cx={900} cy={500} rx={1200} ry={640} fill="url(#bgGlowAmber)" opacity={0.75} />
-        <ellipse cx={3100} cy={1820} rx={1300} ry={700} fill="url(#bgGlowTeal)" opacity={0.7} />
-        <g opacity={0.05}>
-          {grid.map((g, i) => (
-            <line key={`vg${i}`} x1={g.x} y1={0} x2={g.x} y2={2160} stroke={INK} strokeWidth={i % 5 === 0 ? 3 : 1.5} />
-          ))}
+        {/* faint plus-sign medical texture */}
+        <g opacity={fade * 0.5}>
+          {Array.from({length: 40}).map((_, i) => {
+            const gx = 200 + (i % 10) * 380;
+            const gy = 300 + Math.floor(i / 10) * 480;
+            return (
+              <g key={`pl${i}`} transform={`translate(${gx}, ${gy})`} opacity={0.5}>
+                <rect x={-4} y={-22} width={8} height={44} rx={4} fill="rgba(45,212,191,0.10)" />
+                <rect x={-22} y={-4} width={44} height={8} rx={4} fill="rgba(45,212,191,0.10)" />
+              </g>
+            );
+          })}
         </g>
-        <g opacity={0.06}>
-          {Array.from({length: 12}, (_, i) => (
-            <rect key={`st${i}`} x={(i * 397 + 2400 - drift * 2) % 4200 - 200} y={200 + (i % 4) * 420} width={260} height={5} rx={2.5} fill={AMBER} />
-          ))}
-        </g>
-        {/* ground */}
-        <rect x={0} y={GROUND_Y} width={3840} height={660} fill="#0D141D" />
-        <rect x={0} y={GROUND_Y} width={3840} height={6} fill="rgba(245,165,36,0.35)" />
-        <g opacity={0.10} stroke={INK} strokeWidth={3}>
-          {[1620, 1780, 1950].map((yy) => (
-            <line key={`gl${yy}`} x1={0} y1={yy} x2={3840} y2={yy} />
-          ))}
-        </g>
+        <circle cx={1920} cy={1000} r={700} fill="rgba(45,212,191,0.05)" filter="url(#bigBlur)" opacity={fade} />
+        <rect x={sweepX - 110} y={0} width={220} height={2160} fill="rgba(45,212,191,0.02)" />
         <rect x={0} y={0} width={3840} height={2160} fill="url(#vignette)" />
       </svg>
     </>
@@ -143,72 +126,51 @@ const Background: React.FC<{frame: number}> = ({frame}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Title block + live port stats
+// Title bar
 // ---------------------------------------------------------------------------
-const TitleBlock: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [0, 55], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const rise = interpolate(frame, [0, 55], [30, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const count = (to: number, start: number) => {
-    const t = interpolate(frame, [start, start + 70], [0, 1], {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    });
-    return Math.round(to * (1 - Math.pow(1 - t, 3)));
-  };
-  const stats = [
-    {label: 'CONTAINERS TODAY', value: String(count(1284, 70)), color: AMBER},
-    {label: 'AVG CLEARANCE', value: `${count(38, 95)} MIN`, color: TEAL},
-    {label: 'VESSELS IN QUEUE', value: String(count(14, 120)), color: INK},
-  ];
+const TitleBar: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [0, 50], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const rise = interpolate(frame, [0, 50], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
-    <div style={{position: 'absolute', top: 96 + rise, left: 220, right: 220, opacity: fade}}>
-      <div style={{display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between'}}>
+    <div style={{position: 'absolute', top: 84 + rise, left: 220, right: 220, opacity: fade}}>
+      <div style={{display: 'flex', alignItems: 'baseline', justifyContent: 'space-between'}}>
         <div>
           <div style={{display: 'flex', alignItems: 'baseline', gap: 30}}>
-            <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 88, letterSpacing: -1}}>
-              CUSTOMS CLEARANCE
+            <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 82, letterSpacing: -1}}>
+              TELEHEALTH VISIT
             </span>
             <span
               style={{
-                color: AMBER,
+                color: TEAL,
                 fontFamily: MONO,
                 fontSize: 36,
                 fontWeight: 700,
-                border: `2px solid ${AMBER}`,
+                border: `2px solid ${TEAL}`,
                 borderRadius: 10,
                 padding: '6px 18px',
               }}
             >
-              BERTH 04
+              VIRTUAL CARE JOURNEY
             </span>
           </div>
           <div style={{color: MUTED, fontFamily: FONT, fontSize: 34, marginTop: 14}}>
-            Port operations &middot; Vessel MV Pacific Trader &middot; Import terminal
+            Book &middot; wait your turn &middot; consult by video &middot; prescription sent to pharmacy
           </div>
         </div>
-        <div style={{display: 'flex', gap: 56}}>
-          {stats.map((s) => (
-            <div key={s.label} style={{textAlign: 'right'}}>
-              <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, letterSpacing: 2}}>{s.label}</div>
-              <div
-                style={{
-                  color: s.color,
-                  fontFamily: MONO,
-                  fontWeight: 800,
-                  fontSize: 72,
-                  textShadow: `0 0 26px ${s.color}55`,
-                }}
-              >
-                {s.value}
-              </div>
-            </div>
-          ))}
+        <div
+          style={{
+            color: SKY,
+            fontFamily: MONO,
+            fontSize: 32,
+            fontWeight: 700,
+            letterSpacing: 2,
+            border: `2px solid rgba(96,165,250,0.55)`,
+            borderRadius: 14,
+            padding: '12px 26px',
+            background: 'rgba(96,165,250,0.10)',
+          }}
+        >
+          SECURE &middot; ENCRYPTED
         </div>
       </div>
     </div>
@@ -216,241 +178,54 @@ const TitleBlock: React.FC<{frame: number}> = ({frame}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Port scene: ship silhouette + gantry crane (background)
+// Progress rail with stage nodes + landing checkmarks
 // ---------------------------------------------------------------------------
-const PortScene: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [20, 110], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const beacon = Math.floor(frame / 24) % 2 === 0;
-  if (fade <= 0) return null;
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}} opacity={fade}>
-      {/* distant container ship */}
-      <g opacity={0.35} fill="#1B2534">
-        <rect x={300} y={1180} width={1400} height={170} rx={8} />
-        <rect x={1420} y={1060} width={180} height={120} rx={6} />
-        {[0, 1, 2, 3].map((r) =>
-          [0, 1, 2, 3, 4, 5].map((c) => (
-            <rect key={`sc${r}${c}`} x={380 + c * 160} y={1080 - r * 62} width={140} height={52} rx={4} fill={r % 2 ? '#24303F' : '#1B2534'} />
-          ))
-        )}
-      </g>
-      {/* gantry crane */}
-      <g opacity={0.6}>
-        <rect x={2665} y={480} width={70} height={1020} fill="url(#steelGrad)" />
-        <rect x={3415} y={480} width={70} height={1020} fill="url(#steelGrad)" />
-        <rect x={2450} y={410} width={1250} height={90} rx={8} fill="url(#steelGrad)" />
-        <rect x={2000} y={438} width={450} height={44} rx={6} fill="#2A3648" />
-        <line x1={2200} y1={482} x2={2200} y2={880} stroke="#54687F" strokeWidth={8} />
-        <rect x={2120} y={880} width={160} height={44} rx={8} fill="#54687F" />
-        <circle cx={3075} cy={392} r={16} fill={beacon ? '#FF5A5A' : 'rgba(255,90,90,0.25)'} style={beacon ? {filter: 'drop-shadow(0 0 18px rgba(255,90,90,0.9))'} : undefined} />
-        <text x={3075} y={1350} fill="rgba(170,188,208,0.5)" fontSize={34} fontFamily={MONO} letterSpacing={6} textAnchor="middle">
-          STS-04
-        </text>
-      </g>
-      {/* faint stacked containers behind the action */}
-      <g opacity={0.28}>
-        {[0, 1, 2].map((c) =>
-          [0, 1].map((r) => (
-            <rect
-              key={`ys${c}${r}`}
-              x={120 + c * 210}
-              y={1330 - r * 96}
-              width={190}
-              height={86}
-              rx={4}
-              fill={r % 2 ? '#1E2A3A' : '#243244'}
-              stroke="rgba(170,188,208,0.25)"
-              strokeWidth={2}
-            />
-          ))
-        )}
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Cargo container (arrives from the left, eases to rest)
-// ---------------------------------------------------------------------------
-const ContainerUnit: React.FC<{frame: number}> = ({frame}) => {
-  const p = interpolate(frame, [ARRIVE_START, ARRIVE_END], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  if (p <= 0) return null;
-  const ease = 1 - Math.pow(1 - p, 3);
-  const x = -950 + ease * (CTN.restX + 950);
-  const bob = Math.sin(frame * 0.12) * 5 * (1 - p);
-  const top = CTN.y + bob;
-  const corr: number[] = [];
-  for (let cx = 40; cx < CTN.w - 40; cx += 60) corr.push(cx);
-
+const Rail: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const fade = interpolate(frame, [40, 90], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const draw = interpolate(frame, [60, 780], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const x0 = 240;
+  const x1 = 3600;
   return (
     <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g transform={`translate(${x}, ${top})`}>
-        {/* shadow */}
-        <ellipse cx={CTN.w / 2} cy={CTN.h + 44} rx={CTN.w / 2} ry={34} fill="rgba(0,0,0,0.45)" />
-        {/* body */}
-        <rect x={0} y={0} width={CTN.w} height={CTN.h} rx={10} fill="url(#containerGrad)" />
-        {corr.map((cx) => (
-          <line key={`cr${cx}`} x1={cx} y1={26} x2={cx} y2={CTN.h - 26} stroke="rgba(60,35,5,0.35)" strokeWidth={7} />
-        ))}
-        {/* rails */}
-        <rect x={0} y={0} width={CTN.w} height={26} fill="rgba(60,35,5,0.5)" />
-        <rect x={0} y={CTN.h - 26} width={CTN.w} height={26} fill="rgba(60,35,5,0.5)" />
-        {/* door lock rods */}
-        {[CTN.w - 130, CTN.w - 90, CTN.w - 50].map((rx) => (
-          <g key={`rod${rx}`}>
-            <line x1={rx} y1={40} x2={rx} y2={CTN.h - 40} stroke="rgba(40,24,4,0.7)" strokeWidth={9} />
-            <rect x={rx - 12} y={CTN.h / 2 - 26} width={24} height={52} rx={6} fill="rgba(40,24,4,0.7)" />
-          </g>
-        ))}
-        {/* stencil labels */}
-        <text x={60} y={120} fill="#FFF7E8" fontSize={52} fontFamily={MONO} fontWeight={800} letterSpacing={3}>
-          CTRU 482913-7
-        </text>
-        <text x={60} y={CTN.h - 60} fill="rgba(255,247,232,0.75)" fontSize={32} fontFamily={MONO} letterSpacing={2}>
-          MAX GROSS 30,480 KG
-        </text>
-        <rect x={60} y={150} width={420} height={10} fill="rgba(255,247,232,0.5)" />
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Scanner: dashed frame + sweeping beam + progress readout
-// ---------------------------------------------------------------------------
-const ScannerBeam: React.FC<{frame: number}> = ({frame}) => {
-  const frameFade = interpolate(frame, [SCAN_FRAME_AT, SCAN_FRAME_AT + 40], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  if (frameFade <= 0) return null;
-  const p = interpolate(frame, [SCAN_START, SCAN_END], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const beamX = 420 + p * 1200;
-  const pct = Math.round(p * 100);
-  const done = frame >= SCAN_END;
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g opacity={frameFade}>
-        <rect
-          x={400}
-          y={1030}
-          width={1240}
-          height={490}
-          rx={16}
-          fill="none"
+      <g opacity={fade}>
+        <line x1={x0} y1={RAIL_Y} x2={x1} y2={RAIL_Y} stroke="rgba(180,198,216,0.18)" strokeWidth={6} strokeLinecap="round" />
+        <line
+          x1={x0}
+          y1={RAIL_Y}
+          x2={x1}
+          y2={RAIL_Y}
           stroke={TEAL}
-          strokeWidth={4}
-          strokeDasharray="26 20"
-          opacity={0.8}
-          style={{filter: 'drop-shadow(0 0 12px rgba(45,212,191,0.6))'}}
+          strokeWidth={6}
+          strokeLinecap="round"
+          pathLength={1}
+          strokeDasharray={1}
+          strokeDashoffset={1 - draw}
+          style={{filter: 'drop-shadow(0 0 12px rgba(45,212,191,0.7))'}}
         />
-        {/* beam */}
-        {!done && p > 0 && (
-          <g>
-            <rect x={beamX - 55} y={1030} width={110} height={490} fill="url(#beamGrad)" />
-            <line x1={beamX} y1={1030} x2={beamX} y2={1520} stroke={AMBER} strokeWidth={7} style={{filter: 'drop-shadow(0 0 18px rgba(245,165,36,0.9))'}} />
-          </g>
-        )}
-        {/* readout */}
-        <g transform="translate(1020, 985)">
-          <rect x={-250} y={-52} width={500} height={88} rx={16} fill="rgba(8,12,19,0.92)" stroke={done ? TEAL : AMBER} strokeWidth={2.5} />
-          <text x={0} y={12} fill={done ? TEAL : AMBER} fontSize={44} fontFamily={MONO} fontWeight={800} letterSpacing={2} textAnchor="middle">
-            {done ? '\u2713 SCAN COMPLETE' : `SCAN ${pct}%`}
-          </text>
-        </g>
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Document stack: 4 cards slide in, each stamped with a check
-// ---------------------------------------------------------------------------
-const DOCS = [
-  {title: 'CARGO MANIFEST', ref: 'CM-2026-8841'},
-  {title: 'COMMERCIAL INVOICE', ref: 'INV-55912'},
-  {title: 'PACKING LIST', ref: 'PL-30987'},
-  {title: 'ORIGIN CERTIFICATE', ref: 'CO-11204'},
-];
-const DocStack: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const panelFade = interpolate(frame, [250, 300], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  if (panelFade <= 0) return null;
-  const px = 1900;
-  const pw = 660;
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g opacity={panelFade}>
-        <rect x={px} y={950} width={pw} height={600} rx={20} fill="rgba(13,20,29,0.92)" stroke="rgba(45,212,191,0.35)" strokeWidth={2.5} />
-        <text x={px + 40} y={1016} fill={TEAL} fontSize={36} fontFamily={MONO} fontWeight={800} letterSpacing={5}>
-          CARGO DOCUMENTS
-        </text>
-        {DOCS.map((d, i) => {
-          const s = spring({frame: frame - DOC_STARTS[i], fps, config: {damping: 200, stiffness: 110}});
-          if (s <= 0.001) return null;
-          const checkP = interpolate(frame, [DOC_STARTS[i] + 55, DOC_STARTS[i] + 105], [0, 1], {
-            extrapolateLeft: 'clamp',
-            extrapolateRight: 'clamp',
-          });
-          const y = 1060 + i * 118;
-          const cx = 2480;
-          const cy = y + 47;
-          const circ = 2 * Math.PI * 26;
+        {CHECK_AT.map((at, j) => {
+          const done = frame >= at;
+          const pop = spring({frame: frame - at, fps, config: {damping: 200, stiffness: 170}});
           return (
-            <g key={d.ref} opacity={Math.min(1, s)} transform={`translate(${(1 - s) * 120}, ${y})`}>
-              <rect x={1920} y={0} width={620} height={95} rx={14} fill="rgba(22,32,46,0.95)" stroke="rgba(148,163,184,0.3)" strokeWidth={2} />
-              {/* doc icon */}
-              <g transform="translate(1948, 20)">
-                <rect x={0} y={0} width={46} height={56} rx={4} fill="rgba(45,212,191,0.16)" stroke={TEAL} strokeWidth={2.5} />
-                <path d="M 32 0 L 46 14 L 32 14 Z" fill={TEAL} opacity={0.8} />
-                {[24, 32, 40].map((ly) => (
-                  <line key={`dl${ly}`} x1={9} y1={ly} x2={37} y2={ly} stroke={TEAL} strokeWidth={2.5} opacity={0.7} />
-                ))}
-              </g>
-              <text x={2014} y={40} fill={INK} fontSize={32} fontFamily={FONT} fontWeight={700}>
-                {d.title}
-              </text>
-              <text x={2014} y={72} fill={MUTED} fontSize={26} fontFamily={MONO}>
-                {d.ref}
-              </text>
-              {/* verification ring + check */}
-              <circle cx={cx} cy={cy} r={26} fill="none" stroke="rgba(45,212,191,0.25)" strokeWidth={5} />
+            <g key={`nd${j}`}>
               <circle
-                cx={cx}
-                cy={cy}
-                r={26}
-                fill="none"
+                cx={nodeX(j)}
+                cy={RAIL_Y}
+                r={36}
+                fill={done ? TEAL : '#0A1220'}
                 stroke={TEAL}
-                strokeWidth={5}
-                strokeLinecap="round"
-                strokeDasharray={circ}
-                strokeDashoffset={circ * (1 - checkP)}
-                transform={`rotate(-90 ${cx} ${cy})`}
+                strokeWidth={4}
+                style={done ? {filter: 'drop-shadow(0 0 16px rgba(45,212,191,0.8))'} : undefined}
               />
-              <path
-                d={`M ${cx - 11} ${cy + 1} L ${cx - 3} ${cy + 9} L ${cx + 12} ${cy - 8}`}
-                fill="none"
-                stroke={TEAL}
-                strokeWidth={5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                pathLength={1}
-                strokeDasharray={1}
-                strokeDashoffset={1 - checkP}
-              />
+              {done && pop > 0.001 && (
+                <g opacity={Math.min(1, pop)} transform={`translate(${nodeX(j)}, ${RAIL_Y}) scale(${0.5 + 0.5 * pop})`}>
+                  <path d="M -14 1 L -4 12 L 15 -13" fill="none" stroke="#06231F" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
+                </g>
+              )}
+              {!done && (
+                <text x={nodeX(j)} y={RAIL_Y + 11} fill={TEAL} fontSize={30} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+                  {j + 1}
+                </text>
+              )}
             </g>
           );
         })}
@@ -460,77 +235,567 @@ const DocStack: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Duty panel: counter settles + breakdown rows
+// Stage card shell
 // ---------------------------------------------------------------------------
-const DUTY_ROWS = [
-  {label: 'Duty 6.5%', value: '$2,786.20', at: 700},
-  {label: 'VAT 12%', value: '$1,180.40', at: 725},
-  {label: 'Port & handling', value: '$319.90', at: 750},
-];
-const DutyPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 660, fps, config: {damping: 200, stiffness: 95}});
+interface StageCardProps {
+  frame: number;
+  fps: number;
+  x: number;
+  index: number;
+  step: string;
+  title: string;
+  statusText: string;
+  statusAt: number;
+  children: React.ReactNode;
+}
+const StageCard: React.FC<StageCardProps> = ({frame, fps, x, index, step, title, statusText, statusAt, children}) => {
+  const s = spring({frame: frame - (60 + index * 40), fps, config: {damping: 200, stiffness: 95}});
   if (s <= 0.001) return null;
-  const p = interpolate(frame, [DUTY_START, DUTY_END], [0, 1], {
+  const stFade = interpolate(frame, [statusAt, statusAt + 25], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const eased = 1 - Math.pow(1 - p, 3);
-  const val = 4286.5 * eased;
-  const intStr = Math.floor(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const fracStr = String(Math.floor((val - Math.floor(val)) * 100)).padStart(2, '0');
-  const px = 2720;
+  const ck = spring({frame: frame - statusAt, fps, config: {damping: 200, stiffness: 170}});
 
   return (
     <div
       style={{
         position: 'absolute',
-        left: px,
-        top: 950 + (1 - s) * 50,
-        width: 900,
-        height: 560,
+        left: x,
+        top: CARD_Y + (1 - s) * 70,
+        width: CARD_W,
+        height: CARD_H,
         opacity: Math.min(1, s),
-        borderRadius: 20,
-        background: 'linear-gradient(150deg, rgba(30,24,12,0.94), rgba(14,12,8,0.95))',
-        border: '2px solid rgba(245,165,36,0.4)',
-        boxShadow: '0 30px 90px rgba(0,0,0,0.5)',
-        padding: '44px 60px',
       }}
     >
-      <div style={{color: AMBER, fontFamily: MONO, fontSize: 34, fontWeight: 700, letterSpacing: 5}}>
-        IMPORT DUTY &mdash; USD
-      </div>
+      <svg width={CARD_W} height={CARD_H} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <rect x={3} y={3} width={CARD_W - 6} height={CARD_H - 6} rx={30} fill="rgba(10,16,30,0.92)" stroke="rgba(45,212,191,0.28)" strokeWidth={2.5} />
+        <rect x={3} y={3} width={CARD_W - 6} height={CARD_H - 6} rx={30} fill="url(#skyGrad)" />
+        <text x={56} y={78} fill={TEAL} fontSize={28} fontFamily={MONO} letterSpacing={4} fontWeight={700}>
+          {step}
+        </text>
+        <text x={56} y={136} fill={INK} fontSize={46} fontFamily={FONT} fontWeight={800} letterSpacing={1}>
+          {title}
+        </text>
+        <line x1={56} y1={176} x2={CARD_W - 56} y2={176} stroke="rgba(180,198,216,0.16)" strokeWidth={1.5} />
+        {children}
+        {/* status footer */}
+        <line x1={56} y1={856} x2={CARD_W - 56} y2={856} stroke="rgba(180,198,216,0.16)" strokeWidth={1.5} />
+        <g opacity={stFade}>
+          <text x={56} y={912} fill={TEAL} fontSize={30} fontFamily={MONO} fontWeight={700} letterSpacing={1}>
+            {statusText}
+          </text>
+        </g>
+        {ck > 0.001 && (
+          <g opacity={Math.min(1, ck)} transform={`translate(${CARD_W - 86}, 896) scale(${0.5 + 0.5 * ck})`}>
+            <circle r={30} fill={TEAL} style={{filter: 'drop-shadow(0 0 14px rgba(45,212,191,0.8))'}} />
+            <path d="M -12 1 L -4 10 L 13 -11" fill="none" stroke="#06231F" strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />
+          </g>
+        )}
+      </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Stage 1: phone booking
+// ---------------------------------------------------------------------------
+const BookContent: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const tap = interpolate(frame, [140, 175], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const slotPop = spring({frame: frame - 150, fps, config: {damping: 200, stiffness: 160}});
+  const slots = ['10:30', '11:15', '14:00'];
+  return (
+    <g>
+      {/* phone */}
+      <rect x={210} y={220} width={220} height={400} rx={38} fill="#0D1626" stroke="rgba(45,212,191,0.5)" strokeWidth={3} />
+      <rect x={228} y={272} width={184} height={296} rx={14} fill="rgba(45,212,191,0.08)" />
+      <rect x={286} y={232} width={68} height={12} rx={6} fill="rgba(180,198,216,0.35)" />
+      {/* screen: mini calendar + time */}
+      <rect x={258} y={300} width={124} height={96} rx={12} fill="none" stroke={TEAL} strokeWidth={3} />
+      <line x1={258} y1={328} x2={382} y2={328} stroke={TEAL} strokeWidth={3} />
+      <text x={320} y={380} fill={INK} fontSize={40} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+        14
+      </text>
+      <text x={320} y={446} fill={TEAL} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+        10:30 AM
+      </text>
+      <text x={320} y={492} fill={MUTED} fontSize={24} fontFamily={MONO} textAnchor="middle" letterSpacing={2}>
+        VIDEO VISIT
+      </text>
+      {/* tap ripple */}
+      {tap > 0 && tap < 1 && (
+        <circle cx={320} cy={420} r={20 + tap * 90} fill="none" stroke={TEAL} strokeWidth={5 * (1 - tap) + 1} opacity={(1 - tap) * 0.9} />
+      )}
+      {/* slot chips */}
+      {slots.map((sl, i) => {
+        const sel = i === 0;
+        const px = 56 + i * 184;
+        return (
+          <g key={`slot${i}`} opacity={slotPop > 0.001 ? Math.min(1, slotPop) : 0} transform={`translate(0, ${(1 - Math.min(1, slotPop)) * 24})`}>
+            <rect
+              x={px}
+              y={660}
+              width={160}
+              height={64}
+              rx={16}
+              fill={sel ? TEAL : 'rgba(45,212,191,0.07)'}
+              stroke={TEAL}
+              strokeWidth={sel ? 0 : 2.5}
+              style={sel ? {filter: 'drop-shadow(0 0 16px rgba(45,212,191,0.7))'} : undefined}
+            />
+            <text
+              x={px + 80}
+              y={702}
+              fill={sel ? '#06231F' : TEAL}
+              fontSize={32}
+              fontFamily={MONO}
+              fontWeight={800}
+              textAnchor="middle"
+            >
+              {sl}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Stage 2: calendar fills
+// ---------------------------------------------------------------------------
+const CalendarContent: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const gridFade = interpolate(frame, [160, 220], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const bookPop = spring({frame: frame - 260, fps, config: {damping: 200, stiffness: 140}});
+  const cols = 7;
+  const cellW = 72;
+  const cellH = 60;
+  const gap = 6;
+  const gx = 47;
+  const gy = 280;
+  const booked = 14; // day number
+  const busyDays = [3, 9, 21];
+  const cells: {d: number; x: number; y: number}[] = [];
+  for (let d = 1; d <= 28; d++) {
+    const c = (d - 1) % cols;
+    const r = Math.floor((d - 1) / cols);
+    cells.push({d, x: gx + c * (cellW + gap), y: gy + r * (cellH + gap)});
+  }
+  const detailFade = interpolate(frame, [280, 320], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+
+  return (
+    <g opacity={gridFade}>
+      <text x={56} y={252} fill={MUTED} fontSize={28} fontFamily={MONO} letterSpacing={3}>
+        OCTOBER 2026
+      </text>
+      {cells.map((cell) => {
+        const isBooked = cell.d === booked;
+        return (
+          <g key={`day${cell.d}`}>
+            <rect
+              x={cell.x}
+              y={cell.y}
+              width={cellW}
+              height={cellH}
+              rx={10}
+              fill={isBooked ? TEAL : 'rgba(180,198,216,0.06)'}
+              style={isBooked ? {filter: 'drop-shadow(0 0 14px rgba(45,212,191,0.7))'} : undefined}
+            />
+            <text
+              x={cell.x + cellW / 2}
+              y={cell.y + 40}
+              fill={isBooked ? '#06231F' : 'rgba(180,198,216,0.7)'}
+              fontSize={28}
+              fontFamily={MONO}
+              fontWeight={isBooked ? 800 : 400}
+              textAnchor="middle"
+            >
+              {cell.d}
+            </text>
+            {busyDays.includes(cell.d) && !isBooked && (
+              <circle cx={cell.x + cellW / 2} cy={cell.y + cellH - 10} r={5} fill={SKY} opacity={0.8} />
+            )}
+            {isBooked && bookPop > 0.001 && (
+              <circle
+                cx={cell.x + cellW / 2}
+                cy={cell.y + cellH / 2}
+                r={30 + (1 - Math.min(1, bookPop)) * 40}
+                fill="none"
+                stroke={TEAL}
+                strokeWidth={4}
+                opacity={Math.min(1, bookPop)}
+              />
+            )}
+          </g>
+        );
+      })}
+      {/* appointment detail */}
+      <g opacity={detailFade}>
+        <rect x={56} y={560} width={528} height={190} rx={18} fill="rgba(45,212,191,0.08)" stroke="rgba(45,212,191,0.4)" strokeWidth={2} />
+        <text x={88} y={622} fill={INK} fontSize={36} fontFamily={FONT} fontWeight={800}>
+          TUE, OCT 14 &middot; 10:30 AM
+        </text>
+        <text x={88} y={668} fill={TEAL} fontSize={30} fontFamily={MONO} fontWeight={700}>
+          VIDEO VISIT
+        </text>
+        <text x={88} y={712} fill={MUTED} fontSize={28} fontFamily={FONT}>
+          Dr. Amara &middot; General Medicine
+        </text>
+      </g>
+    </g>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Stage 3: waiting room queue counter
+// ---------------------------------------------------------------------------
+const WaitingContent: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const stepIdx = Math.max(0, Math.min(4, Math.floor((frame - 280) / 45)));
+  const value = frame < 280 ? 5 : 5 - stepIdx;
+  const changeFrame = 280 + stepIdx * 45;
+  const pop = spring({frame: frame - changeFrame, fps, config: {damping: 200, stiffness: 200}});
+  const waitMin = Math.max(0, Math.round(interpolate(frame, [280, 460], [4, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})));
+  const next = frame >= 470;
+
+  const Person: React.FC<{cx: number; active: boolean; you: boolean}> = ({cx, active, you}) => (
+    <g opacity={active ? 1 : 0.28}>
+      <circle cx={cx} cy={640} r={26} fill={active ? TEAL : 'rgba(180,198,216,0.5)'} />
+      <path
+        d={`M ${cx - 40} 716 Q ${cx - 40} 672 ${cx} 672 Q ${cx + 40} 672 ${cx + 40} 716 Z`}
+        fill={active ? TEAL : 'rgba(180,198,216,0.5)'}
+      />
+      {you && <circle cx={cx} cy={688} r={62} fill="none" stroke={MINT} strokeWidth={4} strokeDasharray="10 8" />}
+    </g>
+  );
+
+  return (
+    <g>
+      <text x={320} y={268} fill={MUTED} fontSize={28} fontFamily={MONO} letterSpacing={4} textAnchor="middle">
+        POSITION IN LINE
+      </text>
+      <g transform={`translate(320, 430) scale(${0.7 + 0.3 * Math.min(1, pop)})`} opacity={Math.min(1, Math.max(0.2, pop))}>
+        <text x={0} y={70} fill={TEAL} fontSize={220} fontFamily={MONO} fontWeight={800} textAnchor="middle" style={{filter: 'drop-shadow(0 0 30px rgba(45,212,191,0.5))'}}>
+          {value}
+        </text>
+      </g>
+      {/* queue avatars */}
+      {[0, 1, 2, 3, 4].map((i) => (
+        <Person key={`p${i}`} cx={100 + i * 110} active={i < value} you={i === 4} />
+      ))}
+      <text x={320} y={792} fill={MUTED} fontSize={26} fontFamily={MONO} letterSpacing={2} textAnchor="middle">
+        {next ? '' : `EST. WAIT ${waitMin} MIN`}
+      </text>
+      {next && (
+        <text x={320} y={792} fill={MINT} fontSize={40} fontFamily={FONT} fontWeight={800} textAnchor="middle" style={{filter: 'drop-shadow(0 0 18px rgba(110,231,183,0.6))'}}>
+          YOU&apos;RE NEXT
+        </text>
+      )}
+    </g>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Stage 4: video consult
+// ---------------------------------------------------------------------------
+const ConsultContent: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const connecting = frame >= 480 && frame < 560;
+  const live = frame >= 560;
+  const winPop = spring({frame: frame - 560, fps, config: {damping: 200, stiffness: 100}});
+  const totalSec = Math.max(0, frame - 560);
+  const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+  const ss = String(totalSec % 60).padStart(2, '0');
+  const pulse = 0.5 + 0.5 * Math.sin(frame * 0.15);
+
+  return (
+    <g>
+      {frame < 480 && (
+        <g opacity={0.55}>
+          <rect x={40} y={220} width={560} height={400} rx={24} fill="rgba(180,198,216,0.05)" stroke="rgba(180,198,216,0.25)" strokeWidth={2.5} strokeDasharray="14 12" />
+          <circle cx={320} cy={380} r={52} fill="none" stroke={MUTED} strokeWidth={4} />
+          <path d="M 292 352 L 348 380 L 292 408 Z" fill={MUTED} />
+          <text x={320} y={500} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={2} textAnchor="middle">
+            SCHEDULED &middot; 10:30 AM
+          </text>
+        </g>
+      )}
+      {connecting && (
+        <g>
+          <text x={320} y={420} fill={MUTED} fontSize={34} fontFamily={MONO} letterSpacing={3} textAnchor="middle">
+            CONNECTING
+          </text>
+          {[0, 1, 2].map((i) => (
+            <circle
+              key={`cd${i}`}
+              cx={272 + i * 48}
+              cy={480}
+              r={14}
+              fill={TEAL}
+              opacity={0.3 + 0.7 * Math.abs(Math.sin(frame * 0.2 + i * 1.1))}
+            />
+          ))}
+        </g>
+      )}
+      {live && winPop > 0.001 && (
+        <g opacity={Math.min(1, winPop)} transform={`translate(320, 480) scale(${0.7 + 0.3 * winPop}) translate(-320, -480)`}>
+          {/* video window */}
+          <rect x={40} y={220} width={560} height={400} rx={24} fill="#0A1226" stroke={TEAL} strokeWidth={3} style={{filter: 'drop-shadow(0 0 26px rgba(45,212,191,0.4))'}} />
+          {/* doctor avatar */}
+          <circle cx={320} cy={380} r={72} fill="url(#tealGrad)" opacity={0.28} />
+          <circle cx={320} cy={362} r={44} fill={TEAL} opacity={0.9} />
+          <path d="M 248 470 Q 250 410 320 410 Q 390 410 392 470 Z" fill={TEAL} opacity={0.9} />
+          <rect x={304} y={404} width={32} height={52} rx={8} fill="#0A1226" opacity={0.55} />
+          {/* name tag */}
+          <text x={320} y={540} fill={INK} fontSize={36} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+            Dr. Amara
+          </text>
+          <text x={320} y={578} fill={MUTED} fontSize={26} fontFamily={MONO} letterSpacing={2} textAnchor="middle">
+            GENERAL MEDICINE
+          </text>
+          {/* LIVE badge */}
+          <g transform="translate(96, 262)">
+            <circle r={12} fill={LIVE_RED} opacity={0.4 + pulse * 0.6} />
+            <circle r={12} fill="none" stroke={LIVE_RED} strokeWidth={3} opacity={0.8} />
+            <text x={26} y={10} fill={LIVE_RED} fontSize={28} fontFamily={MONO} fontWeight={800} letterSpacing={2}>
+              LIVE
+            </text>
+          </g>
+          {/* waveform */}
+          <g>
+            {Array.from({length: 26}).map((_, i) => {
+              const h = 14 + 44 * Math.abs(Math.sin(frame * 0.22 + i * 0.65));
+              const bx = 70 + i * 19.5;
+              return <rect key={`wv${i}`} x={bx} y={660 - h / 2} width={10} height={h} rx={5} fill={i % 3 === 0 ? SKY : TEAL} opacity={0.85} />;
+            })}
+          </g>
+          {/* timer */}
+          <text x={320} y={736} fill={INK} fontSize={46} fontFamily={MONO} fontWeight={800} textAnchor="middle" letterSpacing={2}>
+            {mm}:{ss}
+          </text>
+        </g>
+      )}
+    </g>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Stage 5: pharmacy + flying Rx slip
+// ---------------------------------------------------------------------------
+const RX_START = {x: 2600, y: 1180};
+const RX_END = {x: 3280, y: 1250};
+const RX_LAUNCH = 680;
+const RX_DUR = 80;
+
+const PharmacyContent: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const pinPop = spring({frame: frame - 120, fps, config: {damping: 200, stiffness: 100}});
+  const pathFade = interpolate(frame, [640, 680], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const landed = frame >= RX_LAUNCH + RX_DUR;
+  const landPop = spring({frame: frame - (RX_LAUNCH + RX_DUR), fps, config: {damping: 200, stiffness: 150}});
+  const ringPulse = 0.5 + 0.5 * Math.sin(frame * 0.1);
+
+  return (
+    <g>
+      {/* dotted flight path */}
+      <path
+        d="M 20 620 Q 170 420 320 690"
+        fill="none"
+        stroke={TEAL}
+        strokeWidth={4}
+        strokeDasharray="12 14"
+        opacity={pathFade * 0.5}
+      />
+      {/* pharmacy pin */}
+      {pinPop > 0.001 && (
+        <g opacity={Math.min(1, pinPop)} transform={`translate(320, 320) scale(${0.6 + 0.4 * pinPop})`}>
+          {landed && (
+            <circle r={86 + ringPulse * 26} fill="none" stroke={TEAL} strokeWidth={5} opacity={0.35 + ringPulse * 0.3} />
+          )}
+          <path
+            d="M 0 78 C -52 30 -72 2 -72 -30 A 72 72 0 1 1 72 -30 C 72 2 52 30 0 78 Z"
+            fill="url(#tealGrad)"
+            style={{filter: 'drop-shadow(0 0 26px rgba(45,212,191,0.7))'}}
+          />
+          <rect x={-14} y={-62} width={28} height={64} rx={6} fill="#06231F" />
+          <rect x={-32} y={-44} width={64} height={28} rx={6} fill="#06231F" />
+        </g>
+      )}
+      <text x={320} y={500} fill={INK} fontSize={36} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+        CITY PHARMACY
+      </text>
+      <text x={320} y={542} fill={MUTED} fontSize={28} fontFamily={MONO} textAnchor="middle">
+        0.8 MI &middot; OPEN TILL 10 PM
+      </text>
+      {/* landed confirmation */}
+      {landed && landPop > 0.001 && (
+        <g opacity={Math.min(1, landPop)}>
+          <rect x={190} y={798} width={260} height={54} rx={27} fill="rgba(110,231,183,0.12)" stroke={MINT} strokeWidth={3} />
+          <text x={320} y={834} fill={MINT} fontSize={30} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+            READY FOR PICKUP
+          </text>
+        </g>
+      )}
+    </g>
+  );
+};
+
+// Rx slip flight (absolute coordinates, drawn above cards)
+const RxFlight: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const appear = spring({frame: frame - 640, fps, config: {damping: 200, stiffness: 140}});
+  if (appear <= 0.001) return null;
+  const t = Math.min(1, Math.max(0, (frame - RX_LAUNCH) / RX_DUR));
+  const cxp = (RX_START.x + RX_END.x) / 2;
+  const cyp = Math.min(RX_START.y, RX_END.y) - 420;
+  const u = 1 - t;
+  const px = u * u * RX_START.x + 2 * u * t * cxp + t * t * RX_END.x;
+  const py = u * u * RX_START.y + 2 * u * t * cyp + t * t * RX_END.y;
+  const rot = Math.sin(t * Math.PI) * 14;
+  const landPop = spring({frame: frame - (RX_LAUNCH + RX_DUR), fps, config: {damping: 200, stiffness: 160}});
+  const scale = t < 1 ? 0.6 + 0.4 * appear : 0.6 + 0.4 * Math.min(1, landPop);
+
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      <g transform={`translate(${px}, ${py}) rotate(${rot}) scale(${scale})`}>
+        <rect
+          x={-150}
+          y={-95}
+          width={300}
+          height={190}
+          rx={16}
+          fill="#F2F5FA"
+          stroke={TEAL}
+          strokeWidth={4}
+          style={{filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.5)) drop-shadow(0 0 22px rgba(45,212,191,0.55))'}}
+        />
+        <text x={-126} y={-38} fill={TEAL_DEEP} fontSize={46} fontFamily={FONT} fontWeight={800} fontStyle="italic">
+          Rx
+        </text>
+        <line x1={-126} y1={-18} x2={126} y2={-18} stroke="rgba(20,32,46,0.2)" strokeWidth={2} />
+        <text x={-126} y={18} fill={SLATE} fontSize={25} fontFamily={MONO} fontWeight={700}>
+          ATORVASTATIN 20 MG
+        </text>
+        <text x={-126} y={52} fill={SLATE} fontSize={22} fontFamily={MONO} opacity={0.75}>
+          30 TABLETS &middot; 1 DAILY
+        </text>
+        <text x={-126} y={82} fill={SLATE} fontSize={22} fontFamily={MONO} opacity={0.6}>
+          DR. AMARA
+        </text>
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Bottom banner + stats
+// ---------------------------------------------------------------------------
+const BottomBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - BANNER_AT, fps, config: {damping: 200, stiffness: 90}});
+  if (s <= 0.001) return null;
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: 0,
+        top: 1660,
+        width: 3840,
+        display: 'flex',
+        justifyContent: 'center',
+        opacity: Math.min(1, s),
+        transform: `translateY(${(1 - s) * 40}px)`,
+        pointerEvents: 'none',
+      }}
+    >
       <div
         style={{
-          color: AMBER,
-          fontFamily: MONO,
-          fontWeight: 800,
-          fontSize: 104,
-          marginTop: 18,
-          textShadow: '0 0 34px rgba(245,165,36,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 28,
+          background: 'linear-gradient(120deg, rgba(45,212,191,0.16), rgba(96,165,250,0.10))',
+          border: '2px solid rgba(45,212,191,0.55)',
+          borderRadius: 60,
+          padding: '22px 64px',
+          boxShadow: '0 0 44px rgba(45,212,191,0.35)',
         }}
       >
-        ${intStr}.{fracStr}
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            background: TEAL,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#06231F',
+            fontSize: 34,
+            fontWeight: 800,
+            fontFamily: FONT,
+          }}
+        >
+          ✓
+        </div>
+        <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 52, letterSpacing: 3}}>
+          VISIT COMPLETE
+        </span>
       </div>
-      <div style={{height: 2, background: 'rgba(245,165,36,0.25)', margin: '26px 0'}} />
-      {DUTY_ROWS.map((r) => {
-        const rf = interpolate(frame, [r.at, r.at + 40], [0, 1], {
-          extrapolateLeft: 'clamp',
-          extrapolateRight: 'clamp',
+    </div>
+  );
+};
+
+const StatsRow: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const totalSec = Math.max(0, frame - 560);
+  const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+  const ss = String(totalSec % 60).padStart(2, '0');
+  const cards = [
+    {label: 'TIME IN WAITING ROOM', value: '4 MIN', color: TEAL},
+    {label: 'CONSULT DURATION', value: `${mm}:${ss}`, color: SKY},
+    {label: 'PRESCRIPTION', value: frame >= 780 ? 'Rx SENT' : 'PENDING', color: MINT},
+  ];
+  const cardW = 860;
+  const gap = 60;
+  const totalW = cards.length * cardW + (cards.length - 1) * gap;
+  const startX = (3840 - totalW) / 2;
+  const y = 1840;
+
+  return (
+    <div style={{position: 'absolute', left: 0, top: 0, width: 3840, height: 2160, pointerEvents: 'none'}}>
+      {cards.map((c, k) => {
+        const s = spring({
+          frame: frame - (STATS_START + k * 24),
+          fps,
+          config: {damping: 200, stiffness: 95},
         });
-        if (rf <= 0) return null;
+        if (s <= 0.001) return null;
         return (
           <div
-            key={r.label}
+            key={c.label}
             style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              opacity: rf,
-              transform: `translateY(${(1 - rf) * 18}px)`,
-              marginBottom: 18,
+              position: 'absolute',
+              left: startX + k * (cardW + gap),
+              top: y + (1 - s) * 50,
+              width: cardW,
+              height: 190,
+              borderRadius: 26,
+              background:
+                'linear-gradient(160deg, rgba(45,212,191,0.09), rgba(96,165,250,0.05) 60%, rgba(255,255,255,0.02))',
+              border: '1.5px solid rgba(45,212,191,0.30)',
+              padding: '28px 48px',
+              opacity: Math.min(1, s),
             }}
           >
-            <span style={{color: MUTED, fontFamily: FONT, fontSize: 32}}>{r.label}</span>
-            <span style={{color: INK, fontFamily: MONO, fontSize: 34, fontWeight: 700}}>{r.value}</span>
+            <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>{c.label}</div>
+            <div
+              style={{
+                color: c.color,
+                fontFamily: MONO,
+                fontWeight: 800,
+                fontSize: 72,
+                lineHeight: 1.2,
+                marginTop: 8,
+                textShadow: `0 0 26px ${c.color}55`,
+              }}
+            >
+              {c.value}
+            </div>
           </div>
         );
       })}
@@ -539,248 +804,25 @@ const DutyPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 };
 
 // ---------------------------------------------------------------------------
-// CLEARED stamp (slams onto the container)
+// Footer
 // ---------------------------------------------------------------------------
-const ClearedStamp: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - STAMP_AT, fps, config: {damping: 15, stiffness: 150}});
-  if (s <= 0.001) return null;
-  const scale = 1.65 - 0.65 * s;
+const Footer: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [840, 880], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
     <div
       style={{
         position: 'absolute',
-        left: 1020,
-        top: 1275,
-        width: 0,
-        height: 0,
-        pointerEvents: 'none',
-      }}
-    >
-      <div
-        style={{
-          transform: `translate(-50%, -50%) rotate(-9deg) scale(${scale})`,
-          opacity: Math.min(1, s * 1.4),
-          border: `10px solid ${AMBER}`,
-          borderRadius: 24,
-          padding: '28px 80px',
-          background: 'rgba(245,165,36,0.10)',
-          boxShadow: '0 0 70px rgba(245,165,36,0.45), inset 0 0 40px rgba(245,165,36,0.16)',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        <div
-          style={{
-            color: AMBER,
-            fontFamily: FONT,
-            fontWeight: 800,
-            fontSize: 108,
-            letterSpacing: 12,
-            textShadow: '0 0 26px rgba(245,165,36,0.6)',
-          }}
-        >
-          CLEARED
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Dotted route line extending to the right
-// ---------------------------------------------------------------------------
-const RouteLine: React.FC<{frame: number}> = ({frame}) => {
-  const w = interpolate(frame, [ROUTE_START, ROUTE_END], [0, 2250], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  if (w <= 0) return null;
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <defs>
-        <clipPath id="routeClip">
-          <rect x={1700} y={1850} width={w} height={100} />
-        </clipPath>
-      </defs>
-      <g clipPath="url(#routeClip)">
-        <line
-          x1={1700}
-          y1={1900}
-          x2={3950}
-          y2={1900}
-          stroke={AMBER}
-          strokeWidth={10}
-          strokeLinecap="round"
-          strokeDasharray="2 34"
-          opacity={0.85}
-          style={{filter: 'drop-shadow(0 0 10px rgba(245,165,36,0.7))'}}
-        />
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Haulier truck rolling out along the route
-// ---------------------------------------------------------------------------
-const Truck: React.FC<{frame: number}> = ({frame}) => {
-  const p = interpolate(frame, [TRUCK_START, TRUCK_END], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  if (p <= 0) return null;
-  const x = -1750 + p * 6400;
-  const bob = Math.sin(frame * 0.25) * 4;
-  const wheelDeg = -((x / 72) * (180 / Math.PI));
-  const wheels = [220, 820, 1330];
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g transform={`translate(${x}, ${bob})`}>
-        {/* cargo box */}
-        <rect x={0} y={1480} width={1100} height={350} rx={12} fill="url(#boxGrad)" stroke="rgba(245,165,36,0.5)" strokeWidth={3} />
-        <rect x={0} y={1480} width={1100} height={26} fill="rgba(245,165,36,0.35)" />
-        <text x={550} y={1680} fill={AMBER} fontSize={44} fontFamily={FONT} fontWeight={800} letterSpacing={8} textAnchor="middle" opacity={0.9}>
-          CLEARED CARGO
-        </text>
-        <text x={550} y={1740} fill={MUTED} fontSize={28} fontFamily={MONO} letterSpacing={4} textAnchor="middle">
-          SEAL NO. 88412
-        </text>
-        {/* chassis */}
-        <rect x={-60} y={1830} width={1230} height={40} rx={8} fill="#0A0E14" />
-        {/* cab */}
-        <rect x={1150} y={1580} width={350} height={300} rx={18} fill="#16202E" stroke="rgba(148,163,184,0.45)" strokeWidth={3} />
-        <polygon points="1180,1620 1420,1620 1470,1720 1180,1720" fill="rgba(45,212,191,0.30)" stroke="rgba(45,212,191,0.6)" strokeWidth={3} />
-        <text x={1325} y={1800} fill={MUTED} fontSize={27} fontFamily={MONO} letterSpacing={3} textAnchor="middle">
-          CARGO HAULIER
-        </text>
-        <circle cx={1500} cy={1830} r={16} fill="#FFE9A8" style={{filter: 'drop-shadow(0 0 16px rgba(255,233,168,0.9))'}} />
-        {/* wheels */}
-        {wheels.map((wx) => (
-          <g key={`wh${wx}`}>
-            <circle cx={wx} cy={1880} r={72} fill="#0A0C10" stroke="#2A3546" strokeWidth={10} />
-            <g transform={`rotate(${wheelDeg} ${wx} 1880)`}>
-              {[0, 60, 120].map((a) => (
-                <line
-                  key={`sp${a}`}
-                  x1={wx}
-                  y1={1880}
-                  x2={wx + 52 * Math.cos((a * Math.PI) / 180)}
-                  y2={1880 + 52 * Math.sin((a * Math.PI) / 180)}
-                  stroke="#54687F"
-                  strokeWidth={10}
-                  strokeLinecap="round"
-                />
-              ))}
-            </g>
-            <circle cx={wx} cy={1880} r={24} fill={AMBER} opacity={0.85} />
-          </g>
-        ))}
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Bottom stepper: arrival -> documents -> scan -> duty -> released
-// ---------------------------------------------------------------------------
-const STEPS = [
-  {label: 'ARRIVAL', at: 80},
-  {label: 'DOCUMENTS', at: 280},
-  {label: 'SCAN', at: 540},
-  {label: 'DUTY PAID', at: 690},
-  {label: 'RELEASED', at: 800},
-];
-const Stepper: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [100, 150], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  if (fade <= 0) return null;
-  const xs = [560, 1240, 1920, 2600, 3280];
-  const y = 2010;
-  const doneCount = STEPS.filter((st) => frame >= st.at).length;
-  const frac = doneCount / STEPS.length;
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}} opacity={fade}>
-      <line x1={xs[0]} y1={y} x2={xs[4]} y2={y} stroke="rgba(148,163,184,0.25)" strokeWidth={5} />
-      <line
-        x1={xs[0]}
-        y1={y}
-        x2={xs[0] + (xs[4] - xs[0]) * frac}
-        y2={y}
-        stroke={AMBER}
-        strokeWidth={5}
-        strokeLinecap="round"
-        style={{filter: 'drop-shadow(0 0 10px rgba(245,165,36,0.7))'}}
-      />
-      {STEPS.map((st, i) => {
-        const active = frame >= st.at;
-        return (
-          <g key={st.label}>
-            <circle
-              cx={xs[i]}
-              cy={y}
-              r={42}
-              fill={active ? AMBER : 'rgba(11,16,23,0.9)'}
-              stroke={active ? AMBER : 'rgba(148,163,184,0.45)'}
-              strokeWidth={4}
-              style={active ? {filter: 'drop-shadow(0 0 16px rgba(245,165,36,0.8))'} : undefined}
-            />
-            <text
-              x={xs[i]}
-              y={y + 15}
-              fill={active ? '#0B1017' : MUTED}
-              fontSize={36}
-              fontFamily={MONO}
-              fontWeight={800}
-              textAnchor="middle"
-            >
-              {active ? '\u2713' : String(i + 1)}
-            </text>
-            <text
-              x={xs[i]}
-              y={y + 98}
-              fill={active ? INK : MUTED}
-              fontSize={30}
-              fontFamily={MONO}
-              fontWeight={active ? 700 : 400}
-              letterSpacing={3}
-              textAnchor="middle"
-            >
-              {st.label}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Status line (appears once cleared)
-// ---------------------------------------------------------------------------
-const StatusLine: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [830, 875], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  if (fade <= 0) return null;
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 300,
-        right: 220,
+        bottom: 40,
+        left: 0,
+        width: 3840,
+        textAlign: 'center',
+        color: 'rgba(180,198,216,0.5)',
+        fontFamily: FONT,
+        fontSize: 26,
         opacity: fade,
-        color: TEAL,
-        fontFamily: MONO,
-        fontSize: 36,
-        fontWeight: 800,
-        letterSpacing: 3,
-        textShadow: '0 0 22px rgba(45,212,191,0.6)',
       }}
     >
-      STATUS: CLEARED &middot; RELEASED TO HAULIER
+      Illustrative telehealth journey &middot; sample clinical data shown
     </div>
   );
 };
@@ -788,26 +830,34 @@ const StatusLine: React.FC<{frame: number}> = ({frame}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const CustomsClearanceFlow: React.FC = () => {
+export const TelehealthVisitJourney: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
+
+  const stages = [
+    {step: 'STEP 01', title: 'BOOK VISIT', statusText: 'APPOINTMENT CONFIRMED', statusAt: CHECK_AT[0], content: <BookContent frame={frame} fps={fps} />},
+    {step: 'STEP 02', title: 'SCHEDULE', statusText: 'ADDED TO CALENDAR', statusAt: CHECK_AT[1], content: <CalendarContent frame={frame} fps={fps} />},
+    {step: 'STEP 03', title: 'WAITING ROOM', statusText: 'DOCTOR IS READY', statusAt: CHECK_AT[2], content: <WaitingContent frame={frame} fps={fps} />},
+    {step: 'STEP 04', title: 'VIDEO CONSULT', statusText: 'CONSULT IN PROGRESS', statusAt: CHECK_AT[3], content: <ConsultContent frame={frame} fps={fps} />},
+    {step: 'STEP 05', title: 'PHARMACY', statusText: 'Rx SENT TO PHARMACY', statusAt: CHECK_AT[4], content: <PharmacyContent frame={frame} fps={fps} />},
+  ];
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
-      <PortScene frame={frame} />
-      <TitleBlock frame={frame} />
-      <ContainerUnit frame={frame} />
-      <ScannerBeam frame={frame} />
-      <DocStack frame={frame} fps={fps} />
-      <DutyPanel frame={frame} fps={fps} />
-      <ClearedStamp frame={frame} fps={fps} />
-      <RouteLine frame={frame} />
-      <Truck frame={frame} />
-      <Stepper frame={frame} />
-      <StatusLine frame={frame} />
+      <TitleBar frame={frame} />
+      <Rail frame={frame} fps={fps} />
+      {stages.map((st, j) => (
+        <StageCard key={`stage${j}`} frame={frame} fps={fps} x={STAGE_X[j]} index={j} step={st.step} title={st.title} statusText={st.statusText} statusAt={st.statusAt}>
+          {st.content}
+        </StageCard>
+      ))}
+      <RxFlight frame={frame} fps={fps} />
+      <BottomBanner frame={frame} fps={fps} />
+      <StatsRow frame={frame} fps={fps} />
+      <Footer frame={frame} />
     </AbsoluteFill>
   );
 };
 
-export default CustomsClearanceFlow;
+export default TelehealthVisitJourney;
