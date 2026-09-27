@@ -1,17 +1,17 @@
 /**
- * LoyaltyPointsEarnRedeem.tsx
+ * CustomsClearanceFlow.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * Loyalty earn-and-redeem story: a cafe purchase is scanned (scan beam),
- * points tally chips stream into a rewards wallet ring, the ring completes
- * and a "REWARD UNLOCKED" badge blooms with a shockwave, while earn
- * counters climb throughout.
+ * Port clearance arc: a cargo container rolls into frame, document icons
+ * stack and verify one by one, a scanner beam sweeps the container, the
+ * import-duty counter settles, a CLEARED stamp slams down, a dotted route
+ * line extends, and a haulier truck rolls out of the yard.
  *
  * Register in Root.tsx:
- *   <Composition id="LoyaltyPointsEarnRedeem" component={LoyaltyPointsEarnRedeem}
+ *   <Composition id="CustomsClearanceFlow" component={CustomsClearanceFlow}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
-import React from 'react';
+import React, {useMemo} from 'react';
 import {
   AbsoluteFill,
   interpolate,
@@ -21,159 +21,121 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (warm gold / violet on deep navy)
+// Palette: dark slate + amber/teal
 // ---------------------------------------------------------------------------
-const BG = '#080B1A';
-const INK = '#EEF1FA';
-const MUTED = 'rgba(190,200,225,0.62)';
-const GOLD = '#F5C044';
-const GOLD_LIGHT = '#FFD98A';
-const VIOLET = '#8B7CF6';
-const VIOLET_LIGHT = '#B7A9FF';
-const DARK_TEXT = '#1A1206';
+const BG = '#0B1017';
+const INK = '#EAF1F8';
+const MUTED = 'rgba(170,188,208,0.62)';
+const AMBER = '#F5A524';
+const TEAL = '#2DD4BF';
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
 // Timeline (frames at 60 fps, 900 = 15 s)
 // ---------------------------------------------------------------------------
-const TITLE_END = 50;
-const PANEL_START = 40;
-const SCAN_START = 60;
-const SCAN_END = 220;
-const RING_START = 240;
-const RING_END = 640;
-const BADGE_AT = 660;
-const STATS_START = 720;
-
-// ---------------------------------------------------------------------------
-// Data: receipt lines + points (10 pts per $1)
-// ---------------------------------------------------------------------------
-interface ReceiptItem {
-  name: string;
-  detail: string;
-  price: string;
-  pts: number;
-}
-const ITEMS: ReceiptItem[] = [
-  {name: 'SIGNATURE LATTE', detail: '12 OZ · OAT MILK', price: '$5.40', pts: 540},
-  {name: 'BUTTER CROISSANT', detail: 'BAKED FRESH', price: '$3.20', pts: 320},
-  {name: 'COLD BREW', detail: '16 OZ · SINGLE ORIGIN', price: '$4.80', pts: 480},
-  {name: 'BLUEBERRY MUFFIN', detail: 'WARMED', price: '$3.60', pts: 360},
-];
-const TOTAL_PTS = ITEMS.reduce((a, b) => a + b.pts, 0); // 1700
-const BALANCE_START = 7700;
-const GOAL = 9400; // reward threshold: 7700 + 1700 = 9400
+const ARRIVE_START = 80;
+const ARRIVE_END = 260;
+const DOC_STARTS = [280, 330, 380, 430];
+const SCAN_FRAME_AT = 520;
+const SCAN_START = 540;
+const SCAN_END = 680;
+const DUTY_START = 690;
+const DUTY_END = 790;
+const STAMP_AT = 800;
+const ROUTE_START = 800;
+const ROUTE_END = 860;
+const TRUCK_START = 790;
+const TRUCK_END = 905;
 
 // ---------------------------------------------------------------------------
 // Geometry
 // ---------------------------------------------------------------------------
-const PANEL_X = 220;
-const PANEL_W = 1240;
-const PANEL_Y = 400;
-const PANEL_H = 1300;
-const RING_CX = 2640;
-const RING_CY = 1050;
-const RING_R = 330;
-
-const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
+const GROUND_Y = 1500;
+const CTN = {w: 1200, h: 450, y: 1050, restX: 420}; // rest: 420..1620 x, 1050..1500 y
 
 // ---------------------------------------------------------------------------
 // Static defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="bgGlow" cx="50%" cy="40%" r="72%">
-      <stop offset="0%" stopColor="rgba(245,192,68,0.10)" />
-      <stop offset="45%" stopColor="rgba(139,124,246,0.06)" />
-      <stop offset="100%" stopColor="rgba(8,11,26,0)" />
+    <radialGradient id="bgGlowAmber" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stopColor="rgba(245,165,36,0.12)" />
+      <stop offset="100%" stopColor="rgba(245,165,36,0)" />
+    </radialGradient>
+    <radialGradient id="bgGlowTeal" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stopColor="rgba(45,212,191,0.10)" />
+      <stop offset="100%" stopColor="rgba(45,212,191,0)" />
     </radialGradient>
     <radialGradient id="vignette" cx="50%" cy="50%" r="75%">
-      <stop offset="60%" stopColor="rgba(8,11,26,0)" />
-      <stop offset="100%" stopColor="rgba(2,3,8,0.74)" />
+      <stop offset="60%" stopColor="rgba(11,16,23,0)" />
+      <stop offset="100%" stopColor="rgba(2,4,8,0.76)" />
     </radialGradient>
-    <linearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stopColor={GOLD_LIGHT} />
-      <stop offset="55%" stopColor={GOLD} />
-      <stop offset="100%" stopColor="#D9931F" />
+    <linearGradient id="containerGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="#D99A35" />
+      <stop offset="55%" stopColor="#B57A24" />
+      <stop offset="100%" stopColor="#8A5A1C" />
     </linearGradient>
-    <linearGradient id="violetGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={VIOLET_LIGHT} />
-      <stop offset="100%" stopColor={VIOLET} />
+    <linearGradient id="boxGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="#1C2635" />
+      <stop offset="100%" stopColor="#101724" />
     </linearGradient>
-    <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stopColor={GOLD} />
-      <stop offset="100%" stopColor={VIOLET} />
+    <linearGradient id="beamGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor="rgba(245,165,36,0)" />
+      <stop offset="50%" stopColor="rgba(245,165,36,0.55)" />
+      <stop offset="100%" stopColor="rgba(245,165,36,0)" />
     </linearGradient>
-    <linearGradient id="panelSheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="rgba(245,192,68,0.07)" />
-      <stop offset="100%" stopColor="rgba(139,124,246,0.03)" />
+    <linearGradient id="steelGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="#46586E" />
+      <stop offset="100%" stopColor="#232E3E" />
     </linearGradient>
-    <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
+    <filter id="glowBlur" x="-80%" y="-80%" width="260%" height="260%">
       <feGaussianBlur stdDeviation="10" result="blur" />
       <feMerge>
         <feMergeNode in="blur" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
-    <filter id="bigBlur" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="26" />
-    </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background: layered glow, vignette, faint dot grid, slow sweep
+// Background: layered glow, faint yard grid, drifting streaks, vignette
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [0, 80], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const sweepX = ((frame / 900) * (3840 + 600)) % (3840 + 600) - 300;
-
-  const dots: {x: number; y: number}[] = [];
-  for (let gx = 0; gx <= 24; gx++) {
-    for (let gy = 0; gy <= 14; gy++) {
-      dots.push({x: 120 + gx * 150, y: 240 + gy * 130});
-    }
-  }
-
+  const grid = useMemo(
+    () =>
+      Array.from({length: 30}, (_, i) => ({
+        x: (i / 29) * 3840,
+      })),
+    []
+  );
+  const drift = (frame * 0.5) % 300;
   return (
     <>
       <AbsoluteFill style={{backgroundColor: BG}} />
-      <AbsoluteFill
-        style={{
-          background:
-            'radial-gradient(circle at 50% 40%, rgba(245,192,68,0.10), rgba(139,124,246,0.05) 48%, rgba(8,11,26,0) 72%)',
-        }}
-      />
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs />
-        <g opacity={fade * 0.5}>
-          {dots.map((d, i) => (
-            <circle key={`dot${i}`} cx={d.x} cy={d.y} r={2.5} fill="rgba(190,200,225,0.14)" />
+        <ellipse cx={900} cy={500} rx={1200} ry={640} fill="url(#bgGlowAmber)" opacity={0.75} />
+        <ellipse cx={3100} cy={1820} rx={1300} ry={700} fill="url(#bgGlowTeal)" opacity={0.7} />
+        <g opacity={0.05}>
+          {grid.map((g, i) => (
+            <line key={`vg${i}`} x1={g.x} y1={0} x2={g.x} y2={2160} stroke={INK} strokeWidth={i % 5 === 0 ? 3 : 1.5} />
           ))}
         </g>
-        {/* soft gold halo behind the wallet ring */}
-        <circle
-          cx={RING_CX}
-          cy={RING_CY}
-          r={520}
-          fill="rgba(245,192,68,0.055)"
-          filter="url(#bigBlur)"
-          opacity={fade}
-        />
-        <circle
-          cx={RING_CX}
-          cy={RING_CY}
-          r={760}
-          fill="rgba(139,124,246,0.05)"
-          filter="url(#bigBlur)"
-          opacity={fade}
-        />
-        {/* slow vertical sweep */}
-        <rect x={sweepX - 110} y={0} width={220} height={2160} fill="rgba(245,192,68,0.022)" />
+        <g opacity={0.06}>
+          {Array.from({length: 12}, (_, i) => (
+            <rect key={`st${i}`} x={(i * 397 + 2400 - drift * 2) % 4200 - 200} y={200 + (i % 4) * 420} width={260} height={5} rx={2.5} fill={AMBER} />
+          ))}
+        </g>
+        {/* ground */}
+        <rect x={0} y={GROUND_Y} width={3840} height={660} fill="#0D141D" />
+        <rect x={0} y={GROUND_Y} width={3840} height={6} fill="rgba(245,165,36,0.35)" />
+        <g opacity={0.10} stroke={INK} strokeWidth={3}>
+          {[1620, 1780, 1950].map((yy) => (
+            <line key={`gl${yy}`} x1={0} y1={yy} x2={3840} y2={yy} />
+          ))}
+        </g>
         <rect x={0} y={0} width={3840} height={2160} fill="url(#vignette)" />
       </svg>
     </>
@@ -181,57 +143,72 @@ const Background: React.FC<{frame: number}> = ({frame}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Title bar
+// Title block + live port stats
 // ---------------------------------------------------------------------------
-const TitleBar: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [0, TITLE_END], [0, 1], {
+const TitleBlock: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [0, 55], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const rise = interpolate(frame, [0, TITLE_END], [30, 0], {
+  const rise = interpolate(frame, [0, 55], [30, 0], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
+  const count = (to: number, start: number) => {
+    const t = interpolate(frame, [start, start + 70], [0, 1], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    return Math.round(to * (1 - Math.pow(1 - t, 3)));
+  };
+  const stats = [
+    {label: 'CONTAINERS TODAY', value: String(count(1284, 70)), color: AMBER},
+    {label: 'AVG CLEARANCE', value: `${count(38, 95)} MIN`, color: TEAL},
+    {label: 'VESSELS IN QUEUE', value: String(count(14, 120)), color: INK},
+  ];
   return (
-    <div style={{position: 'absolute', top: 84 + rise, left: 220, right: 220, opacity: fade}}>
-      <div style={{display: 'flex', alignItems: 'baseline', justifyContent: 'space-between'}}>
+    <div style={{position: 'absolute', top: 96 + rise, left: 220, right: 220, opacity: fade}}>
+      <div style={{display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between'}}>
         <div>
           <div style={{display: 'flex', alignItems: 'baseline', gap: 30}}>
-            <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 82, letterSpacing: -1}}>
-              LOYALTY POINTS
+            <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 88, letterSpacing: -1}}>
+              CUSTOMS CLEARANCE
             </span>
             <span
               style={{
-                color: GOLD,
+                color: AMBER,
                 fontFamily: MONO,
                 fontSize: 36,
                 fontWeight: 700,
-                border: `2px solid ${GOLD}`,
+                border: `2px solid ${AMBER}`,
                 borderRadius: 10,
                 padding: '6px 18px',
               }}
             >
-              EARN &amp; REDEEM
+              BERTH 04
             </span>
           </div>
           <div style={{color: MUTED, fontFamily: FONT, fontSize: 34, marginTop: 14}}>
-            Scan every purchase &middot; points stream into your wallet &middot; unlock rewards
+            Port operations &middot; Vessel MV Pacific Trader &middot; Import terminal
           </div>
         </div>
-        <div
-          style={{
-            color: VIOLET_LIGHT,
-            fontFamily: MONO,
-            fontSize: 34,
-            fontWeight: 700,
-            letterSpacing: 3,
-            border: `2px solid rgba(139,124,246,0.6)`,
-            borderRadius: 14,
-            padding: '12px 26px',
-            background: 'rgba(139,124,246,0.10)',
-          }}
-        >
-          GOLD MEMBER
+        <div style={{display: 'flex', gap: 56}}>
+          {stats.map((s) => (
+            <div key={s.label} style={{textAlign: 'right'}}>
+              <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, letterSpacing: 2}}>{s.label}</div>
+              <div
+                style={{
+                  color: s.color,
+                  fontFamily: MONO,
+                  fontWeight: 800,
+                  fontSize: 72,
+                  textShadow: `0 0 26px ${s.color}55`,
+                }}
+              >
+                {s.value}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -239,182 +216,538 @@ const TitleBar: React.FC<{frame: number}> = ({frame}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Purchase panel: coffee cup + receipt + scan beam
+// Port scene: ship silhouette + gantry crane (background)
 // ---------------------------------------------------------------------------
-const ITEM_Y = (i: number) => 620 + i * 140;
-
-const PurchasePanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({
-    frame: frame - PANEL_START,
-    fps,
-    config: {damping: 200, stiffness: 95},
+const PortScene: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [20, 110], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
   });
+  const beacon = Math.floor(frame / 24) % 2 === 0;
+  if (fade <= 0) return null;
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}} opacity={fade}>
+      {/* distant container ship */}
+      <g opacity={0.35} fill="#1B2534">
+        <rect x={300} y={1180} width={1400} height={170} rx={8} />
+        <rect x={1420} y={1060} width={180} height={120} rx={6} />
+        {[0, 1, 2, 3].map((r) =>
+          [0, 1, 2, 3, 4, 5].map((c) => (
+            <rect key={`sc${r}${c}`} x={380 + c * 160} y={1080 - r * 62} width={140} height={52} rx={4} fill={r % 2 ? '#24303F' : '#1B2534'} />
+          ))
+        )}
+      </g>
+      {/* gantry crane */}
+      <g opacity={0.6}>
+        <rect x={2665} y={480} width={70} height={1020} fill="url(#steelGrad)" />
+        <rect x={3415} y={480} width={70} height={1020} fill="url(#steelGrad)" />
+        <rect x={2450} y={410} width={1250} height={90} rx={8} fill="url(#steelGrad)" />
+        <rect x={2000} y={438} width={450} height={44} rx={6} fill="#2A3648" />
+        <line x1={2200} y1={482} x2={2200} y2={880} stroke="#54687F" strokeWidth={8} />
+        <rect x={2120} y={880} width={160} height={44} rx={8} fill="#54687F" />
+        <circle cx={3075} cy={392} r={16} fill={beacon ? '#FF5A5A' : 'rgba(255,90,90,0.25)'} style={beacon ? {filter: 'drop-shadow(0 0 18px rgba(255,90,90,0.9))'} : undefined} />
+        <text x={3075} y={1350} fill="rgba(170,188,208,0.5)" fontSize={34} fontFamily={MONO} letterSpacing={6} textAnchor="middle">
+          STS-04
+        </text>
+      </g>
+      {/* faint stacked containers behind the action */}
+      <g opacity={0.28}>
+        {[0, 1, 2].map((c) =>
+          [0, 1].map((r) => (
+            <rect
+              key={`ys${c}${r}`}
+              x={120 + c * 210}
+              y={1330 - r * 96}
+              width={190}
+              height={86}
+              rx={4}
+              fill={r % 2 ? '#1E2A3A' : '#243244'}
+              stroke="rgba(170,188,208,0.25)"
+              strokeWidth={2}
+            />
+          ))
+        )}
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Cargo container (arrives from the left, eases to rest)
+// ---------------------------------------------------------------------------
+const ContainerUnit: React.FC<{frame: number}> = ({frame}) => {
+  const p = interpolate(frame, [ARRIVE_START, ARRIVE_END], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  if (p <= 0) return null;
+  const ease = 1 - Math.pow(1 - p, 3);
+  const x = -950 + ease * (CTN.restX + 950);
+  const bob = Math.sin(frame * 0.12) * 5 * (1 - p);
+  const top = CTN.y + bob;
+  const corr: number[] = [];
+  for (let cx = 40; cx < CTN.w - 40; cx += 60) corr.push(cx);
+
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g transform={`translate(${x}, ${top})`}>
+        {/* shadow */}
+        <ellipse cx={CTN.w / 2} cy={CTN.h + 44} rx={CTN.w / 2} ry={34} fill="rgba(0,0,0,0.45)" />
+        {/* body */}
+        <rect x={0} y={0} width={CTN.w} height={CTN.h} rx={10} fill="url(#containerGrad)" />
+        {corr.map((cx) => (
+          <line key={`cr${cx}`} x1={cx} y1={26} x2={cx} y2={CTN.h - 26} stroke="rgba(60,35,5,0.35)" strokeWidth={7} />
+        ))}
+        {/* rails */}
+        <rect x={0} y={0} width={CTN.w} height={26} fill="rgba(60,35,5,0.5)" />
+        <rect x={0} y={CTN.h - 26} width={CTN.w} height={26} fill="rgba(60,35,5,0.5)" />
+        {/* door lock rods */}
+        {[CTN.w - 130, CTN.w - 90, CTN.w - 50].map((rx) => (
+          <g key={`rod${rx}`}>
+            <line x1={rx} y1={40} x2={rx} y2={CTN.h - 40} stroke="rgba(40,24,4,0.7)" strokeWidth={9} />
+            <rect x={rx - 12} y={CTN.h / 2 - 26} width={24} height={52} rx={6} fill="rgba(40,24,4,0.7)" />
+          </g>
+        ))}
+        {/* stencil labels */}
+        <text x={60} y={120} fill="#FFF7E8" fontSize={52} fontFamily={MONO} fontWeight={800} letterSpacing={3}>
+          CTRU 482913-7
+        </text>
+        <text x={60} y={CTN.h - 60} fill="rgba(255,247,232,0.75)" fontSize={32} fontFamily={MONO} letterSpacing={2}>
+          MAX GROSS 30,480 KG
+        </text>
+        <rect x={60} y={150} width={420} height={10} fill="rgba(255,247,232,0.5)" />
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Scanner: dashed frame + sweeping beam + progress readout
+// ---------------------------------------------------------------------------
+const ScannerBeam: React.FC<{frame: number}> = ({frame}) => {
+  const frameFade = interpolate(frame, [SCAN_FRAME_AT, SCAN_FRAME_AT + 40], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  if (frameFade <= 0) return null;
+  const p = interpolate(frame, [SCAN_START, SCAN_END], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const beamX = 420 + p * 1200;
+  const pct = Math.round(p * 100);
+  const done = frame >= SCAN_END;
+
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={frameFade}>
+        <rect
+          x={400}
+          y={1030}
+          width={1240}
+          height={490}
+          rx={16}
+          fill="none"
+          stroke={TEAL}
+          strokeWidth={4}
+          strokeDasharray="26 20"
+          opacity={0.8}
+          style={{filter: 'drop-shadow(0 0 12px rgba(45,212,191,0.6))'}}
+        />
+        {/* beam */}
+        {!done && p > 0 && (
+          <g>
+            <rect x={beamX - 55} y={1030} width={110} height={490} fill="url(#beamGrad)" />
+            <line x1={beamX} y1={1030} x2={beamX} y2={1520} stroke={AMBER} strokeWidth={7} style={{filter: 'drop-shadow(0 0 18px rgba(245,165,36,0.9))'}} />
+          </g>
+        )}
+        {/* readout */}
+        <g transform="translate(1020, 985)">
+          <rect x={-250} y={-52} width={500} height={88} rx={16} fill="rgba(8,12,19,0.92)" stroke={done ? TEAL : AMBER} strokeWidth={2.5} />
+          <text x={0} y={12} fill={done ? TEAL : AMBER} fontSize={44} fontFamily={MONO} fontWeight={800} letterSpacing={2} textAnchor="middle">
+            {done ? '\u2713 SCAN COMPLETE' : `SCAN ${pct}%`}
+          </text>
+        </g>
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Document stack: 4 cards slide in, each stamped with a check
+// ---------------------------------------------------------------------------
+const DOCS = [
+  {title: 'CARGO MANIFEST', ref: 'CM-2026-8841'},
+  {title: 'COMMERCIAL INVOICE', ref: 'INV-55912'},
+  {title: 'PACKING LIST', ref: 'PL-30987'},
+  {title: 'ORIGIN CERTIFICATE', ref: 'CO-11204'},
+];
+const DocStack: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const panelFade = interpolate(frame, [250, 300], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  if (panelFade <= 0) return null;
+  const px = 1900;
+  const pw = 660;
+
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={panelFade}>
+        <rect x={px} y={950} width={pw} height={600} rx={20} fill="rgba(13,20,29,0.92)" stroke="rgba(45,212,191,0.35)" strokeWidth={2.5} />
+        <text x={px + 40} y={1016} fill={TEAL} fontSize={36} fontFamily={MONO} fontWeight={800} letterSpacing={5}>
+          CARGO DOCUMENTS
+        </text>
+        {DOCS.map((d, i) => {
+          const s = spring({frame: frame - DOC_STARTS[i], fps, config: {damping: 200, stiffness: 110}});
+          if (s <= 0.001) return null;
+          const checkP = interpolate(frame, [DOC_STARTS[i] + 55, DOC_STARTS[i] + 105], [0, 1], {
+            extrapolateLeft: 'clamp',
+            extrapolateRight: 'clamp',
+          });
+          const y = 1060 + i * 118;
+          const cx = 2480;
+          const cy = y + 47;
+          const circ = 2 * Math.PI * 26;
+          return (
+            <g key={d.ref} opacity={Math.min(1, s)} transform={`translate(${(1 - s) * 120}, ${y})`}>
+              <rect x={1920} y={0} width={620} height={95} rx={14} fill="rgba(22,32,46,0.95)" stroke="rgba(148,163,184,0.3)" strokeWidth={2} />
+              {/* doc icon */}
+              <g transform="translate(1948, 20)">
+                <rect x={0} y={0} width={46} height={56} rx={4} fill="rgba(45,212,191,0.16)" stroke={TEAL} strokeWidth={2.5} />
+                <path d="M 32 0 L 46 14 L 32 14 Z" fill={TEAL} opacity={0.8} />
+                {[24, 32, 40].map((ly) => (
+                  <line key={`dl${ly}`} x1={9} y1={ly} x2={37} y2={ly} stroke={TEAL} strokeWidth={2.5} opacity={0.7} />
+                ))}
+              </g>
+              <text x={2014} y={40} fill={INK} fontSize={32} fontFamily={FONT} fontWeight={700}>
+                {d.title}
+              </text>
+              <text x={2014} y={72} fill={MUTED} fontSize={26} fontFamily={MONO}>
+                {d.ref}
+              </text>
+              {/* verification ring + check */}
+              <circle cx={cx} cy={cy} r={26} fill="none" stroke="rgba(45,212,191,0.25)" strokeWidth={5} />
+              <circle
+                cx={cx}
+                cy={cy}
+                r={26}
+                fill="none"
+                stroke={TEAL}
+                strokeWidth={5}
+                strokeLinecap="round"
+                strokeDasharray={circ}
+                strokeDashoffset={circ * (1 - checkP)}
+                transform={`rotate(-90 ${cx} ${cy})`}
+              />
+              <path
+                d={`M ${cx - 11} ${cy + 1} L ${cx - 3} ${cy + 9} L ${cx + 12} ${cy - 8}`}
+                fill="none"
+                stroke={TEAL}
+                strokeWidth={5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                pathLength={1}
+                strokeDasharray={1}
+                strokeDashoffset={1 - checkP}
+              />
+            </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Duty panel: counter settles + breakdown rows
+// ---------------------------------------------------------------------------
+const DUTY_ROWS = [
+  {label: 'Duty 6.5%', value: '$2,786.20', at: 700},
+  {label: 'VAT 12%', value: '$1,180.40', at: 725},
+  {label: 'Port & handling', value: '$319.90', at: 750},
+];
+const DutyPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - 660, fps, config: {damping: 200, stiffness: 95}});
   if (s <= 0.001) return null;
-
-  const beamX = interpolate(frame, [SCAN_START, SCAN_END], [0, PANEL_W], {
+  const p = interpolate(frame, [DUTY_START, DUTY_END], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const beamOn = frame >= SCAN_START && frame <= SCAN_END + 10;
-
-  // white flash when the scan completes
-  const flash = interpolate(frame, [SCAN_END, SCAN_END + 26], [0.35, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  const eased = 1 - Math.pow(1 - p, 3);
+  const val = 4286.5 * eased;
+  const intStr = Math.floor(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const fracStr = String(Math.floor((val - Math.floor(val)) * 100)).padStart(2, '0');
+  const px = 2720;
 
   return (
     <div
       style={{
         position: 'absolute',
-        left: PANEL_X,
-        top: PANEL_Y,
-        width: PANEL_W,
-        height: PANEL_H,
+        left: px,
+        top: 950 + (1 - s) * 50,
+        width: 900,
+        height: 560,
         opacity: Math.min(1, s),
-        transform: `translateY(${(1 - s) * 60}px)`,
+        borderRadius: 20,
+        background: 'linear-gradient(150deg, rgba(30,24,12,0.94), rgba(14,12,8,0.95))',
+        border: '2px solid rgba(245,165,36,0.4)',
+        boxShadow: '0 30px 90px rgba(0,0,0,0.5)',
+        padding: '44px 60px',
       }}
     >
-      <svg width={PANEL_W} height={PANEL_H} style={{position: 'absolute', top: 0, left: 0}}>
-        <Defs />
-        <rect x={4} y={4} width={PANEL_W - 8} height={PANEL_H - 8} rx={34} fill="rgba(12,16,36,0.88)" stroke="rgba(245,192,68,0.30)" strokeWidth={3} />
-        <rect x={4} y={4} width={PANEL_W - 8} height={PANEL_H - 8} rx={34} fill="url(#panelSheen)" />
-
-        {/* header */}
-        <text x={64} y={104} fill={GOLD} fontSize={32} fontFamily={MONO} letterSpacing={5} fontWeight={700}>
-          TODAY&apos;S PURCHASE
-        </text>
-        <text x={64} y={152} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={2}>
-          CORNER CAF&Eacute; &middot; REGISTER 3 &middot; 09:42
-        </text>
-        <line x1={64} y1={196} x2={PANEL_W - 64} y2={196} stroke="rgba(190,200,225,0.18)" strokeWidth={1.5} />
-
-        {/* coffee cup illustration */}
-        <g transform="translate(300, 560)">
-          {/* saucer */}
-          <ellipse cx={0} cy={210} rx={150} ry={30} fill="rgba(245,192,68,0.16)" />
-          {/* cup body */}
-          <path
-            d="M -110 -160 L 110 -160 L 84 160 Q 80 196 44 196 L -44 196 Q -80 196 -84 160 Z"
-            fill="rgba(245,192,68,0.14)"
-            stroke={GOLD}
-            strokeWidth={7}
-          />
-          {/* coffee surface */}
-          <ellipse cx={0} cy={-160} rx={110} ry={26} fill="url(#goldGrad)" opacity={0.9} />
-          {/* handle */}
-          <path
-            d="M 110 -120 C 190 -120 190 -20 100 10"
-            fill="none"
-            stroke={GOLD}
-            strokeWidth={14}
-            strokeLinecap="round"
-          />
-          {/* steam */}
-          <path d="M -40 -220 C -60 -260 -20 -290 -40 -330" fill="none" stroke={VIOLET_LIGHT} strokeWidth={9} strokeLinecap="round" opacity={0.75} />
-          <path d="M 30 -220 C 10 -260 50 -290 30 -330" fill="none" stroke={VIOLET_LIGHT} strokeWidth={9} strokeLinecap="round" opacity={0.55} />
-          {/* loyalty stamp dots on cup */}
-          {[-70, -23, 24, 71].map((dx, i) => (
-            <circle key={`st${i}`} cx={dx} cy={40} r={22} fill={i < 3 ? GOLD : 'rgba(190,200,225,0.25)'} stroke={INK} strokeWidth={3} opacity={0.95} />
-          ))}
-          <text x={0} y={130} fill={INK} fontSize={30} fontFamily={MONO} fontWeight={700} textAnchor="middle" letterSpacing={2}>
-            8 / 10 STAMPS
-          </text>
-        </g>
-
-        {/* receipt lines */}
-        {ITEMS.map((it, i) => {
-          const y = ITEM_Y(i);
-          const checkAt = 100 + i * 35;
-          const ck = spring({frame: frame - checkAt, fps, config: {damping: 200, stiffness: 160}});
-          return (
-            <g key={`it${i}`}>
-              {i > 0 && (
-                <line x1={520} y1={y - 96} x2={PANEL_W - 80} y2={y - 96} stroke="rgba(190,200,225,0.14)" strokeWidth={1.5} />
-              )}
-              <text x={520} y={y - 34} fill={INK} fontSize={42} fontFamily={FONT} fontWeight={700}>
-                {it.name}
-              </text>
-              <text x={520} y={y + 12} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={1}>
-                {it.detail}
-              </text>
-              <text x={1080} y={y - 10} fill={INK} fontSize={46} fontFamily={MONO} fontWeight={800} textAnchor="end">
-                {it.price}
-              </text>
-              {ck > 0.001 && (
-                <g opacity={Math.min(1, ck)} transform={`translate(1150, ${y - 24}) scale(${0.5 + 0.5 * ck})`}>
-                  <circle r={32} fill={GOLD} style={{filter: 'drop-shadow(0 0 12px rgba(245,192,68,0.8))'}} />
-                  <path d="M -13 1 L -4 11 L 14 -11" fill="none" stroke={DARK_TEXT} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />
-                </g>
-              )}
-            </g>
-          );
-        })}
-
-        {/* subtotal row */}
-        <line x1={64} y1={1130} x2={PANEL_W - 64} y2={1130} stroke="rgba(190,200,225,0.18)" strokeWidth={1.5} />
-        <text x={64} y={1186} fill={MUTED} fontSize={32} fontFamily={MONO} letterSpacing={3}>
-          SUBTOTAL
-        </text>
-        <text x={PANEL_W - 380} y={1186} fill={INK} fontSize={44} fontFamily={MONO} fontWeight={800} textAnchor="end">
-          $17.00
-        </text>
-        <text x={PANEL_W - 80} y={1240} fill={GOLD} fontSize={40} fontFamily={MONO} fontWeight={800} textAnchor="end" style={{filter: 'drop-shadow(0 0 14px rgba(245,192,68,0.6))'}}>
-          +{fmt(TOTAL_PTS)} PTS EARNED
-        </text>
-
-        {/* scan beam */}
-        {beamOn && (
-          <g>
-            <rect x={beamX - 90} y={220} width={180} height={PANEL_H - 260} fill="rgba(245,192,68,0.055)" />
-            <rect x={beamX - 7} y={220} width={14} height={PANEL_H - 260} fill={GOLD} filter="url(#softGlow)" opacity={0.95} />
-          </g>
-        )}
-        {/* completion flash */}
-        {flash > 0.001 && (
-          <rect x={4} y={4} width={PANEL_W - 8} height={PANEL_H - 8} rx={34} fill="#FFFFFF" opacity={flash} />
-        )}
-      </svg>
+      <div style={{color: AMBER, fontFamily: MONO, fontSize: 34, fontWeight: 700, letterSpacing: 5}}>
+        IMPORT DUTY &mdash; USD
+      </div>
+      <div
+        style={{
+          color: AMBER,
+          fontFamily: MONO,
+          fontWeight: 800,
+          fontSize: 104,
+          marginTop: 18,
+          textShadow: '0 0 34px rgba(245,165,36,0.5)',
+        }}
+      >
+        ${intStr}.{fracStr}
+      </div>
+      <div style={{height: 2, background: 'rgba(245,165,36,0.25)', margin: '26px 0'}} />
+      {DUTY_ROWS.map((r) => {
+        const rf = interpolate(frame, [r.at, r.at + 40], [0, 1], {
+          extrapolateLeft: 'clamp',
+          extrapolateRight: 'clamp',
+        });
+        if (rf <= 0) return null;
+        return (
+          <div
+            key={r.label}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              opacity: rf,
+              transform: `translateY(${(1 - rf) * 18}px)`,
+              marginBottom: 18,
+            }}
+          >
+            <span style={{color: MUTED, fontFamily: FONT, fontSize: 32}}>{r.label}</span>
+            <span style={{color: INK, fontFamily: MONO, fontSize: 34, fontWeight: 700}}>{r.value}</span>
+          </div>
+        );
+      })}
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Points stream: "+pts" chips fly from receipt to the wallet ring
+// CLEARED stamp (slams onto the container)
 // ---------------------------------------------------------------------------
-const PointsStream: React.FC<{frame: number}> = ({frame}) => {
-  const chips = ITEMS.map((it, i) => ({
-    pts: it.pts,
-    launch: 130 + i * 40,
-    dur: 70,
-    sx: PANEL_X + 880,
-    sy: PANEL_Y + ITEM_Y(i) - 24,
-  }));
+const ClearedStamp: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - STAMP_AT, fps, config: {damping: 15, stiffness: 150}});
+  if (s <= 0.001) return null;
+  const scale = 1.65 - 0.65 * s;
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: 1020,
+        top: 1275,
+        width: 0,
+        height: 0,
+        pointerEvents: 'none',
+      }}
+    >
+      <div
+        style={{
+          transform: `translate(-50%, -50%) rotate(-9deg) scale(${scale})`,
+          opacity: Math.min(1, s * 1.4),
+          border: `10px solid ${AMBER}`,
+          borderRadius: 24,
+          padding: '28px 80px',
+          background: 'rgba(245,165,36,0.10)',
+          boxShadow: '0 0 70px rgba(245,165,36,0.45), inset 0 0 40px rgba(245,165,36,0.16)',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <div
+          style={{
+            color: AMBER,
+            fontFamily: FONT,
+            fontWeight: 800,
+            fontSize: 108,
+            letterSpacing: 12,
+            textShadow: '0 0 26px rgba(245,165,36,0.6)',
+          }}
+        >
+          CLEARED
+        </div>
+      </div>
+    </div>
+  );
+};
 
-  const quad = (t: number, sx: number, sy: number, cx: number, cy: number, ex: number, ey: number) => {
-    const u = 1 - t;
-    return {x: u * u * sx + 2 * u * t * cx + t * t * ex, y: u * u * sy + 2 * u * t * cy + t * t * ey};
-  };
+// ---------------------------------------------------------------------------
+// Dotted route line extending to the right
+// ---------------------------------------------------------------------------
+const RouteLine: React.FC<{frame: number}> = ({frame}) => {
+  const w = interpolate(frame, [ROUTE_START, ROUTE_END], [0, 2250], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  if (w <= 0) return null;
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <defs>
+        <clipPath id="routeClip">
+          <rect x={1700} y={1850} width={w} height={100} />
+        </clipPath>
+      </defs>
+      <g clipPath="url(#routeClip)">
+        <line
+          x1={1700}
+          y1={1900}
+          x2={3950}
+          y2={1900}
+          stroke={AMBER}
+          strokeWidth={10}
+          strokeLinecap="round"
+          strokeDasharray="2 34"
+          opacity={0.85}
+          style={{filter: 'drop-shadow(0 0 10px rgba(245,165,36,0.7))'}}
+        />
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Haulier truck rolling out along the route
+// ---------------------------------------------------------------------------
+const Truck: React.FC<{frame: number}> = ({frame}) => {
+  const p = interpolate(frame, [TRUCK_START, TRUCK_END], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  if (p <= 0) return null;
+  const x = -1750 + p * 6400;
+  const bob = Math.sin(frame * 0.25) * 4;
+  const wheelDeg = -((x / 72) * (180 / Math.PI));
+  const wheels = [220, 820, 1330];
 
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {chips.map((c, i) => {
-        const t = (frame - c.launch) / c.dur;
-        if (t <= 0 || t >= 1.15) return null;
-        const tt = Math.min(1, t);
-        const cxp = (c.sx + RING_CX) / 2;
-        const cyp = Math.min(c.sy, RING_CY) - 320;
-        const p = quad(tt, c.sx, c.sy, cxp, cyp, RING_CX, RING_CY);
-        const fadeOut = t > 1 ? interpolate(t, [1, 1.15], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}) : 1;
-        const scale = 0.8 + 0.4 * Math.sin(tt * Math.PI);
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g transform={`translate(${x}, ${bob})`}>
+        {/* cargo box */}
+        <rect x={0} y={1480} width={1100} height={350} rx={12} fill="url(#boxGrad)" stroke="rgba(245,165,36,0.5)" strokeWidth={3} />
+        <rect x={0} y={1480} width={1100} height={26} fill="rgba(245,165,36,0.35)" />
+        <text x={550} y={1680} fill={AMBER} fontSize={44} fontFamily={FONT} fontWeight={800} letterSpacing={8} textAnchor="middle" opacity={0.9}>
+          CLEARED CARGO
+        </text>
+        <text x={550} y={1740} fill={MUTED} fontSize={28} fontFamily={MONO} letterSpacing={4} textAnchor="middle">
+          SEAL NO. 88412
+        </text>
+        {/* chassis */}
+        <rect x={-60} y={1830} width={1230} height={40} rx={8} fill="#0A0E14" />
+        {/* cab */}
+        <rect x={1150} y={1580} width={350} height={300} rx={18} fill="#16202E" stroke="rgba(148,163,184,0.45)" strokeWidth={3} />
+        <polygon points="1180,1620 1420,1620 1470,1720 1180,1720" fill="rgba(45,212,191,0.30)" stroke="rgba(45,212,191,0.6)" strokeWidth={3} />
+        <text x={1325} y={1800} fill={MUTED} fontSize={27} fontFamily={MONO} letterSpacing={3} textAnchor="middle">
+          CARGO HAULIER
+        </text>
+        <circle cx={1500} cy={1830} r={16} fill="#FFE9A8" style={{filter: 'drop-shadow(0 0 16px rgba(255,233,168,0.9))'}} />
+        {/* wheels */}
+        {wheels.map((wx) => (
+          <g key={`wh${wx}`}>
+            <circle cx={wx} cy={1880} r={72} fill="#0A0C10" stroke="#2A3546" strokeWidth={10} />
+            <g transform={`rotate(${wheelDeg} ${wx} 1880)`}>
+              {[0, 60, 120].map((a) => (
+                <line
+                  key={`sp${a}`}
+                  x1={wx}
+                  y1={1880}
+                  x2={wx + 52 * Math.cos((a * Math.PI) / 180)}
+                  y2={1880 + 52 * Math.sin((a * Math.PI) / 180)}
+                  stroke="#54687F"
+                  strokeWidth={10}
+                  strokeLinecap="round"
+                />
+              ))}
+            </g>
+            <circle cx={wx} cy={1880} r={24} fill={AMBER} opacity={0.85} />
+          </g>
+        ))}
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Bottom stepper: arrival -> documents -> scan -> duty -> released
+// ---------------------------------------------------------------------------
+const STEPS = [
+  {label: 'ARRIVAL', at: 80},
+  {label: 'DOCUMENTS', at: 280},
+  {label: 'SCAN', at: 540},
+  {label: 'DUTY PAID', at: 690},
+  {label: 'RELEASED', at: 800},
+];
+const Stepper: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [100, 150], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  if (fade <= 0) return null;
+  const xs = [560, 1240, 1920, 2600, 3280];
+  const y = 2010;
+  const doneCount = STEPS.filter((st) => frame >= st.at).length;
+  const frac = doneCount / STEPS.length;
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}} opacity={fade}>
+      <line x1={xs[0]} y1={y} x2={xs[4]} y2={y} stroke="rgba(148,163,184,0.25)" strokeWidth={5} />
+      <line
+        x1={xs[0]}
+        y1={y}
+        x2={xs[0] + (xs[4] - xs[0]) * frac}
+        y2={y}
+        stroke={AMBER}
+        strokeWidth={5}
+        strokeLinecap="round"
+        style={{filter: 'drop-shadow(0 0 10px rgba(245,165,36,0.7))'}}
+      />
+      {STEPS.map((st, i) => {
+        const active = frame >= st.at;
         return (
-          <g key={`chip${i}`} opacity={fadeOut} transform={`translate(${p.x}, ${p.y}) scale(${scale})`}>
-            {/* motion trail */}
-            <circle r={14} fill={GOLD} opacity={0.25} cx={-46} cy={26} />
-            <circle r={10} fill={GOLD} opacity={0.35} cx={-24} cy={14} />
-            <rect x={-130} y={-44} width={260} height={88} rx={44} fill="rgba(20,14,4,0.95)" stroke={GOLD} strokeWidth={4} style={{filter: 'drop-shadow(0 0 18px rgba(245,192,68,0.75))'}} />
-            <text x={0} y={14} fill={GOLD_LIGHT} fontSize={44} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-              +{fmt(c.pts)}
+          <g key={st.label}>
+            <circle
+              cx={xs[i]}
+              cy={y}
+              r={42}
+              fill={active ? AMBER : 'rgba(11,16,23,0.9)'}
+              stroke={active ? AMBER : 'rgba(148,163,184,0.45)'}
+              strokeWidth={4}
+              style={active ? {filter: 'drop-shadow(0 0 16px rgba(245,165,36,0.8))'} : undefined}
+            />
+            <text
+              x={xs[i]}
+              y={y + 15}
+              fill={active ? '#0B1017' : MUTED}
+              fontSize={36}
+              fontFamily={MONO}
+              fontWeight={800}
+              textAnchor="middle"
+            >
+              {active ? '\u2713' : String(i + 1)}
+            </text>
+            <text
+              x={xs[i]}
+              y={y + 98}
+              fill={active ? INK : MUTED}
+              fontSize={30}
+              fontFamily={MONO}
+              fontWeight={active ? 700 : 400}
+              letterSpacing={3}
+              textAnchor="middle"
+            >
+              {st.label}
             </text>
           </g>
         );
@@ -424,296 +757,30 @@ const PointsStream: React.FC<{frame: number}> = ({frame}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Wallet ring: balance counter + progress ring
+// Status line (appears once cleared)
 // ---------------------------------------------------------------------------
-const WalletRing: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({
-    frame: frame - 200,
-    fps,
-    config: {damping: 200, stiffness: 90},
-  });
-  if (s <= 0.001) return null;
-
-  const t = interpolate(frame, [RING_START, RING_END], [0, 1], {
+const StatusLine: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [830, 875], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const balance = BALANCE_START + t * (GOAL - BALANCE_START);
-  const frac = balance / GOAL;
-  const circ = 2 * Math.PI * RING_R;
-
-  // week's earnings counter climbs in parallel
-  const weekPts = Math.round(interpolate(frame, [RING_START, RING_END + 60], [0, 3420], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  }));
-
-  const pulse = 0.5 + 0.5 * Math.sin(frame * 0.06);
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <Defs />
-      <g opacity={Math.min(1, s)} transform={`translate(${RING_CX}, ${RING_CY}) scale(${0.7 + 0.3 * s})`}>
-        {/* pulsing halo */}
-        <circle r={RING_R + 46 + pulse * 16} fill="none" stroke={GOLD} strokeWidth={5} opacity={0.25 + pulse * 0.2} />
-        {/* track */}
-        <circle r={RING_R} fill="rgba(12,16,36,0.9)" stroke="rgba(190,200,225,0.22)" strokeWidth={34} />
-        {/* progress */}
-        <circle
-          r={RING_R}
-          fill="none"
-          stroke="url(#ringGrad)"
-          strokeWidth={34}
-          strokeLinecap="round"
-          strokeDasharray={circ}
-          strokeDashoffset={circ * (1 - frac)}
-          transform="rotate(-90)"
-          style={{filter: 'drop-shadow(0 0 24px rgba(245,192,68,0.65))'}}
-        />
-        {/* tick marks around the ring */}
-        {Array.from({length: 48}).map((_, i) => {
-          const a = (i / 48) * Math.PI * 2 - Math.PI / 2;
-          const r1 = RING_R + 62;
-          const r2 = RING_R + (i % 4 === 0 ? 88 : 76);
-          return (
-            <line
-              key={`tk${i}`}
-              x1={Math.cos(a) * r1}
-              y1={Math.sin(a) * r1}
-              x2={Math.cos(a) * r2}
-              y2={Math.sin(a) * r2}
-              stroke={i / 48 <= frac ? GOLD : 'rgba(190,200,225,0.28)'}
-              strokeWidth={i % 4 === 0 ? 5 : 3}
-            />
-          );
-        })}
-        {/* labels */}
-        <text x={0} y={-298} fill={MUTED} fontSize={32} fontFamily={MONO} letterSpacing={6} textAnchor="middle">
-          POINTS BALANCE
-        </text>
-        <text
-          x={0}
-          y={-186}
-          fill={INK}
-          fontSize={104}
-          fontFamily={MONO}
-          fontWeight={800}
-          textAnchor="middle"
-          style={{textShadow: '0 0 30px rgba(245,192,68,0.45)'}}
-        >
-          {fmt(balance)}
-        </text>
-      </g>
-      {/* goal caption under ring */}
-      <g opacity={Math.min(1, s)}>
-        <text x={RING_CX} y={RING_CY + RING_R + 130} fill={GOLD} fontSize={34} fontFamily={MONO} fontWeight={700} letterSpacing={2} textAnchor="middle">
-          GOAL {fmt(GOAL)} PTS &middot; FREE CRAFTED COFFEE
-        </text>
-        <text x={RING_CX} y={RING_CY + RING_R + 196} fill={VIOLET_LIGHT} fontSize={36} fontFamily={MONO} fontWeight={700} textAnchor="middle">
-          THIS WEEK +{fmt(weekPts)} PTS
-        </text>
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Reward badge payoff
-// ---------------------------------------------------------------------------
-const RewardBadge: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const bloom = spring({
-    frame: frame - BADGE_AT,
-    fps,
-    config: {damping: 200, stiffness: 80},
-  });
-  if (bloom <= 0.001) return null;
-
-  const stamp = spring({
-    frame: frame - (BADGE_AT + 30),
-    fps,
-    config: {damping: 200, stiffness: 130},
-  });
-
-  // expanding shockwave
-  const wave = interpolate(frame, [BADGE_AT, BADGE_AT + 55], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  const twinkle = (ph: number) => 0.4 + 0.6 * Math.abs(Math.sin(frame * 0.12 + ph));
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <Defs />
-      {/* shockwave */}
-      {wave < 1 && (
-        <circle
-          cx={RING_CX}
-          cy={RING_CY}
-          r={220 + wave * 560}
-          fill="none"
-          stroke={GOLD}
-          strokeWidth={10 * (1 - wave) + 2}
-          opacity={(1 - wave) * 0.85}
-          style={{filter: 'drop-shadow(0 0 26px rgba(245,192,68,0.8))'}}
-        />
-      )}
-      {/* badge */}
-      <g
-        opacity={Math.min(1, bloom)}
-        transform={`translate(${RING_CX}, ${RING_CY}) scale(${0.4 + 0.6 * bloom})`}
-      >
-        <rect
-          x={-470}
-          y={-150}
-          width={940}
-          height={300}
-          rx={70}
-          fill="url(#goldGrad)"
-          style={{filter: 'drop-shadow(0 0 60px rgba(245,192,68,0.85))'}}
-        />
-        <rect x={-470} y={-150} width={940} height={300} rx={70} fill="none" stroke="#FFF6DD" strokeWidth={4} opacity={0.7} />
-        {/* ribbon notches */}
-        <path d="M -470 -90 L -520 -90 L -520 90 L -470 90 Z" fill="#D9931F" />
-        <path d="M 470 -90 L 520 -90 L 520 90 L 470 90 Z" fill="#D9931F" />
-        <text x={0} y={-18} fill={DARK_TEXT} fontSize={72} fontFamily={FONT} fontWeight={800} letterSpacing={3} textAnchor="middle">
-          REWARD UNLOCKED
-        </text>
-        <text x={0} y={62} fill={DARK_TEXT} fontSize={34} fontFamily={MONO} fontWeight={700} letterSpacing={2} textAnchor="middle" opacity={0.85}>
-          FREE CRAFTED COFFEE &middot; REDEEM IN APP
-        </text>
-        {/* sparkles */}
-        {[
-          {x: -560, y: -190, ph: 0},
-          {x: 560, y: -200, ph: 1.4},
-          {x: 590, y: 170, ph: 2.6},
-          {x: -590, y: 180, ph: 3.8},
-        ].map((sp, i) => (
-          <g key={`sp${i}`} opacity={twinkle(sp.ph)}>
-            <path
-              d={`M ${sp.x} ${sp.y - 26} L ${sp.x + 7} ${sp.y - 7} L ${sp.x + 26} ${sp.y} L ${sp.x + 7} ${sp.y + 7} L ${sp.x} ${sp.y + 26} L ${sp.x - 7} ${sp.y + 7} L ${sp.x - 26} ${sp.y} L ${sp.x - 7} ${sp.y - 7} Z`}
-              fill={GOLD_LIGHT}
-              style={{filter: 'drop-shadow(0 0 12px rgba(255,217,138,0.9))'}}
-            />
-          </g>
-        ))}
-      </g>
-      {/* stamped seal */}
-      {stamp > 0.001 && (
-        <g opacity={Math.min(1, stamp)} transform={`translate(${RING_CX + 560}, ${RING_CY - 430}) rotate(14) scale(${0.6 + 0.4 * stamp})`}>
-          <circle r={120} fill="none" stroke={VIOLET} strokeWidth={8} />
-          <circle r={98} fill="none" stroke={VIOLET} strokeWidth={3} opacity={0.7} />
-          <text x={0} y={-8} fill={VIOLET_LIGHT} fontSize={44} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-            +1,700
-          </text>
-          <text x={0} y={40} fill={VIOLET_LIGHT} fontSize={30} fontFamily={MONO} letterSpacing={2} textAnchor="middle">
-            EARNED
-          </text>
-        </g>
-      )}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Bottom stat cards
-// ---------------------------------------------------------------------------
-const StatsRow: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const earned = Math.round(
-    interpolate(frame, [RING_START, RING_END], [0, TOTAL_PTS], {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    })
-  );
-  const rewards = Math.round(
-    interpolate(frame, [BADGE_AT, BADGE_AT + 40], [0, 1], {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    })
-  );
-
-  const cards = [
-    {label: 'POINTS EARNED TODAY', value: `+${fmt(earned)}`, color: GOLD},
-    {label: 'VISITS THIS MONTH', value: '18', color: VIOLET_LIGHT},
-    {label: 'REWARDS READY', value: `${rewards}`, color: INK},
-  ];
-
-  const cardW = 860;
-  const gap = 60;
-  const totalW = cards.length * cardW + (cards.length - 1) * gap;
-  const startX = (3840 - totalW) / 2;
-  const y = 1760;
-
-  return (
-    <div style={{position: 'absolute', left: 0, top: 0, width: 3840, height: 2160, pointerEvents: 'none'}}>
-      {cards.map((c, k) => {
-        const s = spring({
-          frame: frame - (STATS_START + k * 24),
-          fps,
-          config: {damping: 200, stiffness: 95},
-        });
-        if (s <= 0.001) return null;
-        return (
-          <div
-            key={c.label}
-            style={{
-              position: 'absolute',
-              left: startX + k * (cardW + gap),
-              top: y + (1 - s) * 50,
-              width: cardW,
-              height: 230,
-              borderRadius: 26,
-              background:
-                'linear-gradient(160deg, rgba(245,192,68,0.10), rgba(139,124,246,0.05) 60%, rgba(255,255,255,0.02))',
-              border: '1.5px solid rgba(245,192,68,0.30)',
-              padding: '36px 48px',
-              opacity: Math.min(1, s),
-            }}
-          >
-            <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>{c.label}</div>
-            <div
-              style={{
-                color: c.color,
-                fontFamily: MONO,
-                fontWeight: 800,
-                fontSize: 88,
-                lineHeight: 1.15,
-                marginTop: 10,
-                textShadow: `0 0 26px ${c.color}55`,
-              }}
-            >
-              {c.value}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Footer note
-// ---------------------------------------------------------------------------
-const Footer: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [760, 810], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  if (fade <= 0) return null;
   return (
     <div
       style={{
         position: 'absolute',
-        bottom: 52,
-        left: 0,
-        width: 3840,
-        textAlign: 'center',
-        color: 'rgba(190,200,225,0.5)',
-        fontFamily: FONT,
-        fontSize: 26,
+        top: 300,
+        right: 220,
         opacity: fade,
+        color: TEAL,
+        fontFamily: MONO,
+        fontSize: 36,
+        fontWeight: 800,
+        letterSpacing: 3,
+        textShadow: '0 0 22px rgba(45,212,191,0.6)',
       }}
     >
-      Illustrative loyalty program visualization &middot; sample points values shown
+      STATUS: CLEARED &middot; RELEASED TO HAULIER
     </div>
   );
 };
@@ -721,22 +788,26 @@ const Footer: React.FC<{frame: number}> = ({frame}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const LoyaltyPointsEarnRedeem: React.FC = () => {
+export const CustomsClearanceFlow: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
-      <TitleBar frame={frame} />
-      <PurchasePanel frame={frame} fps={fps} />
-      <PointsStream frame={frame} />
-      <WalletRing frame={frame} fps={fps} />
-      <RewardBadge frame={frame} fps={fps} />
-      <StatsRow frame={frame} fps={fps} />
-      <Footer frame={frame} />
+      <PortScene frame={frame} />
+      <TitleBlock frame={frame} />
+      <ContainerUnit frame={frame} />
+      <ScannerBeam frame={frame} />
+      <DocStack frame={frame} fps={fps} />
+      <DutyPanel frame={frame} fps={fps} />
+      <ClearedStamp frame={frame} fps={fps} />
+      <RouteLine frame={frame} />
+      <Truck frame={frame} />
+      <Stepper frame={frame} />
+      <StatusLine frame={frame} />
     </AbsoluteFill>
   );
 };
 
-export default LoyaltyPointsEarnRedeem;
+export default CustomsClearanceFlow;
