@@ -1,18 +1,18 @@
 /**
- * BenefitsOpenEnrollment.tsx
+ * MortgageApplicationJourney.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * Benefits open enrollment in deep indigo with mint/green accents: a November
- * calendar highlights the enrollment window day by day, three plan cards
- * (HMO / PPO / HDHP) fan out with comparison bars, an "ENROLL BY NOV 15"
- * countdown ring ticks down, and a checkmark lands on the chosen PPO plan
- * with an ENROLLED payoff.
+ * A mortgage journey in deep navy + gold: house-search pins drop onto a
+ * stylized map strip, application fields type in step by step with a progress
+ * rail, a "PRE-APPROVED" stamp slams down, a document checklist verifies one
+ * by one, and a key handover lands on the funding stage as a "FUNDED" payoff
+ * glows across the map.
  *
  * Register in Root.tsx:
- *   <Composition id="BenefitsOpenEnrollment" component={BenefitsOpenEnrollment}
+ *   <Composition id="MortgageApplicationJourney" component={MortgageApplicationJourney}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
-import React from 'react';
+import React, {useMemo} from 'react';
 import {
   AbsoluteFill,
   interpolate,
@@ -22,65 +22,119 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette - deep indigo with mint/green accents
+// Palette - deep navy + gold
 // ---------------------------------------------------------------------------
-const BG = '#14102B';
-const PANEL = 'rgba(24,19,54,0.78)';
-const INK = '#F1EDFF';
-const MUTED = 'rgba(178,170,214,0.62)';
-const MINT = '#6EE7B7';
-const MINT_DEEP = '#34D399';
-const AMBER = '#FBBF24';
-const HAIRLINE = 'rgba(110,231,183,0.22)';
+const BG = '#0A0F1E';
+const PANEL = 'rgba(15,23,42,0.72)';
+const INK = '#F2EFE6';
+const MUTED = 'rgba(196,203,220,0.62)';
+const GOLD = '#E8B84B';
+const GOLD_BRIGHT = '#F6D47C';
+const SLATE_PIN = '#8FA3BF';
+const HAIRLINE = 'rgba(232,184,75,0.22)';
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
 // Timeline (frames at 60 fps, 900 = 15 s)
 // ---------------------------------------------------------------------------
-const CAL_HL_START = 110; // calendar day highlighting
-const CAL_HL_END = 250;
-const CAL_OUT = 300; // calendar fades as cards arrive
-const CARDS_START = 300;
-const CARD_STAGGER = 55;
-const RING_START = 500;
-const RING_END = 700;
-const CHOOSE_AT = 720;
+const PIN_START = 70;
+const PIN_STAGGER = 26;
+const FORM_START = 240;
+const FIELD_STAGGER = 48;
+const STAMP_AT = 520;
+const DOCS_START = 600;
+const DOC_STAGGER = 28;
+const KEY_AT = 790;
+const FUNDED_AT = 830;
+
+// ---------------------------------------------------------------------------
+// Deterministic pseudo-random helper
+// ---------------------------------------------------------------------------
+const rand = (seed: number) => {
+  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+// ---------------------------------------------------------------------------
+// Data
+// ---------------------------------------------------------------------------
+const MAP = {left: 220, right: 3620, top: 400, bottom: 1000};
+
+interface House {
+  name: string;
+  price: string;
+  fx: number; // 0..1 across the map strip
+}
+const HOUSES: House[] = [
+  {name: 'MAPLE GROVE', price: '$485K', fx: 0.1},
+  {name: 'CEDAR RIDGE', price: '$512K', fx: 0.3},
+  {name: 'OAK HOLLOW', price: '$468K', fx: 0.5},
+  {name: 'WILLOW BEND', price: '$530K', fx: 0.7},
+  {name: 'STONEBRIDGE', price: '$499K', fx: 0.9},
+];
+
+interface Field {
+  label: string;
+  value: string;
+}
+const FIELDS: Field[] = [
+  {label: 'FULL NAME', value: 'DANIEL CARTER'},
+  {label: 'GROSS ANNUAL INCOME', value: '$128,500'},
+  {label: 'DOWN PAYMENT', value: '$97,000 · 20%'},
+  {label: 'LOAN AMOUNT', value: '$388,000'},
+  {label: 'RATE LOCKED', value: '6.125% · 30-YR FIXED'},
+];
+
+const DOCS: string[] = [
+  'ID & ADDRESS PROOF',
+  'PAY STUBS — 3 MONTHS',
+  'TAX RETURNS — 2 YEARS',
+  'BANK STATEMENTS',
+  'APPRAISAL REPORT',
+  'INSURANCE BINDER',
+];
+
+const STAGES = ['PROPERTY SEARCH', 'APPLICATION', 'APPROVAL', 'FUNDING'];
+const STAGE_AT = [PIN_START, FORM_START, STAMP_AT, KEY_AT];
 
 // ---------------------------------------------------------------------------
 // Static defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="beBgGlow" cx="50%" cy="30%" r="72%">
-      <stop offset="0%" stopColor="rgba(110,231,183,0.09)" />
-      <stop offset="55%" stopColor="rgba(110,231,183,0.03)" />
-      <stop offset="100%" stopColor="rgba(20,16,43,0)" />
+    <radialGradient id="mjBgGlow" cx="50%" cy="30%" r="72%">
+      <stop offset="0%" stopColor="rgba(232,184,75,0.10)" />
+      <stop offset="55%" stopColor="rgba(232,184,75,0.03)" />
+      <stop offset="100%" stopColor="rgba(10,15,30,0)" />
     </radialGradient>
-    <radialGradient id="beVignette" cx="50%" cy="50%" r="75%">
-      <stop offset="60%" stopColor="rgba(20,16,43,0)" />
-      <stop offset="100%" stopColor="rgba(7,5,18,0.74)" />
+    <radialGradient id="mjVignette" cx="50%" cy="50%" r="75%">
+      <stop offset="60%" stopColor="rgba(10,15,30,0)" />
+      <stop offset="100%" stopColor="rgba(3,5,11,0.74)" />
     </radialGradient>
-    <linearGradient id="beMintGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={MINT_DEEP} />
-      <stop offset="100%" stopColor={MINT} />
+    <linearGradient id="mjGoldGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={GOLD} />
+      <stop offset="100%" stopColor={GOLD_BRIGHT} />
     </linearGradient>
-    <linearGradient id="beCardGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="rgba(110,231,183,0.07)" />
-      <stop offset="100%" stopColor="rgba(24,19,54,0.10)" />
+    <linearGradient id="mjPanelGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="rgba(232,184,75,0.07)" />
+      <stop offset="100%" stopColor="rgba(15,23,42,0.10)" />
     </linearGradient>
-    <filter id="beGlow" x="-80%" y="-80%" width="260%" height="260%">
+    <filter id="mjGlow" x="-80%" y="-80%" width="260%" height="260%">
       <feGaussianBlur stdDeviation="14" result="blur" />
       <feMerge>
         <feMergeNode in="blur" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
+    <filter id="mjSoft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="8" />
+    </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background: mint glow, vignette, faint grid, diagonal sweep
+// Background: layered gold glow, vignette, faint grid, diagonal sweep
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
   const fade = interpolate(frame, [0, 70], [0, 1], {
@@ -94,24 +148,41 @@ const Background: React.FC<{frame: number}> = ({frame}) => {
       <AbsoluteFill
         style={{
           background:
-            'radial-gradient(circle at 50% 28%, rgba(110,231,183,0.09), rgba(110,231,183,0.03) 45%, rgba(20,16,43,0) 72%)',
+            'radial-gradient(circle at 50% 28%, rgba(232,184,75,0.10), rgba(232,184,75,0.03) 45%, rgba(10,15,30,0) 72%)',
         }}
       />
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs />
         <g opacity={fade * 0.5}>
           {Array.from({length: 33}, (_, i) => (
-            <line key={`v${i}`} x1={i * 120} y1={0} x2={i * 120} y2={2160} stroke="rgba(148,163,184,0.05)" strokeWidth={1.5} />
+            <line
+              key={`v${i}`}
+              x1={i * 120}
+              y1={0}
+              x2={i * 120}
+              y2={2160}
+              stroke="rgba(148,163,184,0.05)"
+              strokeWidth={1.5}
+            />
           ))}
           {Array.from({length: 19}, (_, i) => (
-            <line key={`h${i}`} x1={0} y1={i * 120} x2={3840} y2={i * 120} stroke="rgba(148,163,184,0.05)" strokeWidth={1.5} />
+            <line
+              key={`h${i}`}
+              x1={0}
+              y1={i * 120}
+              x2={3840}
+              y2={i * 120}
+              stroke="rgba(148,163,184,0.05)"
+              strokeWidth={1.5}
+            />
           ))}
         </g>
+        {/* diagonal light sweep */}
         <g transform={`translate(${sweepX}, 0) rotate(12)`} opacity={0.5}>
-          <rect x={0} y={-600} width={260} height={3600} fill="rgba(110,231,183,0.026)" />
-          <rect x={300} y={-600} width={60} height={3600} fill="rgba(110,231,183,0.05)" />
+          <rect x={0} y={-600} width={260} height={3600} fill="rgba(232,184,75,0.028)" />
+          <rect x={300} y={-600} width={60} height={3600} fill="rgba(232,184,75,0.05)" />
         </g>
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#beVignette)" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#mjVignette)" />
       </svg>
     </>
   );
@@ -133,352 +204,590 @@ const TitleBar: React.FC<{frame: number}> = ({frame}) => {
     <div style={{position: 'absolute', top: 84 + rise, left: 220, right: 220, opacity: fade}}>
       <div style={{display: 'flex', alignItems: 'baseline', gap: 30}}>
         <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 82, letterSpacing: -1}}>
-          OPEN ENROLLMENT
+          MORTGAGE JOURNEY
         </span>
         <span
           style={{
-            color: MINT,
+            color: GOLD,
             fontFamily: MONO,
             fontSize: 36,
             fontWeight: 700,
-            border: `2px solid ${MINT}`,
+            border: `2px solid ${GOLD}`,
             borderRadius: 10,
             padding: '6px 18px',
           }}
         >
-          2027 PLAN YEAR
+          30-YR FIXED
         </span>
       </div>
       <div style={{color: MUTED, fontFamily: FONT, fontSize: 34, marginTop: 14}}>
-        Compare your health plans &middot; choose once &middot; covered all year
+        From first viewing to funded loan &middot; five homes shortlisted
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Calendar: November 2026, days 1-15 highlight through the window
+// Map strip with dropping house pins
 // ---------------------------------------------------------------------------
-const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-const Calendar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const inS = spring({frame: frame - 40, fps, config: {damping: 200, stiffness: 90}});
-  const outT = interpolate(frame, [CAL_OUT, CAL_OUT + 60], [1, 0], {
+const MapStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const streets = useMemo(() => {
+    const out: {x1: number; y1: number; x2: number; y2: number; w: number}[] = [];
+    for (let i = 0; i < 6; i++) {
+      const y = 480 + i * 78 + (rand(i + 7) - 0.5) * 26;
+      out.push({x1: MAP.left + 40, y1: y, x2: MAP.right - 40, y2: y + (rand(i + 31) - 0.5) * 44, w: i % 2 === 0 ? 4 : 2});
+    }
+    for (let i = 0; i < 9; i++) {
+      const x = MAP.left + 200 + i * 360 + (rand(i + 53) - 0.5) * 60;
+      out.push({x1: x, y1: MAP.top + 60, x2: x + (rand(i + 71) - 0.5) * 90, y2: MAP.bottom - 90, w: 2});
+    }
+    return out;
+  }, []);
+
+  const stripIn = interpolate(frame, [30, 90], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  if (inS <= 0.001 || outT <= 0) return null;
+  const scanX = MAP.left + ((frame - 60) / 220) * (MAP.right - MAP.left);
 
-  const px = 1220;
-  const py = 470;
-  const pw = 1400;
-  const ph = 980;
-  const cellW = 168;
-  const cellH = 118;
-  const gx = 1920 - (7 * cellW) / 2; // 1332
-  const gy = py + 250;
-
-  const hlCount = interpolate(frame, [CAL_HL_START, CAL_HL_END], [0, 15], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  const pinX = (h: House) => MAP.left + h.fx * (MAP.right - MAP.left);
+  const restY = 812; // pin tip lands just above the baseline at y=890
 
   return (
     <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g opacity={Math.min(1, inS) * outT} transform={`translate(0, ${(1 - Math.min(1, inS)) * 60})`}>
-        <rect x={px} y={py} width={pw} height={ph} rx={30} fill={PANEL} stroke={HAIRLINE} strokeWidth={2.5} />
-        <text x={1920} y={py + 110} fill={INK} fontSize={64} fontFamily={FONT} fontWeight={800} letterSpacing={8} textAnchor="middle">
-          NOVEMBER 2026
-        </text>
-        <text x={1920} y={py + 168} fill={MINT} fontSize={34} fontFamily={MONO} letterSpacing={5} textAnchor="middle">
-          ENROLLMENT WINDOW
-        </text>
-        {/* weekday header */}
-        {DOW.map((d, i) => (
-          <text key={`dow${i}`} x={gx + i * cellW + cellW / 2} y={gy - 24} fill={MUTED} fontSize={30} fontFamily={MONO} fontWeight={700} textAnchor="middle">
-            {d}
-          </text>
-        ))}
-        {/* day cells: Nov 1 2026 is a Sunday -> column 0 */}
-        {Array.from({length: 30}, (_, i) => {
-          const day = i + 1;
-          const col = i % 7;
-          const row = Math.floor(i / 7);
-          const cx = gx + col * cellW;
-          const cy = gy + row * cellH;
-          const hl = day <= hlCount;
-          const is15 = day === 15;
-          return (
-            <g key={`day${day}`}>
-              <rect
-                x={cx + 6}
-                y={cy + 6}
-                width={cellW - 12}
-                height={cellH - 12}
-                rx={14}
-                fill={hl ? 'rgba(110,231,183,0.20)' : 'rgba(20,16,43,0.5)'}
-                stroke={is15 && hl ? MINT : 'rgba(148,163,184,0.20)'}
-                strokeWidth={is15 && hl ? 4 : 2}
-                style={is15 && hl ? {filter: 'drop-shadow(0 0 16px rgba(110,231,183,0.7))'} : undefined}
-              />
-              <text
-                x={cx + cellW / 2}
-                y={cy + cellH / 2 + 16}
-                fill={hl ? MINT : 'rgba(178,170,214,0.75)'}
-                fontSize={44}
-                fontFamily={MONO}
-                fontWeight={hl ? 800 : 400}
-                textAnchor="middle"
-              >
-                {day}
-              </text>
-            </g>
-          );
-        })}
-        {/* caption under grid */}
-        <text x={1920} y={py + ph - 52} fill={MUTED} fontSize={32} fontFamily={FONT} textAnchor="middle">
-          Your current plan auto-renews if you take no action
+      <g opacity={stripIn}>
+        <rect
+          x={MAP.left}
+          y={MAP.top}
+          width={MAP.right - MAP.left}
+          height={MAP.bottom - MAP.top}
+          rx={28}
+          fill={PANEL}
+          stroke={HAIRLINE}
+          strokeWidth={2.5}
+        />
+        {/* streets */}
+        <g opacity={0.8}>
+          {streets.map((s, i) => (
+            <line
+              key={`st${i}`}
+              x1={s.x1}
+              y1={s.y1}
+              x2={s.x2}
+              y2={s.y2}
+              stroke="rgba(148,163,184,0.13)"
+              strokeWidth={s.w}
+            />
+          ))}
+        </g>
+        {/* baseline the pins rest on */}
+        <line
+          x1={MAP.left + 60}
+          y1={890}
+          x2={MAP.right - 60}
+          y2={890}
+          stroke="rgba(232,184,75,0.20)"
+          strokeWidth={3}
+        />
+        {/* scanning sweep while pins drop */}
+        {frame > 55 && frame < 300 && (
+          <g>
+            <rect
+              x={scanX - 90}
+              y={MAP.top}
+              width={180}
+              height={MAP.bottom - MAP.top}
+              fill="rgba(232,184,75,0.045)"
+            />
+            <line
+              x1={scanX}
+              y1={MAP.top}
+              x2={scanX}
+              y2={MAP.bottom}
+              stroke={GOLD}
+              strokeWidth={3}
+              opacity={0.55}
+              style={{filter: 'drop-shadow(0 0 12px rgba(232,184,75,0.8))'}}
+            />
+          </g>
+        )}
+        <text
+          x={MAP.left + 44}
+          y={MAP.top + 66}
+          fill={MUTED}
+          fontSize={30}
+          fontFamily={MONO}
+          letterSpacing={6}
+        >
+          HOUSE SEARCH · 5 SHORTLISTED
         </text>
       </g>
-    </svg>
-  );
-};
 
-// ---------------------------------------------------------------------------
-// Plan cards that fan out with comparison bars
-// ---------------------------------------------------------------------------
-interface Plan {
-  name: string;
-  tag: string;
-  premium: number;
-  deductible: number;
-  network: string;
-  bars: {label: string; frac: number; text: string}[];
-}
-const PLANS: Plan[] = [
-  {
-    name: 'HMO',
-    tag: 'LOWEST COST · PCP GATEKEEPER',
-    premium: 320,
-    deductible: 1000,
-    network: 'LOCAL NETWORK',
-    bars: [
-      {label: 'MONTHLY PREMIUM', frac: 0.64, text: '$320'},
-      {label: 'DEDUCTIBLE', frac: 0.29, text: '$1,000'},
-      {label: 'NETWORK SIZE', frac: 0.42, text: 'LOCAL'},
-    ],
-  },
-  {
-    name: 'PPO',
-    tag: 'MAX FLEXIBILITY · NO REFERRALS',
-    premium: 465,
-    deductible: 750,
-    network: 'NATIONAL NETWORK',
-    bars: [
-      {label: 'MONTHLY PREMIUM', frac: 0.93, text: '$465'},
-      {label: 'DEDUCTIBLE', frac: 0.21, text: '$750'},
-      {label: 'NETWORK SIZE', frac: 1.0, text: 'NATIONAL'},
-    ],
-  },
-  {
-    name: 'HDHP',
-    tag: 'LOW PREMIUM + HSA ELIGIBLE',
-    premium: 210,
-    deductible: 3500,
-    network: 'NATIONAL + HSA',
-    bars: [
-      {label: 'MONTHLY PREMIUM', frac: 0.42, text: '$210'},
-      {label: 'DEDUCTIBLE', frac: 1.0, text: '$3,500'},
-      {label: 'NETWORK SIZE', frac: 0.9, text: 'NATIONAL'},
-    ],
-  },
-];
-
-const PlanCards: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const cardW = 880;
-  const cardH = 1010;
-  const gap = 130;
-  const totalW = PLANS.length * cardW + (PLANS.length - 1) * gap;
-  const x0 = (3840 - totalW) / 2;
-  const y0 = 560;
-  const chosenDim = interpolate(frame, [CHOOSE_AT, CHOOSE_AT + 50], [1, 0.5], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const checkS = spring({frame: frame - CHOOSE_AT, fps, config: {damping: 12, stiffness: 150, mass: 1}});
-  const enrollS = spring({frame: frame - (CHOOSE_AT + 25), fps, config: {damping: 200, stiffness: 110}});
-
-  return (
-    <div style={{position: 'absolute', top: 0, left: 0, width: 3840, height: 2160}}>
-      {PLANS.map((p, i) => {
-        const at = CARDS_START + i * CARD_STAGGER;
-        const s = spring({frame: frame - at, fps, config: {damping: 200, stiffness: 85, mass: 1}});
+      {/* pins */}
+      {HOUSES.map((h, i) => {
+        const s = spring({
+          frame: frame - (PIN_START + i * PIN_STAGGER),
+          fps,
+          config: {damping: 11, stiffness: 120, mass: 1},
+        });
         if (s <= 0.001) return null;
-        const x = x0 + i * (cardW + gap);
-        const isChosen = i === 1;
-        const fanRot = (1 - Math.min(1, s)) * (i === 0 ? -14 : i === 2 ? 14 : 0);
-        const dim = isChosen ? 1 : chosenDim;
-        const barT = interpolate(frame, [at + 40, at + 110], [0, 1], {
+        const x = pinX(h);
+        const y = 260 + (restY - 260) * s; // drops from above, bounces past rest
+        const isSel = i === 0;
+        const c = isSel ? GOLD : SLATE_PIN;
+        const landed = interpolate(frame, [PIN_START + i * PIN_STAGGER + 55, PIN_START + i * PIN_STAGGER + 75], [0, 1], {
           extrapolateLeft: 'clamp',
           extrapolateRight: 'clamp',
         });
         return (
+          <g key={`pin${i}`} opacity={Math.min(1, s)}>
+            {/* ground shadow */}
+            <ellipse cx={x} cy={894} rx={52} ry={13} fill="rgba(0,0,0,0.5)" opacity={landed * 0.8} />
+            {/* selected rotating reticle */}
+            {isSel && (
+              <g transform={`translate(${x}, ${restY - 20})`}>
+                <circle
+                  r={118}
+                  fill="none"
+                  stroke={GOLD}
+                  strokeWidth={3.5}
+                  strokeDasharray="30 22"
+                  opacity={0.85 * landed}
+                  transform={`rotate(${(frame * 1.4) % 360})`}
+                  style={{filter: 'drop-shadow(0 0 12px rgba(232,184,75,0.8))'}}
+                />
+                <g transform="translate(-118, -176)">
+                  <rect x={0} y={0} width={236} height={56} rx={12} fill="rgba(10,15,30,0.94)" stroke={GOLD} strokeWidth={2.5} />
+                  <text x={118} y={38} fill={GOLD} fontSize={32} fontFamily={MONO} fontWeight={800} textAnchor="middle" letterSpacing={3}>
+                    SELECTED
+                  </text>
+                </g>
+              </g>
+            )}
+            <g transform={`translate(${x}, ${y})`}>
+              {/* teardrop */}
+              <path
+                d="M 0 -96 C -46 -96 -72 -62 -72 -26 C -72 14 0 62 0 62 C 0 62 72 14 72 -26 C 72 -62 46 -96 0 -96 Z"
+                fill={isSel ? '#141B31' : '#101828'}
+                stroke={c}
+                strokeWidth={4.5}
+                style={{filter: `drop-shadow(0 0 16px ${c}88)`}}
+              />
+              {/* house glyph */}
+              <g transform="translate(0, -34)">
+                <path
+                  d="M -22 2 L 0 -18 L 22 2 M -15 -3 V 14 H 15 V -3"
+                  fill="none"
+                  stroke={c}
+                  strokeWidth={5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </g>
+            </g>
+            {/* label under pin */}
+            <g opacity={landed}>
+              <text x={x} y={952} fill={INK} fontSize={32} fontFamily={FONT} fontWeight={700} textAnchor="middle">
+                {h.name}
+              </text>
+              <text x={x} y={992} fill={isSel ? GOLD : MUTED} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+                {h.price}
+              </text>
+            </g>
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Application form panel - fields type in step by step
+// ---------------------------------------------------------------------------
+const FormPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const panelIn = interpolate(frame, [FORM_START - 40, FORM_START], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const rise = interpolate(frame, [FORM_START - 40, FORM_START], [40, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const px = 220;
+  const py = 1080;
+  const pw = 1680;
+  const rowY = (i: number) => py + 210 + i * 102;
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: px,
+        top: py + rise,
+        width: pw,
+        height: 820,
+        borderRadius: 28,
+        background: 'linear-gradient(165deg, rgba(232,184,75,0.06), rgba(15,23,42,0.10) 55%)',
+        border: '2px solid rgba(232,184,75,0.28)',
+        opacity: panelIn,
+        padding: '44px 60px',
+      }}
+    >
+      <div style={{color: GOLD, fontFamily: MONO, fontSize: 30, letterSpacing: 6}}>
+        APPLICATION PROGRESS
+      </div>
+      <div style={{color: MUTED, fontFamily: FONT, fontSize: 30, marginTop: 10}}>
+        Mortgage application &middot; ref M-2026-04817
+      </div>
+      {FIELDS.map((f, i) => {
+        const at = FORM_START + i * FIELD_STAGGER;
+        const s = spring({frame: frame - at, fps, config: {damping: 200, stiffness: 110}});
+        if (s <= 0.001) return null;
+        const typeT = interpolate(frame, [at + 8, at + 48], [0, f.value.length], {
+          extrapolateLeft: 'clamp',
+          extrapolateRight: 'clamp',
+        });
+        const shown = f.value.slice(0, Math.floor(typeT));
+        const caret = typeT < f.value.length && frame % 40 < 20;
+        const y = rowY(i) - py;
+        return (
           <div
-            key={p.name}
+            key={f.label}
             style={{
               position: 'absolute',
-              left: x,
-              top: y0 + (1 - Math.min(1, s)) * 140,
-              width: cardW,
-              height: cardH,
-              borderRadius: 30,
-              background: 'linear-gradient(165deg, rgba(110,231,183,0.07), rgba(24,19,54,0.12) 55%)',
-              border: `3px solid ${isChosen && frame >= CHOOSE_AT ? MINT : 'rgba(110,231,183,0.30)'}`,
-              boxShadow: isChosen && frame >= CHOOSE_AT ? '0 0 60px rgba(110,231,183,0.35)' : 'none',
-              opacity: Math.min(1, s) * dim,
-              transform: `rotate(${fanRot}deg)`,
-              transformOrigin: 'center 120%',
-              padding: '52px 60px',
+              left: 60,
+              right: 60,
+              top: y - 38,
+              height: 76,
+              display: 'flex',
+              alignItems: 'center',
+              opacity: Math.min(1, s),
+              transform: `translateX(${(1 - s) * -60}px)`,
             }}
           >
-            <div style={{color: MINT, fontFamily: MONO, fontSize: 30, letterSpacing: 8}}>{p.name}</div>
-            <div style={{marginTop: 18}}>
-              <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 118, textShadow: '0 0 28px rgba(110,231,183,0.35)'}}>
-                ${p.premium}
-              </span>
-              <span style={{color: MUTED, fontFamily: MONO, fontSize: 36, marginLeft: 12}}>/ MO</span>
+            <div style={{width: 560, color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 2}}>
+              {f.label}
             </div>
-            <div style={{color: MUTED, fontFamily: FONT, fontSize: 29, marginTop: 10, letterSpacing: 1}}>{p.tag}</div>
-            <div style={{height: 2, background: 'rgba(110,231,183,0.25)', margin: '34px 0'}} />
-            {p.bars.map((b) => (
-              <div key={b.label} style={{marginBottom: 30}}>
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-                  <span style={{color: MUTED, fontFamily: MONO, fontSize: 27, letterSpacing: 2}}>{b.label}</span>
-                  <span style={{color: INK, fontFamily: MONO, fontSize: 34, fontWeight: 700}}>{b.text}</span>
-                </div>
-                <div style={{height: 18, borderRadius: 9, background: 'rgba(148,163,184,0.16)', marginTop: 12, overflow: 'hidden'}}>
-                  <div
-                    style={{
-                      width: `${b.frac * barT * 100}%`,
-                      height: '100%',
-                      borderRadius: 9,
-                      background: 'linear-gradient(90deg, #34D399, #6EE7B7)',
-                      boxShadow: barT > 0 ? '0 0 12px rgba(110,231,183,0.6)' : 'none',
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-            {/* ENROLLED ribbon on the chosen card */}
-            {isChosen && enrollS > 0.001 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: 60,
-                  right: 60,
-                  bottom: 56,
-                  height: 96,
-                  borderRadius: 18,
-                  background: 'rgba(6,40,28,0.92)',
-                  border: `3px solid ${MINT}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: Math.min(1, enrollS),
-                  transform: `scale(${0.8 + 0.2 * Math.min(1, enrollS)})`,
-                  boxShadow: '0 0 34px rgba(110,231,183,0.55)',
-                }}
-              >
-                <span style={{color: MINT, fontFamily: FONT, fontWeight: 800, fontSize: 52, letterSpacing: 10}}>
-                  ENROLLED
-                </span>
-              </div>
-            )}
-            {/* check badge drops onto the chosen card */}
-            {isChosen && checkS > 0.001 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: cardW / 2 - 75,
-                  top: -85 + (1 - Math.min(1.2, checkS)) * -160,
-                  width: 150,
-                  height: 150,
-                  borderRadius: 75,
-                  background: MINT,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 0 44px rgba(110,231,183,0.8)',
-                  opacity: Math.min(1, checkS),
-                }}
-              >
-                <svg width={90} height={90} viewBox="0 0 90 90">
-                  <path
-                    d="M 18 47 L 38 67 L 72 24"
-                    fill="none"
-                    stroke="#0B2E22"
-                    strokeWidth={12}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    pathLength={1}
-                    strokeDasharray={1}
-                    strokeDashoffset={1 - Math.min(1, (frame - CHOOSE_AT - 12) / 26)}
-                  />
-                </svg>
-              </div>
-            )}
+            <div
+              style={{
+                flex: 1,
+                height: 76,
+                borderRadius: 14,
+                background: 'rgba(10,15,30,0.85)',
+                border: '2px solid rgba(232,184,75,0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                paddingLeft: 30,
+              }}
+            >
+              <span style={{color: INK, fontFamily: MONO, fontSize: 38, fontWeight: 700}}>
+                {shown}
+                {caret && <span style={{color: GOLD}}>&#9612;</span>}
+              </span>
+            </div>
           </div>
         );
       })}
+      {/* progress rail across the panel bottom */}
+      <div style={{position: 'absolute', left: 60, right: 60, bottom: 40, display: 'flex', gap: 18}}>
+        {FIELDS.map((f, i) => {
+          const done = interpolate(frame, [FORM_START + i * FIELD_STAGGER + 48, FORM_START + i * FIELD_STAGGER + 68], [0, 1], {
+            extrapolateLeft: 'clamp',
+            extrapolateRight: 'clamp',
+          });
+          return (
+            <div key={`rail${i}`} style={{flex: 1, height: 16, borderRadius: 8, background: 'rgba(148,163,184,0.18)', overflow: 'hidden'}}>
+              <div
+                style={{
+                  width: `${done * 100}%`,
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #E8B84B, #F6D47C)',
+                  boxShadow: done > 0 ? '0 0 14px rgba(232,184,75,0.7)' : 'none',
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Countdown ring: ENROLL BY NOV 15
+// Document checklist panel
 // ---------------------------------------------------------------------------
-const Countdown: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const inS = spring({frame: frame - (RING_START - 30), fps, config: {damping: 200, stiffness: 100}});
-  if (inS <= 0.001) return null;
-  const cx = 1920;
-  const cy = 1840;
-  const r = 118;
-  const circ = 2 * Math.PI * r;
-  const daysLeft = Math.max(0, 15 - Math.floor(interpolate(frame, [RING_START, RING_END], [0, 15.999], {
+const ChecklistPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const panelIn = interpolate(frame, [DOCS_START - 50, DOCS_START - 10], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
-  })));
-  const urgent = daysLeft <= 5;
-  const ringColor = urgent ? AMBER : MINT;
-  const pulse = 0.5 + 0.5 * Math.sin(frame * 0.12);
+  });
+  const rise = interpolate(frame, [DOCS_START - 50, DOCS_START - 10], [40, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const px = 1980;
+  const py = 1080;
+  const pw = 1640;
+  const rowY = (i: number) => py + 210 + i * 100;
 
   return (
+    <div
+      style={{
+        position: 'absolute',
+        left: px,
+        top: py + rise,
+        width: pw,
+        height: 820,
+        borderRadius: 28,
+        background: 'linear-gradient(165deg, rgba(232,184,75,0.06), rgba(15,23,42,0.10) 55%)',
+        border: '2px solid rgba(232,184,75,0.28)',
+        opacity: panelIn,
+        padding: '44px 60px',
+      }}
+    >
+      <div style={{color: GOLD, fontFamily: MONO, fontSize: 30, letterSpacing: 6}}>
+        DOCUMENT CHECKLIST
+      </div>
+      <div style={{color: MUTED, fontFamily: FONT, fontSize: 30, marginTop: 10}}>
+        Underwriting verification &middot; all items required
+      </div>
+      <svg width={pw} height={820} style={{position: 'absolute', top: 0, left: 0}}>
+        {DOCS.map((d, i) => {
+          const at = DOCS_START + i * DOC_STAGGER;
+          const s = spring({frame: frame - at, fps, config: {damping: 200, stiffness: 110}});
+          if (s <= 0.001) return null;
+          const y = rowY(i) - py;
+          const check = interpolate(frame, [at + 18, at + 44], [0, 1], {
+            extrapolateLeft: 'clamp',
+            extrapolateRight: 'clamp',
+          });
+          return (
+            <g key={`doc${i}`} opacity={Math.min(1, s)} transform={`translate(${(1 - s) * 70}, 0)`}>
+              {/* checkbox */}
+              <rect
+                x={60}
+                y={y - 66}
+                width={56}
+                height={56}
+                rx={12}
+                fill={check > 0 ? 'rgba(232,184,75,0.16)' : 'rgba(10,15,30,0.85)'}
+                stroke={check > 0 ? GOLD : 'rgba(148,163,184,0.4)'}
+                strokeWidth={3}
+              />
+              {/* checkmark draws on */}
+              <path
+                d={`M 74 ${y - 34} L 86 ${y - 22} L 104 ${y - 50}`}
+                fill="none"
+                stroke={GOLD}
+                strokeWidth={7}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                pathLength={1}
+                strokeDasharray={1}
+                strokeDashoffset={1 - check}
+                style={{filter: 'drop-shadow(0 0 10px rgba(232,184,75,0.9))'}}
+              />
+              <text x={140} y={y - 22} fill={check > 0 ? INK : MUTED} fontSize={34} fontFamily={MONO} fontWeight={700} letterSpacing={1}>
+                {d}
+              </text>
+              {check >= 1 && (
+                <text x={pw - 70} y={y - 22} fill={GOLD} fontSize={30} fontFamily={MONO} fontWeight={800} textAnchor="end" letterSpacing={2}>
+                  VERIFIED
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// PRE-APPROVED stamp slams onto the form panel
+// ---------------------------------------------------------------------------
+const ApprovalStamp: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - STAMP_AT, fps, config: {damping: 9, stiffness: 170, mass: 1}});
+  if (s <= 0.001) return null;
+  const scale = 2.3 - 1.3 * Math.min(1.4, s);
+  const shock = interpolate(frame, [STAMP_AT, STAMP_AT + 90], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  return (
     <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g opacity={Math.min(1, inS)}>
-        <text x={cx} y={1652} fill={INK} fontSize={42} fontFamily={FONT} fontWeight={800} letterSpacing={8} textAnchor="middle">
-          ENROLL BY <tspan fill={ringColor}>NOV 15</tspan>
-        </text>
-        <circle cx={cx} cy={cy} r={r} fill="rgba(24,19,54,0.85)" stroke="rgba(148,163,184,0.25)" strokeWidth={22} />
+      {/* shockwave */}
+      {shock > 0 && shock < 1 && (
         <circle
-          cx={cx}
-          cy={cy}
-          r={r}
+          cx={1060}
+          cy={1500}
+          r={120 + shock * 620}
           fill="none"
-          stroke={ringColor}
-          strokeWidth={22}
-          strokeLinecap="round"
-          strokeDasharray={circ}
-          strokeDashoffset={circ * (1 - daysLeft / 15)}
-          transform={`rotate(-90 ${cx} ${cy})`}
-          style={{filter: `drop-shadow(0 0 ${14 + pulse * 10}px ${ringColor}99)`}}
+          stroke={GOLD}
+          strokeWidth={10 * (1 - shock) + 1}
+          opacity={(1 - shock) * 0.75}
         />
-        <text x={cx} y={cy + 2} fill={INK} fontSize={88} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-          {daysLeft}
-        </text>
-        <text x={cx} y={cy + 52} fill={MUTED} fontSize={28} fontFamily={MONO} letterSpacing={4} textAnchor="middle">
-          DAYS LEFT
+      )}
+      <g
+        transform={`translate(1060, 1500) rotate(-8) scale(${Math.max(0.2, scale)})`}
+        opacity={Math.min(1, s * 1.6)}
+      >
+        <rect
+          x={-390}
+          y={-88}
+          width={780}
+          height={176}
+          rx={20}
+          fill="rgba(12,10,4,0.88)"
+          stroke={GOLD}
+          strokeWidth={7}
+          style={{filter: 'drop-shadow(0 0 34px rgba(232,184,75,0.75))'}}
+        />
+        <rect x={-368} y={-66} width={736} height={132} rx={12} fill="none" stroke={GOLD} strokeWidth={2.5} opacity={0.8} />
+        <text
+          x={0}
+          y={30}
+          fill={GOLD_BRIGHT}
+          fontSize={82}
+          fontFamily={FONT}
+          fontWeight={800}
+          letterSpacing={10}
+          textAnchor="middle"
+          style={{textShadow: '0 0 24px rgba(232,184,75,0.8)'}}
+        >
+          PRE-APPROVED
         </text>
       </g>
     </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Journey stage rail across the bottom + key handover + FUNDED payoff
+// ---------------------------------------------------------------------------
+const StageRail: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const railY = 2010;
+  const segW = 810;
+  const gap = 40;
+  const totalW = STAGES.length * segW + (STAGES.length - 1) * gap;
+  const x0 = (3840 - totalW) / 2;
+
+  // key slides into the funding segment
+  const keyS = spring({frame: frame - KEY_AT, fps, config: {damping: 200, stiffness: 90}});
+  const keyX = x0 + 3 * (segW + gap) + segW / 2 - 150 + 150 * Math.min(1, keyS);
+  const keyRot = interpolate(Math.min(1, keyS), [0, 1], [-24, 0]);
+
+  // FUNDED payoff banner over the map strip
+  const f = spring({frame: frame - FUNDED_AT, fps, config: {damping: 10, stiffness: 150, mass: 1}});
+  const fScale = 2.1 - 1.1 * Math.min(1.35, f);
+  const glowPulse = 0.5 + 0.5 * Math.sin((frame - FUNDED_AT) * 0.1);
+
+  return (
+    <>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        {STAGES.map((stg, i) => {
+          const on = interpolate(frame, [STAGE_AT[i], STAGE_AT[i] + 40], [0, 1], {
+            extrapolateLeft: 'clamp',
+            extrapolateRight: 'clamp',
+          });
+          const x = x0 + i * (segW + gap);
+          return (
+            <g key={`stage${i}`}>
+              <text
+                x={x + segW / 2}
+                y={railY - 26}
+                fill={on > 0.5 ? GOLD : MUTED}
+                fontSize={27}
+                fontFamily={MONO}
+                fontWeight={700}
+                letterSpacing={3}
+                textAnchor="middle"
+              >
+                {stg}
+              </text>
+              <rect x={x} y={railY} width={segW} height={22} rx={11} fill="rgba(148,163,184,0.16)" />
+              <rect
+                x={x}
+                y={railY}
+                width={segW * on}
+                height={22}
+                rx={11}
+                fill="url(#mjGoldGrad)"
+                opacity={0.95}
+                style={{filter: on > 0 ? 'drop-shadow(0 0 12px rgba(232,184,75,0.7))' : undefined}}
+              />
+              <circle
+                cx={x + segW / 2}
+                cy={railY + 11}
+                r={13}
+                fill={on > 0.5 ? GOLD : '#1A2338'}
+                stroke={on > 0.5 ? GOLD_BRIGHT : 'rgba(148,163,184,0.4)'}
+                strokeWidth={3}
+              />
+            </g>
+          );
+        })}
+        {/* key handover into the funding stage */}
+        {keyS > 0.001 && (
+          <g transform={`translate(${keyX}, ${railY + 11}) rotate(${keyRot})`} opacity={Math.min(1, keyS)}>
+            <g style={{filter: 'drop-shadow(0 0 18px rgba(232,184,75,0.85))'}}>
+              <circle cx={-52} cy={0} r={30} fill="none" stroke={GOLD_BRIGHT} strokeWidth={13} />
+              <rect x={-26} y={-8} width={120} height={16} rx={8} fill={GOLD_BRIGHT} />
+              <rect x={62} y={-8} width={16} height={34} rx={6} fill={GOLD_BRIGHT} />
+              <rect x={86} y={-8} width={16} height={26} rx={6} fill={GOLD_BRIGHT} />
+            </g>
+          </g>
+        )}
+        {/* FUNDED payoff */}
+        {f > 0.001 && (
+          <g>
+            <circle
+              cx={1920}
+              cy={700}
+              r={200 + (1 - Math.min(1, f)) * 500}
+              fill="none"
+              stroke={GOLD}
+              strokeWidth={8}
+              opacity={(1 - Math.min(1, f)) * 0.6}
+            />
+            <g
+              transform={`translate(1920, 700) scale(${Math.max(0.25, fScale)})`}
+              opacity={Math.min(1, f * 1.5)}
+            >
+              <rect
+                x={-560}
+                y={-110}
+                width={1120}
+                height={220}
+                rx={30}
+                fill="rgba(12,10,4,0.9)"
+                stroke={GOLD}
+                strokeWidth={8}
+                style={{
+                  filter: `drop-shadow(0 0 ${44 + glowPulse * 30}px rgba(232,184,75,${0.55 + glowPulse * 0.3}))`,
+                }}
+              />
+              <text
+                x={0}
+                y={44}
+                fill={GOLD_BRIGHT}
+                fontSize={132}
+                fontFamily={FONT}
+                fontWeight={800}
+                letterSpacing={26}
+                textAnchor="middle"
+                style={{textShadow: `0 0 40px rgba(232,184,75,${0.6 + glowPulse * 0.4})`}}
+              >
+                FUNDED
+              </text>
+              <text x={0} y={-140} fill={INK} fontSize={34} fontFamily={MONO} letterSpacing={6} textAnchor="middle">
+                KEYS HANDED OVER · LOAN $388,000
+              </text>
+            </g>
+          </g>
+        )}
+      </svg>
+    </>
   );
 };
 
@@ -486,7 +795,7 @@ const Countdown: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 // Footer
 // ---------------------------------------------------------------------------
 const Footer: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [CHOOSE_AT + 50, CHOOSE_AT + 110], [0, 1], {
+  const fade = interpolate(frame, [FUNDED_AT + 40, FUNDED_AT + 90], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
@@ -494,17 +803,17 @@ const Footer: React.FC<{frame: number}> = ({frame}) => {
     <div
       style={{
         position: 'absolute',
-        bottom: 40,
+        bottom: 36,
         left: 0,
         width: 3840,
         textAlign: 'center',
-        color: 'rgba(178,170,214,0.75)',
+        color: 'rgba(148,163,184,0.55)',
         fontFamily: FONT,
-        fontSize: 30,
+        fontSize: 26,
         opacity: fade,
       }}
     >
-      Your 2027 coverage starts <span style={{color: MINT, fontWeight: 700}}>January 1</span> &middot; changes lock after the deadline
+      Illustrative mortgage journey &middot; figures are examples, not a lending offer or commitment
     </div>
   );
 };
@@ -512,7 +821,7 @@ const Footer: React.FC<{frame: number}> = ({frame}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const BenefitsOpenEnrollment: React.FC = () => {
+export const MortgageApplicationJourney: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
@@ -520,12 +829,14 @@ export const BenefitsOpenEnrollment: React.FC = () => {
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
       <TitleBar frame={frame} />
-      <Calendar frame={frame} fps={fps} />
-      <PlanCards frame={frame} fps={fps} />
-      <Countdown frame={frame} fps={fps} />
+      <MapStrip frame={frame} fps={fps} />
+      <FormPanel frame={frame} fps={fps} />
+      <ChecklistPanel frame={frame} fps={fps} />
+      <ApprovalStamp frame={frame} fps={fps} />
+      <StageRail frame={frame} fps={fps} />
       <Footer frame={frame} />
     </AbsoluteFill>
   );
 };
 
-export default BenefitsOpenEnrollment;
+export default MortgageApplicationJourney;
