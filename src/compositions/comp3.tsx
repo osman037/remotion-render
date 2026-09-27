@@ -1,18 +1,19 @@
 /**
- * SmartHomeEnergyFlow.tsx
+ * TelehealthVisitJourney.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * A smart home energy scene: sun arc drives solar output; animated energy
- * particles flow solar -> home -> battery -> grid, with live kW counters.
+ * A virtual care journey in five stages: phone booking -> calendar fills ->
+ * waiting room with a live queue counter -> video consult connects (doctor
+ * avatar + waveform + timer) -> Rx slip flies to the pharmacy pin.
+ * Checkmarks land on a progress rail as each stage completes.
  *
  * Register in Root.tsx:
- *   <Composition id="SmartHomeEnergyFlow" component={SmartHomeEnergyFlow}
+ *   <Composition id="TelehealthVisitJourney" component={TelehealthVisitJourney}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
-import React, {useMemo} from 'react';
+import React from 'react';
 import {
   AbsoluteFill,
-  Easing,
   interpolate,
   spring,
   useCurrentFrame,
@@ -20,179 +21,340 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette
+// Palette (teal / sky clinical on deep navy)
 // ---------------------------------------------------------------------------
-const BG = '#05080F';
-const PANEL = 'rgba(10, 17, 30, 0.92)';
-const HAIRLINE = 'rgba(148, 163, 184, 0.22)';
-const INK = '#EAF0FA';
-const MUTED = 'rgba(190, 203, 224, 0.68)';
-const FAINT = 'rgba(148, 163, 184, 0.40)';
-const SUN = '#FBBF24';
-const SUN_DIM = 'rgba(251, 191, 36, 0.16)';
-const SOLAR_BLUE = '#38BDF8';
-const EMERALD = '#34D399';
-const EMERALD_DIM = 'rgba(52, 211, 153, 0.15)';
-const VIOLET = '#A78BFA';
-const ROSE = '#FB7185';
-
+const BG = '#060B14';
+const INK = '#EAF2FB';
+const MUTED = 'rgba(180,198,216,0.62)';
+const TEAL = '#2DD4BF';
+const TEAL_DEEP = '#0E7C6E';
+const SKY = '#60A5FA';
+const MINT = '#6EE7B7';
+const LIVE_RED = '#F87171';
+const SLATE = '#14202E';
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Timeline (frames at 60 fps, 900 = 15 s)
 // ---------------------------------------------------------------------------
-const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-const prog = (frame: number, start: number, end: number) =>
-  clamp01((frame - start) / (end - start));
-const entr = (frame: number, delay: number, fps: number) =>
-  spring({
-    frame: Math.max(0, frame - delay),
-    fps,
-    config: {damping: 19, stiffness: 130},
-  });
-const rand = (seed: number) => {
-  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
-};
+const CARD_Y = 560;
+const CARD_H = 980;
+const CARD_W = 640;
+const STAGE_X = [240, 920, 1600, 2280, 2960];
+const CHECK_AT = [200, 330, 480, 640, 780];
+const RAIL_Y = 430;
+const BANNER_AT = 800;
+const STATS_START = 820;
 
-type Pt = {x: number; y: number};
-const quad = (a: Pt, c: Pt, b: Pt, t: number): Pt => {
-  const u = 1 - t;
-  return {
-    x: u * u * a.x + 2 * u * t * c.x + t * t * b.x,
-    y: u * u * a.y + 2 * u * t * c.y + t * t * b.y,
-  };
-};
-
-// Flow paths (quadratic beziers)
-const P_SOLAR_HOME = {a: {x: 1330, y: 1080}, c: {x: 1440, y: 1240}, b: {x: 1560, y: 1260}};
-const P_SOLAR_BATT = {a: {x: 1330, y: 1120}, c: {x: 1950, y: 980}, b: {x: 2480, y: 1180}};
-const P_BATT_HOME = {a: {x: 2480, y: 1330}, c: {x: 2410, y: 1450}, b: {x: 2330, y: 1330}};
-const P_HOME_GRID = {a: {x: 2330, y: 1240}, c: {x: 2720, y: 1060}, b: {x: 3120, y: 1120}};
-
-// Sun position across the sky
-const sunPos = (frame: number): Pt => {
-  const t = clamp01(frame / 900);
-  return {x: 320 + t * 3200, y: 560 - Math.sin(Math.PI * t) * 380};
-};
+const nodeX = (j: number) => STAGE_X[j] + CARD_W / 2; // 560,1240,1920,2600,3280
 
 // ---------------------------------------------------------------------------
-// Background — sky glow follows the sun, grid, vignette
+// Static defs
+// ---------------------------------------------------------------------------
+const Defs: React.FC = () => (
+  <defs>
+    <radialGradient id="bgGlow" cx="50%" cy="36%" r="72%">
+      <stop offset="0%" stopColor="rgba(45,212,191,0.09)" />
+      <stop offset="50%" stopColor="rgba(96,165,250,0.05)" />
+      <stop offset="100%" stopColor="rgba(6,11,20,0)" />
+    </radialGradient>
+    <radialGradient id="vignette" cx="50%" cy="50%" r="75%">
+      <stop offset="60%" stopColor="rgba(6,11,20,0)" />
+      <stop offset="100%" stopColor="rgba(2,4,9,0.74)" />
+    </radialGradient>
+    <linearGradient id="tealGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stopColor="#5EEAD4" />
+      <stop offset="100%" stopColor={TEAL_DEEP} />
+    </linearGradient>
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="rgba(96,165,250,0.16)" />
+      <stop offset="100%" stopColor="rgba(96,165,250,0.03)" />
+    </linearGradient>
+    <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="10" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <filter id="bigBlur" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="28" />
+    </filter>
+  </defs>
+);
+
+// ---------------------------------------------------------------------------
+// Background
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const sun = sunPos(frame);
-  const sweepX = interpolate(frame, [0, 900], [-1400, 5200], {
-    easing: Easing.linear,
+  const fade = interpolate(frame, [0, 80], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
+  const sweepX = ((frame / 900) * (3840 + 600)) % (3840 + 600) - 300;
   return (
-    <AbsoluteFill>
-      <svg width={3840} height={2160}>
-        <defs>
-          <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#FBBF24" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#FBBF24" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="emeraldGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#34D399" stopOpacity="0.12" />
-            <stop offset="100%" stopColor="#34D399" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="vignette" cx="50%" cy="46%" r="75%">
-            <stop offset="55%" stopColor="#000000" stopOpacity="0" />
-            <stop offset="100%" stopColor="#000000" stopOpacity="0.62" />
-          </radialGradient>
-          <filter id="softBlur" x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation="160" />
-          </filter>
-          <linearGradient id="sweepGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#FBBF24" stopOpacity="0" />
-            <stop offset="50%" stopColor="#FBBF24" stopOpacity="0.07" />
-            <stop offset="100%" stopColor="#FBBF24" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <ellipse cx={sun.x} cy={sun.y} rx={700} ry={460} fill="url(#sunGlow)" filter="url(#softBlur)" />
-        <ellipse cx={1920} cy={1900} rx={1300} ry={420} fill="url(#emeraldGlow)" filter="url(#softBlur)" />
-        {Array.from({length: 13}, (_, i) => (
-          <line key={'v' + i} x1={i * 320} y1={0} x2={i * 320} y2={2160} stroke={HAIRLINE} strokeWidth={1} />
-        ))}
-        {Array.from({length: 8}, (_, i) => (
-          <line key={'h' + i} x1={0} y1={i * 320} x2={3840} y2={i * 320} stroke={HAIRLINE} strokeWidth={1} />
-        ))}
-        {/* ground line */}
-        <rect x={0} y={1620} width={3840} height={540} fill="rgba(8,14,26,0.55)" />
-        <line x1={0} y1={1620} x2={3840} y2={1620} stroke={HAIRLINE} strokeWidth={2} />
-        <rect x={sweepX - 420} y={0} width={840} height={2160} fill="url(#sweepGrad)" />
-        <rect width={3840} height={2160} fill="url(#vignette)" />
+    <>
+      <AbsoluteFill style={{backgroundColor: BG}} />
+      <AbsoluteFill
+        style={{
+          background:
+            'radial-gradient(circle at 50% 36%, rgba(45,212,191,0.09), rgba(96,165,250,0.05) 50%, rgba(6,11,20,0) 72%)',
+        }}
+      />
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        {/* faint plus-sign medical texture */}
+        <g opacity={fade * 0.5}>
+          {Array.from({length: 40}).map((_, i) => {
+            const gx = 200 + (i % 10) * 380;
+            const gy = 300 + Math.floor(i / 10) * 480;
+            return (
+              <g key={`pl${i}`} transform={`translate(${gx}, ${gy})`} opacity={0.5}>
+                <rect x={-4} y={-22} width={8} height={44} rx={4} fill="rgba(45,212,191,0.10)" />
+                <rect x={-22} y={-4} width={44} height={8} rx={4} fill="rgba(45,212,191,0.10)" />
+              </g>
+            );
+          })}
+        </g>
+        <circle cx={1920} cy={1000} r={700} fill="rgba(45,212,191,0.05)" filter="url(#bigBlur)" opacity={fade} />
+        <rect x={sweepX - 110} y={0} width={220} height={2160} fill="rgba(45,212,191,0.02)" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#vignette)" />
       </svg>
-    </AbsoluteFill>
+    </>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Sun + arc
+// Title bar
 // ---------------------------------------------------------------------------
-const Sun: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 30, fps);
-  const sun = sunPos(frame);
-  const arc = useMemo(() => {
-    let d = '';
-    for (let i = 0; i <= 60; i++) {
-      const p = sunPos((i / 60) * 900);
-      d += (i === 0 ? 'M' : 'L') + p.x.toFixed(0) + ' ' + p.y.toFixed(0) + ' ';
-    }
-    return d;
-  }, []);
+const TitleBar: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [0, 50], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const rise = interpolate(frame, [0, 50], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
-    <div style={{position: 'absolute', inset: 0, opacity: e}}>
-      <svg width={3840} height={2160}>
-        <defs>
-          <filter id="sunBlur" x="-120%" y="-120%" width="340%" height="340%">
-            <feGaussianBlur stdDeviation="34" />
-          </filter>
-        </defs>
-        <path d={arc} fill="none" stroke={HAIRLINE} strokeWidth={3} strokeDasharray="14 18" />
-        <circle cx={sun.x} cy={sun.y} r={110} fill={SUN} opacity={0.35} filter="url(#sunBlur)" />
-        <circle cx={sun.x} cy={sun.y} r={64} fill={SUN} opacity={0.95} />
-        <circle cx={sun.x} cy={sun.y} r={64} fill="none" stroke="#FFF7E0" strokeWidth={5} />
+    <div style={{position: 'absolute', top: 84 + rise, left: 220, right: 220, opacity: fade}}>
+      <div style={{display: 'flex', alignItems: 'baseline', justifyContent: 'space-between'}}>
+        <div>
+          <div style={{display: 'flex', alignItems: 'baseline', gap: 30}}>
+            <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 82, letterSpacing: -1}}>
+              TELEHEALTH VISIT
+            </span>
+            <span
+              style={{
+                color: TEAL,
+                fontFamily: MONO,
+                fontSize: 36,
+                fontWeight: 700,
+                border: `2px solid ${TEAL}`,
+                borderRadius: 10,
+                padding: '6px 18px',
+              }}
+            >
+              VIRTUAL CARE JOURNEY
+            </span>
+          </div>
+          <div style={{color: MUTED, fontFamily: FONT, fontSize: 34, marginTop: 14}}>
+            Book &middot; wait your turn &middot; consult by video &middot; prescription sent to pharmacy
+          </div>
+        </div>
+        <div
+          style={{
+            color: SKY,
+            fontFamily: MONO,
+            fontSize: 32,
+            fontWeight: 700,
+            letterSpacing: 2,
+            border: `2px solid rgba(96,165,250,0.55)`,
+            borderRadius: 14,
+            padding: '12px 26px',
+            background: 'rgba(96,165,250,0.10)',
+          }}
+        >
+          SECURE &middot; ENCRYPTED
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Progress rail with stage nodes + landing checkmarks
+// ---------------------------------------------------------------------------
+const Rail: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const fade = interpolate(frame, [40, 90], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const draw = interpolate(frame, [60, 780], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const x0 = 240;
+  const x1 = 3600;
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={fade}>
+        <line x1={x0} y1={RAIL_Y} x2={x1} y2={RAIL_Y} stroke="rgba(180,198,216,0.18)" strokeWidth={6} strokeLinecap="round" />
+        <line
+          x1={x0}
+          y1={RAIL_Y}
+          x2={x1}
+          y2={RAIL_Y}
+          stroke={TEAL}
+          strokeWidth={6}
+          strokeLinecap="round"
+          pathLength={1}
+          strokeDasharray={1}
+          strokeDashoffset={1 - draw}
+          style={{filter: 'drop-shadow(0 0 12px rgba(45,212,191,0.7))'}}
+        />
+        {CHECK_AT.map((at, j) => {
+          const done = frame >= at;
+          const pop = spring({frame: frame - at, fps, config: {damping: 200, stiffness: 170}});
+          return (
+            <g key={`nd${j}`}>
+              <circle
+                cx={nodeX(j)}
+                cy={RAIL_Y}
+                r={36}
+                fill={done ? TEAL : '#0A1220'}
+                stroke={TEAL}
+                strokeWidth={4}
+                style={done ? {filter: 'drop-shadow(0 0 16px rgba(45,212,191,0.8))'} : undefined}
+              />
+              {done && pop > 0.001 && (
+                <g opacity={Math.min(1, pop)} transform={`translate(${nodeX(j)}, ${RAIL_Y}) scale(${0.5 + 0.5 * pop})`}>
+                  <path d="M -14 1 L -4 12 L 15 -13" fill="none" stroke="#06231F" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
+                </g>
+              )}
+              {!done && (
+                <text x={nodeX(j)} y={RAIL_Y + 11} fill={TEAL} fontSize={30} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+                  {j + 1}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Stage card shell
+// ---------------------------------------------------------------------------
+interface StageCardProps {
+  frame: number;
+  fps: number;
+  x: number;
+  index: number;
+  step: string;
+  title: string;
+  statusText: string;
+  statusAt: number;
+  children: React.ReactNode;
+}
+const StageCard: React.FC<StageCardProps> = ({frame, fps, x, index, step, title, statusText, statusAt, children}) => {
+  const s = spring({frame: frame - (60 + index * 40), fps, config: {damping: 200, stiffness: 95}});
+  if (s <= 0.001) return null;
+  const stFade = interpolate(frame, [statusAt, statusAt + 25], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const ck = spring({frame: frame - statusAt, fps, config: {damping: 200, stiffness: 170}});
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: x,
+        top: CARD_Y + (1 - s) * 70,
+        width: CARD_W,
+        height: CARD_H,
+        opacity: Math.min(1, s),
+      }}
+    >
+      <svg width={CARD_W} height={CARD_H} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <rect x={3} y={3} width={CARD_W - 6} height={CARD_H - 6} rx={30} fill="rgba(10,16,30,0.92)" stroke="rgba(45,212,191,0.28)" strokeWidth={2.5} />
+        <rect x={3} y={3} width={CARD_W - 6} height={CARD_H - 6} rx={30} fill="url(#skyGrad)" />
+        <text x={56} y={78} fill={TEAL} fontSize={28} fontFamily={MONO} letterSpacing={4} fontWeight={700}>
+          {step}
+        </text>
+        <text x={56} y={136} fill={INK} fontSize={46} fontFamily={FONT} fontWeight={800} letterSpacing={1}>
+          {title}
+        </text>
+        <line x1={56} y1={176} x2={CARD_W - 56} y2={176} stroke="rgba(180,198,216,0.16)" strokeWidth={1.5} />
+        {children}
+        {/* status footer */}
+        <line x1={56} y1={856} x2={CARD_W - 56} y2={856} stroke="rgba(180,198,216,0.16)" strokeWidth={1.5} />
+        <g opacity={stFade}>
+          <text x={56} y={912} fill={TEAL} fontSize={30} fontFamily={MONO} fontWeight={700} letterSpacing={1}>
+            {statusText}
+          </text>
+        </g>
+        {ck > 0.001 && (
+          <g opacity={Math.min(1, ck)} transform={`translate(${CARD_W - 86}, 896) scale(${0.5 + 0.5 * ck})`}>
+            <circle r={30} fill={TEAL} style={{filter: 'drop-shadow(0 0 14px rgba(45,212,191,0.8))'}} />
+            <path d="M -12 1 L -4 10 L 13 -11" fill="none" stroke="#06231F" strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />
+          </g>
+        )}
       </svg>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Flow path with particles
+// Stage 1: phone booking
 // ---------------------------------------------------------------------------
-const FlowPath: React.FC<{
-  frame: number;
-  path: {a: Pt; c: Pt; b: Pt};
-  color: string;
-  intensity: number;
-  delay: number;
-  seed: number;
-}> = ({frame, path, color, intensity, delay, seed}) => {
-  const show = prog(frame, delay, delay + 60);
-  const N = 16;
+const BookContent: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const tap = interpolate(frame, [140, 175], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const slotPop = spring({frame: frame - 150, fps, config: {damping: 200, stiffness: 160}});
+  const slots = ['10:30', '11:15', '14:00'];
   return (
-    <g opacity={show * (0.25 + 0.75 * intensity)}>
-      <path
-        d={`M ${path.a.x} ${path.a.y} Q ${path.c.x} ${path.c.y} ${path.b.x} ${path.b.y}`}
-        fill="none"
-        stroke={color}
-        strokeWidth={5}
-        opacity={0.30}
-        strokeDasharray="10 14"
-      />
-      {Array.from({length: N}, (_, i) => {
-        const t = ((frame * 0.004 * (0.5 + intensity) + i / N + rand(seed + i) * 0.05) % 1 + 1) % 1;
-        const p = quad(path.a, path.c, path.b, t);
-        const r = 7 + 5 * intensity;
+    <g>
+      {/* phone */}
+      <rect x={210} y={220} width={220} height={400} rx={38} fill="#0D1626" stroke="rgba(45,212,191,0.5)" strokeWidth={3} />
+      <rect x={228} y={272} width={184} height={296} rx={14} fill="rgba(45,212,191,0.08)" />
+      <rect x={286} y={232} width={68} height={12} rx={6} fill="rgba(180,198,216,0.35)" />
+      {/* screen: mini calendar + time */}
+      <rect x={258} y={300} width={124} height={96} rx={12} fill="none" stroke={TEAL} strokeWidth={3} />
+      <line x1={258} y1={328} x2={382} y2={328} stroke={TEAL} strokeWidth={3} />
+      <text x={320} y={380} fill={INK} fontSize={40} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+        14
+      </text>
+      <text x={320} y={446} fill={TEAL} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+        10:30 AM
+      </text>
+      <text x={320} y={492} fill={MUTED} fontSize={24} fontFamily={MONO} textAnchor="middle" letterSpacing={2}>
+        VIDEO VISIT
+      </text>
+      {/* tap ripple */}
+      {tap > 0 && tap < 1 && (
+        <circle cx={320} cy={420} r={20 + tap * 90} fill="none" stroke={TEAL} strokeWidth={5 * (1 - tap) + 1} opacity={(1 - tap) * 0.9} />
+      )}
+      {/* slot chips */}
+      {slots.map((sl, i) => {
+        const sel = i === 0;
+        const px = 56 + i * 184;
         return (
-          <g key={i}>
-            <circle cx={p.x} cy={p.y} r={r * 2.2} fill={color} opacity={0.25 * intensity} />
-            <circle cx={p.x} cy={p.y} r={r} fill={color} opacity={0.9} />
-            <circle cx={p.x} cy={p.y} r={r * 0.45} fill="#FFFFFF" opacity={0.9} />
+          <g key={`slot${i}`} opacity={slotPop > 0.001 ? Math.min(1, slotPop) : 0} transform={`translate(0, ${(1 - Math.min(1, slotPop)) * 24})`}>
+            <rect
+              x={px}
+              y={660}
+              width={160}
+              height={64}
+              rx={16}
+              fill={sel ? TEAL : 'rgba(45,212,191,0.07)'}
+              stroke={TEAL}
+              strokeWidth={sel ? 0 : 2.5}
+              style={sel ? {filter: 'drop-shadow(0 0 16px rgba(45,212,191,0.7))'} : undefined}
+            />
+            <text
+              x={px + 80}
+              y={702}
+              fill={sel ? '#06231F' : TEAL}
+              fontSize={32}
+              fontFamily={MONO}
+              fontWeight={800}
+              textAnchor="middle"
+            >
+              {sl}
+            </text>
           </g>
         );
       })}
@@ -201,253 +363,442 @@ const FlowPath: React.FC<{
 };
 
 // ---------------------------------------------------------------------------
-// Solar panel array
+// Stage 2: calendar fills
 // ---------------------------------------------------------------------------
-const SolarPanels: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 90, fps);
-  const tilt = -0.32;
-  const panel = (x: number, y: number, i: number) => (
-    <g key={i} transform={`translate(${x} ${y}) rotate(${(tilt * 180) / Math.PI})`}>
-      <rect x={-150} y={-95} width={300} height={190} rx={10} fill="#0A1830" stroke={SOLAR_BLUE} strokeWidth={5} />
-      {[-50, 50].map((lx) => (
-        <line key={lx} x1={lx} y1={-95} x2={lx} y2={95} stroke="rgba(56,189,248,0.5)" strokeWidth={3} />
-      ))}
-      <line x1={-150} y1={0} x2={150} y2={0} stroke="rgba(56,189,248,0.5)" strokeWidth={3} />
-      <line x1={-140} y1={-80} x2={140} y2={-80} stroke="rgba(255,255,255,0.25)" strokeWidth={6} />
+const CalendarContent: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const gridFade = interpolate(frame, [160, 220], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const bookPop = spring({frame: frame - 260, fps, config: {damping: 200, stiffness: 140}});
+  const cols = 7;
+  const cellW = 72;
+  const cellH = 60;
+  const gap = 6;
+  const gx = 47;
+  const gy = 280;
+  const booked = 14; // day number
+  const busyDays = [3, 9, 21];
+  const cells: {d: number; x: number; y: number}[] = [];
+  for (let d = 1; d <= 28; d++) {
+    const c = (d - 1) % cols;
+    const r = Math.floor((d - 1) / cols);
+    cells.push({d, x: gx + c * (cellW + gap), y: gy + r * (cellH + gap)});
+  }
+  const detailFade = interpolate(frame, [280, 320], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+
+  return (
+    <g opacity={gridFade}>
+      <text x={56} y={252} fill={MUTED} fontSize={28} fontFamily={MONO} letterSpacing={3}>
+        OCTOBER 2026
+      </text>
+      {cells.map((cell) => {
+        const isBooked = cell.d === booked;
+        return (
+          <g key={`day${cell.d}`}>
+            <rect
+              x={cell.x}
+              y={cell.y}
+              width={cellW}
+              height={cellH}
+              rx={10}
+              fill={isBooked ? TEAL : 'rgba(180,198,216,0.06)'}
+              style={isBooked ? {filter: 'drop-shadow(0 0 14px rgba(45,212,191,0.7))'} : undefined}
+            />
+            <text
+              x={cell.x + cellW / 2}
+              y={cell.y + 40}
+              fill={isBooked ? '#06231F' : 'rgba(180,198,216,0.7)'}
+              fontSize={28}
+              fontFamily={MONO}
+              fontWeight={isBooked ? 800 : 400}
+              textAnchor="middle"
+            >
+              {cell.d}
+            </text>
+            {busyDays.includes(cell.d) && !isBooked && (
+              <circle cx={cell.x + cellW / 2} cy={cell.y + cellH - 10} r={5} fill={SKY} opacity={0.8} />
+            )}
+            {isBooked && bookPop > 0.001 && (
+              <circle
+                cx={cell.x + cellW / 2}
+                cy={cell.y + cellH / 2}
+                r={30 + (1 - Math.min(1, bookPop)) * 40}
+                fill="none"
+                stroke={TEAL}
+                strokeWidth={4}
+                opacity={Math.min(1, bookPop)}
+              />
+            )}
+          </g>
+        );
+      })}
+      {/* appointment detail */}
+      <g opacity={detailFade}>
+        <rect x={56} y={560} width={528} height={190} rx={18} fill="rgba(45,212,191,0.08)" stroke="rgba(45,212,191,0.4)" strokeWidth={2} />
+        <text x={88} y={622} fill={INK} fontSize={36} fontFamily={FONT} fontWeight={800}>
+          TUE, OCT 14 &middot; 10:30 AM
+        </text>
+        <text x={88} y={668} fill={TEAL} fontSize={30} fontFamily={MONO} fontWeight={700}>
+          VIDEO VISIT
+        </text>
+        <text x={88} y={712} fill={MUTED} fontSize={28} fontFamily={FONT}>
+          Dr. Amara &middot; General Medicine
+        </text>
+      </g>
     </g>
   );
-  return (
-    <div style={{position: 'absolute', inset: 0, opacity: e, transform: `translateY(${(1 - e) * 50}px)`}}>
-      <svg width={3840} height={2160}>
-        <rect x={880} y={1180} width={760} height={26} rx={13} fill="#13233D" stroke={HAIRLINE} strokeWidth={2} />
-        <rect x={900} y={1206} width={34} height={300} fill="#13233D" />
-        <rect x={1586} y={1206} width={34} height={300} fill="#13233D" />
-        {panel(1080, 1030, 0)}
-        {panel(1420, 1030, 1)}
-      </svg>
-    </div>
-  );
 };
 
 // ---------------------------------------------------------------------------
-// House
+// Stage 3: waiting room queue counter
 // ---------------------------------------------------------------------------
-const House: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 130, fps);
-  const flick = 0.85 + 0.15 * Math.sin(frame * 0.06);
+const WaitingContent: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const stepIdx = Math.max(0, Math.min(4, Math.floor((frame - 280) / 45)));
+  const value = frame < 280 ? 5 : 5 - stepIdx;
+  const changeFrame = 280 + stepIdx * 45;
+  const pop = spring({frame: frame - changeFrame, fps, config: {damping: 200, stiffness: 200}});
+  const waitMin = Math.max(0, Math.round(interpolate(frame, [280, 460], [4, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})));
+  const next = frame >= 470;
+
+  const Person: React.FC<{cx: number; active: boolean; you: boolean}> = ({cx, active, you}) => (
+    <g opacity={active ? 1 : 0.28}>
+      <circle cx={cx} cy={640} r={26} fill={active ? TEAL : 'rgba(180,198,216,0.5)'} />
+      <path
+        d={`M ${cx - 40} 716 Q ${cx - 40} 672 ${cx} 672 Q ${cx + 40} 672 ${cx + 40} 716 Z`}
+        fill={active ? TEAL : 'rgba(180,198,216,0.5)'}
+      />
+      {you && <circle cx={cx} cy={688} r={62} fill="none" stroke={MINT} strokeWidth={4} strokeDasharray="10 8" />}
+    </g>
+  );
+
   return (
-    <div style={{position: 'absolute', inset: 0, opacity: e, transform: `translateY(${(1 - e) * 60}px)`}}>
-      <svg width={3840} height={2160}>
-        <defs>
-          <linearGradient id="roofGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1B2C4E" />
-            <stop offset="100%" stopColor="#0D1729" />
-          </linearGradient>
-          <filter id="winGlow" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation="18" />
-          </filter>
-        </defs>
-        {/* body */}
-        <rect x={1560} y={1230} width={770} height={390} rx={12} fill="#0E1A2F" stroke={HAIRLINE} strokeWidth={3} />
-        {/* roof */}
-        <polygon points="1500,1230 1945,1010 2390,1230" fill="url(#roofGrad)" stroke="rgba(148,163,184,0.4)" strokeWidth={4} />
-        {/* chimney */}
-        <rect x={2180} y={1040} width={70} height={130} fill="#0E1A2F" stroke={HAIRLINE} strokeWidth={3} />
-        {/* windows */}
-        {[1680, 2080].map((wx) => (
-          <g key={wx}>
-            <rect x={wx} y={1330} width={150} height={130} rx={10} fill={SUN} opacity={0.30 * flick} filter="url(#winGlow)" />
-            <rect x={wx} y={1330} width={150} height={130} rx={10} fill="rgba(251,191,36,0.85)" opacity={flick} />
-            <line x1={wx + 75} y1={1330} x2={wx + 75} y2={1460} stroke="#0E1A2F" strokeWidth={6} />
-            <line x1={wx} y1={1395} x2={wx + 150} y2={1395} stroke="#0E1A2F" strokeWidth={6} />
-          </g>
-        ))}
-        {/* door */}
-        <rect x={1885} y={1400} width={120} height={220} rx={10} fill="#13233D" stroke={HAIRLINE} strokeWidth={3} />
-        <circle cx={1985} cy={1515} r={8} fill={SUN} />
-        {/* label */}
-        <text x={1945} y={1300} textAnchor="middle" fontFamily={MONO} fontSize={30} letterSpacing={5} fill={MUTED}>
-          HOME
+    <g>
+      <text x={320} y={268} fill={MUTED} fontSize={28} fontFamily={MONO} letterSpacing={4} textAnchor="middle">
+        POSITION IN LINE
+      </text>
+      <g transform={`translate(320, 430) scale(${0.7 + 0.3 * Math.min(1, pop)})`} opacity={Math.min(1, Math.max(0.2, pop))}>
+        <text x={0} y={70} fill={TEAL} fontSize={220} fontFamily={MONO} fontWeight={800} textAnchor="middle" style={{filter: 'drop-shadow(0 0 30px rgba(45,212,191,0.5))'}}>
+          {value}
         </text>
-      </svg>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Battery unit
-// ---------------------------------------------------------------------------
-const Battery: React.FC<{frame: number; fps: number; charge: number}> = ({frame, fps, charge}) => {
-  const e = entr(frame, 170, fps);
-  const h = 300;
-  const fillH = (charge / 100) * (h - 40);
-  return (
-    <div style={{position: 'absolute', inset: 0, opacity: e, transform: `translateY(${(1 - e) * 60}px)`}}>
-      <svg width={3840} height={2160}>
-        <defs>
-          <linearGradient id="battFill" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0%" stopColor="#34D399" />
-            <stop offset="100%" stopColor="#A7F3D0" />
-          </linearGradient>
-          <filter id="battGlow" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation="20" />
-          </filter>
-        </defs>
-        <rect x={2500} y={1150} width={260} height={h + 60} rx={24} fill="#0E1A2F" stroke={HAIRLINE} strokeWidth={3} />
-        <rect x={2590} y={1122} width={80} height={28} rx={8} fill="#0E1A2F" stroke={HAIRLINE} strokeWidth={3} />
-        <rect x={2520} y={1170} width={220} height={h} rx={14} fill="rgba(148,163,184,0.10)" />
-        <rect
-          x={2520}
-          y={1170 + h - fillH}
-          width={220}
-          height={fillH}
-          rx={14}
-          fill="url(#battFill)"
-          opacity={0.92}
-          filter="url(#battGlow)"
-        />
-        <text x={2630} y={1300} textAnchor="middle" fontFamily={MONO} fontSize={64} fontWeight={700} fill={INK}>
-          {Math.round(charge)}
-          <tspan fontSize={34}>%</tspan>
-        </text>
-        <text x={2630} y={1560} textAnchor="middle" fontFamily={MONO} fontSize={30} letterSpacing={5} fill={MUTED}>
-          BATTERY
-        </text>
-      </svg>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Grid tower
-// ---------------------------------------------------------------------------
-const Grid: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 210, fps);
-  return (
-    <div style={{position: 'absolute', inset: 0, opacity: e, transform: `translateY(${(1 - e) * 60}px)`}}>
-      <svg width={3840} height={2160}>
-        <polygon points="3180,1620 3260,1620 3235,1120 3205,1120" fill="#0E1A2F" stroke={HAIRLINE} strokeWidth={3} />
-        <line x1={3140} y1={1180} x2={3300} y2={1180} stroke={HAIRLINE} strokeWidth={6} />
-        <line x1={3160} y1={1300} x2={3280} y2={1300} stroke={HAIRLINE} strokeWidth={6} />
-        {[1180, 1300].map((y) => (
-          <g key={y}>
-            <circle cx={3150} cy={y + 34} r={12} fill={VIOLET} opacity={0.9} />
-            <circle cx={3290} cy={y + 34} r={12} fill={VIOLET} opacity={0.9} />
-          </g>
-        ))}
-        <line x1={3150} y1={1214} x2={3840} y2={1140} stroke="rgba(167,139,250,0.35)" strokeWidth={3} />
-        <line x1={3290} y1={1214} x2={3840} y2={1260} stroke="rgba(167,139,250,0.35)" strokeWidth={3} />
-        <text x={3220} y={1560} textAnchor="middle" fontFamily={MONO} fontSize={30} letterSpacing={5} fill={MUTED}>
-          GRID
-        </text>
-      </svg>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Header
-// ---------------------------------------------------------------------------
-const Header: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 20, fps);
-  const pulse = 0.55 + 0.45 * Math.sin(frame * 0.12);
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 110,
-        left: 240,
-        right: 240,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        opacity: e,
-        transform: `translateY(${(1 - e) * 40}px)`,
-      }}
-    >
-      <div>
-        <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 8, color: SUN, marginBottom: 14}}>
-          RESIDENTIAL
-        </div>
-        <div
-          style={{
-            fontFamily: FONT,
-            fontSize: 88,
-            fontWeight: 700,
-            color: INK,
-            letterSpacing: -1,
-            textShadow: '0 4px 40px rgba(251,191,36,0.30)',
-          }}
-        >
-          Smart Home Energy
-        </div>
-      </div>
-      <div style={{display: 'flex', alignItems: 'center', gap: 22}}>
-        <div
-          style={{
-            width: 22,
-            height: 22,
-            borderRadius: 11,
-            background: EMERALD,
-            opacity: pulse,
-            boxShadow: '0 0 26px rgba(52,211,153,0.9)',
-          }}
-        />
-        <span style={{fontFamily: MONO, fontSize: 34, letterSpacing: 4, color: EMERALD}}>LIVE</span>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Live stat chips (bottom)
-// ---------------------------------------------------------------------------
-const StatChips: React.FC<{
-  frame: number;
-  fps: number;
-  solarKw: number;
-  loadKw: number;
-  charge: number;
-  gridKw: number;
-}> = ({frame, fps, solarKw, loadKw, charge, gridKw}) => {
-  const e = entr(frame, 260, fps);
-  const chips = [
-    {label: 'SOLAR OUTPUT', value: solarKw.toFixed(1) + ' kW', color: SUN},
-    {label: 'HOME LOAD', value: loadKw.toFixed(1) + ' kW', color: SOLAR_BLUE},
-    {label: 'BATTERY', value: Math.round(charge) + '%', color: EMERALD},
-    {label: 'GRID EXPORT', value: gridKw.toFixed(1) + ' kW', color: VIOLET},
-  ];
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: 240,
-        right: 240,
-        bottom: 150,
-        display: 'flex',
-        gap: 28,
-        opacity: e,
-        transform: `translateY(${(1 - e) * 50}px)`,
-      }}
-    >
-      {chips.map((c) => (
-        <div
-          key={c.label}
-          style={{
-            flex: 1,
-            background: PANEL,
-            border: `1px solid ${HAIRLINE}`,
-            borderRadius: 22,
-            padding: '30px 40px',
-            borderTop: `4px solid ${c.color}`,
-          }}
-        >
-          <div style={{fontFamily: MONO, fontSize: 26, letterSpacing: 4, color: FAINT, marginBottom: 10}}>
-            {c.label}
-          </div>
-          <div style={{fontFamily: MONO, fontSize: 62, fontWeight: 700, color: INK}}>{c.value}</div>
-        </div>
+      </g>
+      {/* queue avatars */}
+      {[0, 1, 2, 3, 4].map((i) => (
+        <Person key={`p${i}`} cx={100 + i * 110} active={i < value} you={i === 4} />
       ))}
+      <text x={320} y={792} fill={MUTED} fontSize={26} fontFamily={MONO} letterSpacing={2} textAnchor="middle">
+        {next ? '' : `EST. WAIT ${waitMin} MIN`}
+      </text>
+      {next && (
+        <text x={320} y={792} fill={MINT} fontSize={40} fontFamily={FONT} fontWeight={800} textAnchor="middle" style={{filter: 'drop-shadow(0 0 18px rgba(110,231,183,0.6))'}}>
+          YOU&apos;RE NEXT
+        </text>
+      )}
+    </g>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Stage 4: video consult
+// ---------------------------------------------------------------------------
+const ConsultContent: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const connecting = frame >= 480 && frame < 560;
+  const live = frame >= 560;
+  const winPop = spring({frame: frame - 560, fps, config: {damping: 200, stiffness: 100}});
+  const totalSec = Math.max(0, frame - 560);
+  const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+  const ss = String(totalSec % 60).padStart(2, '0');
+  const pulse = 0.5 + 0.5 * Math.sin(frame * 0.15);
+
+  return (
+    <g>
+      {frame < 480 && (
+        <g opacity={0.55}>
+          <rect x={40} y={220} width={560} height={400} rx={24} fill="rgba(180,198,216,0.05)" stroke="rgba(180,198,216,0.25)" strokeWidth={2.5} strokeDasharray="14 12" />
+          <circle cx={320} cy={380} r={52} fill="none" stroke={MUTED} strokeWidth={4} />
+          <path d="M 292 352 L 348 380 L 292 408 Z" fill={MUTED} />
+          <text x={320} y={500} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={2} textAnchor="middle">
+            SCHEDULED &middot; 10:30 AM
+          </text>
+        </g>
+      )}
+      {connecting && (
+        <g>
+          <text x={320} y={420} fill={MUTED} fontSize={34} fontFamily={MONO} letterSpacing={3} textAnchor="middle">
+            CONNECTING
+          </text>
+          {[0, 1, 2].map((i) => (
+            <circle
+              key={`cd${i}`}
+              cx={272 + i * 48}
+              cy={480}
+              r={14}
+              fill={TEAL}
+              opacity={0.3 + 0.7 * Math.abs(Math.sin(frame * 0.2 + i * 1.1))}
+            />
+          ))}
+        </g>
+      )}
+      {live && winPop > 0.001 && (
+        <g opacity={Math.min(1, winPop)} transform={`translate(320, 480) scale(${0.7 + 0.3 * winPop}) translate(-320, -480)`}>
+          {/* video window */}
+          <rect x={40} y={220} width={560} height={400} rx={24} fill="#0A1226" stroke={TEAL} strokeWidth={3} style={{filter: 'drop-shadow(0 0 26px rgba(45,212,191,0.4))'}} />
+          {/* doctor avatar */}
+          <circle cx={320} cy={380} r={72} fill="url(#tealGrad)" opacity={0.28} />
+          <circle cx={320} cy={362} r={44} fill={TEAL} opacity={0.9} />
+          <path d="M 248 470 Q 250 410 320 410 Q 390 410 392 470 Z" fill={TEAL} opacity={0.9} />
+          <rect x={304} y={404} width={32} height={52} rx={8} fill="#0A1226" opacity={0.55} />
+          {/* name tag */}
+          <text x={320} y={540} fill={INK} fontSize={36} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+            Dr. Amara
+          </text>
+          <text x={320} y={578} fill={MUTED} fontSize={26} fontFamily={MONO} letterSpacing={2} textAnchor="middle">
+            GENERAL MEDICINE
+          </text>
+          {/* LIVE badge */}
+          <g transform="translate(96, 262)">
+            <circle r={12} fill={LIVE_RED} opacity={0.4 + pulse * 0.6} />
+            <circle r={12} fill="none" stroke={LIVE_RED} strokeWidth={3} opacity={0.8} />
+            <text x={26} y={10} fill={LIVE_RED} fontSize={28} fontFamily={MONO} fontWeight={800} letterSpacing={2}>
+              LIVE
+            </text>
+          </g>
+          {/* waveform */}
+          <g>
+            {Array.from({length: 26}).map((_, i) => {
+              const h = 14 + 44 * Math.abs(Math.sin(frame * 0.22 + i * 0.65));
+              const bx = 70 + i * 19.5;
+              return <rect key={`wv${i}`} x={bx} y={660 - h / 2} width={10} height={h} rx={5} fill={i % 3 === 0 ? SKY : TEAL} opacity={0.85} />;
+            })}
+          </g>
+          {/* timer */}
+          <text x={320} y={736} fill={INK} fontSize={46} fontFamily={MONO} fontWeight={800} textAnchor="middle" letterSpacing={2}>
+            {mm}:{ss}
+          </text>
+        </g>
+      )}
+    </g>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Stage 5: pharmacy + flying Rx slip
+// ---------------------------------------------------------------------------
+const RX_START = {x: 2600, y: 1180};
+const RX_END = {x: 3280, y: 1250};
+const RX_LAUNCH = 680;
+const RX_DUR = 80;
+
+const PharmacyContent: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const pinPop = spring({frame: frame - 120, fps, config: {damping: 200, stiffness: 100}});
+  const pathFade = interpolate(frame, [640, 680], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const landed = frame >= RX_LAUNCH + RX_DUR;
+  const landPop = spring({frame: frame - (RX_LAUNCH + RX_DUR), fps, config: {damping: 200, stiffness: 150}});
+  const ringPulse = 0.5 + 0.5 * Math.sin(frame * 0.1);
+
+  return (
+    <g>
+      {/* dotted flight path */}
+      <path
+        d="M 20 620 Q 170 420 320 690"
+        fill="none"
+        stroke={TEAL}
+        strokeWidth={4}
+        strokeDasharray="12 14"
+        opacity={pathFade * 0.5}
+      />
+      {/* pharmacy pin */}
+      {pinPop > 0.001 && (
+        <g opacity={Math.min(1, pinPop)} transform={`translate(320, 320) scale(${0.6 + 0.4 * pinPop})`}>
+          {landed && (
+            <circle r={86 + ringPulse * 26} fill="none" stroke={TEAL} strokeWidth={5} opacity={0.35 + ringPulse * 0.3} />
+          )}
+          <path
+            d="M 0 78 C -52 30 -72 2 -72 -30 A 72 72 0 1 1 72 -30 C 72 2 52 30 0 78 Z"
+            fill="url(#tealGrad)"
+            style={{filter: 'drop-shadow(0 0 26px rgba(45,212,191,0.7))'}}
+          />
+          <rect x={-14} y={-62} width={28} height={64} rx={6} fill="#06231F" />
+          <rect x={-32} y={-44} width={64} height={28} rx={6} fill="#06231F" />
+        </g>
+      )}
+      <text x={320} y={500} fill={INK} fontSize={36} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+        CITY PHARMACY
+      </text>
+      <text x={320} y={542} fill={MUTED} fontSize={28} fontFamily={MONO} textAnchor="middle">
+        0.8 MI &middot; OPEN TILL 10 PM
+      </text>
+      {/* landed confirmation */}
+      {landed && landPop > 0.001 && (
+        <g opacity={Math.min(1, landPop)}>
+          <rect x={190} y={798} width={260} height={54} rx={27} fill="rgba(110,231,183,0.12)" stroke={MINT} strokeWidth={3} />
+          <text x={320} y={834} fill={MINT} fontSize={30} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+            READY FOR PICKUP
+          </text>
+        </g>
+      )}
+    </g>
+  );
+};
+
+// Rx slip flight (absolute coordinates, drawn above cards)
+const RxFlight: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const appear = spring({frame: frame - 640, fps, config: {damping: 200, stiffness: 140}});
+  if (appear <= 0.001) return null;
+  const t = Math.min(1, Math.max(0, (frame - RX_LAUNCH) / RX_DUR));
+  const cxp = (RX_START.x + RX_END.x) / 2;
+  const cyp = Math.min(RX_START.y, RX_END.y) - 420;
+  const u = 1 - t;
+  const px = u * u * RX_START.x + 2 * u * t * cxp + t * t * RX_END.x;
+  const py = u * u * RX_START.y + 2 * u * t * cyp + t * t * RX_END.y;
+  const rot = Math.sin(t * Math.PI) * 14;
+  const landPop = spring({frame: frame - (RX_LAUNCH + RX_DUR), fps, config: {damping: 200, stiffness: 160}});
+  const scale = t < 1 ? 0.6 + 0.4 * appear : 0.6 + 0.4 * Math.min(1, landPop);
+
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      <g transform={`translate(${px}, ${py}) rotate(${rot}) scale(${scale})`}>
+        <rect
+          x={-150}
+          y={-95}
+          width={300}
+          height={190}
+          rx={16}
+          fill="#F2F5FA"
+          stroke={TEAL}
+          strokeWidth={4}
+          style={{filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.5)) drop-shadow(0 0 22px rgba(45,212,191,0.55))'}}
+        />
+        <text x={-126} y={-38} fill={TEAL_DEEP} fontSize={46} fontFamily={FONT} fontWeight={800} fontStyle="italic">
+          Rx
+        </text>
+        <line x1={-126} y1={-18} x2={126} y2={-18} stroke="rgba(20,32,46,0.2)" strokeWidth={2} />
+        <text x={-126} y={18} fill={SLATE} fontSize={25} fontFamily={MONO} fontWeight={700}>
+          ATORVASTATIN 20 MG
+        </text>
+        <text x={-126} y={52} fill={SLATE} fontSize={22} fontFamily={MONO} opacity={0.75}>
+          30 TABLETS &middot; 1 DAILY
+        </text>
+        <text x={-126} y={82} fill={SLATE} fontSize={22} fontFamily={MONO} opacity={0.6}>
+          DR. AMARA
+        </text>
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Bottom banner + stats
+// ---------------------------------------------------------------------------
+const BottomBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - BANNER_AT, fps, config: {damping: 200, stiffness: 90}});
+  if (s <= 0.001) return null;
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: 0,
+        top: 1660,
+        width: 3840,
+        display: 'flex',
+        justifyContent: 'center',
+        opacity: Math.min(1, s),
+        transform: `translateY(${(1 - s) * 40}px)`,
+        pointerEvents: 'none',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 28,
+          background: 'linear-gradient(120deg, rgba(45,212,191,0.16), rgba(96,165,250,0.10))',
+          border: '2px solid rgba(45,212,191,0.55)',
+          borderRadius: 60,
+          padding: '22px 64px',
+          boxShadow: '0 0 44px rgba(45,212,191,0.35)',
+        }}
+      >
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            background: TEAL,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#06231F',
+            fontSize: 34,
+            fontWeight: 800,
+            fontFamily: FONT,
+          }}
+        >
+          ✓
+        </div>
+        <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 52, letterSpacing: 3}}>
+          VISIT COMPLETE
+        </span>
+      </div>
+    </div>
+  );
+};
+
+const StatsRow: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const totalSec = Math.max(0, frame - 560);
+  const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+  const ss = String(totalSec % 60).padStart(2, '0');
+  const cards = [
+    {label: 'TIME IN WAITING ROOM', value: '4 MIN', color: TEAL},
+    {label: 'CONSULT DURATION', value: `${mm}:${ss}`, color: SKY},
+    {label: 'PRESCRIPTION', value: frame >= 780 ? 'Rx SENT' : 'PENDING', color: MINT},
+  ];
+  const cardW = 860;
+  const gap = 60;
+  const totalW = cards.length * cardW + (cards.length - 1) * gap;
+  const startX = (3840 - totalW) / 2;
+  const y = 1840;
+
+  return (
+    <div style={{position: 'absolute', left: 0, top: 0, width: 3840, height: 2160, pointerEvents: 'none'}}>
+      {cards.map((c, k) => {
+        const s = spring({
+          frame: frame - (STATS_START + k * 24),
+          fps,
+          config: {damping: 200, stiffness: 95},
+        });
+        if (s <= 0.001) return null;
+        return (
+          <div
+            key={c.label}
+            style={{
+              position: 'absolute',
+              left: startX + k * (cardW + gap),
+              top: y + (1 - s) * 50,
+              width: cardW,
+              height: 190,
+              borderRadius: 26,
+              background:
+                'linear-gradient(160deg, rgba(45,212,191,0.09), rgba(96,165,250,0.05) 60%, rgba(255,255,255,0.02))',
+              border: '1.5px solid rgba(45,212,191,0.30)',
+              padding: '28px 48px',
+              opacity: Math.min(1, s),
+            }}
+          >
+            <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>{c.label}</div>
+            <div
+              style={{
+                color: c.color,
+                fontFamily: MONO,
+                fontWeight: 800,
+                fontSize: 72,
+                lineHeight: 1.2,
+                marginTop: 8,
+                textShadow: `0 0 26px ${c.color}55`,
+              }}
+            >
+              {c.value}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };
@@ -455,27 +806,23 @@ const StatChips: React.FC<{
 // ---------------------------------------------------------------------------
 // Footer
 // ---------------------------------------------------------------------------
-const Footer: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 60, fps);
+const Footer: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [840, 880], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
     <div
       style={{
         position: 'absolute',
-        bottom: 56,
-        left: 240,
-        right: 240,
-        display: 'flex',
-        justifyContent: 'space-between',
-        fontFamily: MONO,
-        fontSize: 27,
-        letterSpacing: 4,
-        color: FAINT,
-        opacity: e,
+        bottom: 40,
+        left: 0,
+        width: 3840,
+        textAlign: 'center',
+        color: 'rgba(180,198,216,0.5)',
+        fontFamily: FONT,
+        fontSize: 26,
+        opacity: fade,
       }}
     >
-      <span>SELF-POWERED 78%</span>
-      <span style={{color: MUTED}}>◈&nbsp;&nbsp;SOLAR · BATTERY · GRID</span>
-      <span>ENERGY MONITOR · DEMO PREVIEW</span>
+      Illustrative telehealth journey &middot; sample clinical data shown
     </div>
   );
 };
@@ -483,42 +830,34 @@ const Footer: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const SmartHomeEnergyFlow: React.FC = () => {
+export const TelehealthVisitJourney: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
-  const sunT = clamp01(frame / 900);
-  const solarKw = 8.6 * Math.sin(Math.PI * clamp01((frame - 40) / 820));
-  const loadKw = 2.9 + 0.7 * Math.sin(frame * 0.045) + 0.3 * Math.sin(frame * 0.013 + 2);
-  const charge = 62 + 32 * prog(frame, 120, 800);
-  const gridKw = Math.max(0.4, 1.1 + 3.6 * Math.sin(Math.PI * clamp01((frame - 100) / 760)));
-
-  const iSolarHome = 0.9;
-  const iSolarBatt = 0.35 + 0.65 * Math.sin(Math.PI * sunT);
-  const iBattHome = 0.25 + 0.75 * prog(frame, 420, 800);
-  const iHomeGrid = 0.3 + 0.7 * prog(frame, 300, 700);
+  const stages = [
+    {step: 'STEP 01', title: 'BOOK VISIT', statusText: 'APPOINTMENT CONFIRMED', statusAt: CHECK_AT[0], content: <BookContent frame={frame} fps={fps} />},
+    {step: 'STEP 02', title: 'SCHEDULE', statusText: 'ADDED TO CALENDAR', statusAt: CHECK_AT[1], content: <CalendarContent frame={frame} fps={fps} />},
+    {step: 'STEP 03', title: 'WAITING ROOM', statusText: 'DOCTOR IS READY', statusAt: CHECK_AT[2], content: <WaitingContent frame={frame} fps={fps} />},
+    {step: 'STEP 04', title: 'VIDEO CONSULT', statusText: 'CONSULT IN PROGRESS', statusAt: CHECK_AT[3], content: <ConsultContent frame={frame} fps={fps} />},
+    {step: 'STEP 05', title: 'PHARMACY', statusText: 'Rx SENT TO PHARMACY', statusAt: CHECK_AT[4], content: <PharmacyContent frame={frame} fps={fps} />},
+  ];
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
-      <Sun frame={frame} fps={fps} />
-      <SolarPanels frame={frame} fps={fps} />
-      <House frame={frame} fps={fps} />
-      <Battery frame={frame} fps={fps} charge={charge} />
-      <Grid frame={frame} fps={fps} />
-      <div style={{position: 'absolute', inset: 0}}>
-        <svg width={3840} height={2160}>
-          <FlowPath frame={frame} path={P_SOLAR_HOME} color={SUN} intensity={iSolarHome} delay={200} seed={11} />
-          <FlowPath frame={frame} path={P_SOLAR_BATT} color={EMERALD} intensity={iSolarBatt} delay={260} seed={23} />
-          <FlowPath frame={frame} path={P_BATT_HOME} color={SOLAR_BLUE} intensity={iBattHome} delay={420} seed={37} />
-          <FlowPath frame={frame} path={P_HOME_GRID} color={VIOLET} intensity={iHomeGrid} delay={340} seed={51} />
-        </svg>
-      </div>
-      <Header frame={frame} fps={fps} />
-      <StatChips frame={frame} fps={fps} solarKw={solarKw} loadKw={loadKw} charge={charge} gridKw={gridKw} />
-      <Footer frame={frame} fps={fps} />
+      <TitleBar frame={frame} />
+      <Rail frame={frame} fps={fps} />
+      {stages.map((st, j) => (
+        <StageCard key={`stage${j}`} frame={frame} fps={fps} x={STAGE_X[j]} index={j} step={st.step} title={st.title} statusText={st.statusText} statusAt={st.statusAt}>
+          {st.content}
+        </StageCard>
+      ))}
+      <RxFlight frame={frame} fps={fps} />
+      <BottomBanner frame={frame} fps={fps} />
+      <StatsRow frame={frame} fps={fps} />
+      <Footer frame={frame} />
     </AbsoluteFill>
   );
 };
 
-export default SmartHomeEnergyFlow;
+export default TelehealthVisitJourney;
