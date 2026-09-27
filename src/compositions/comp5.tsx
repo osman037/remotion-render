@@ -1,14 +1,13 @@
 /**
- * InsurancePremiumDeductible.tsx
+ * LoyaltyTierProgression.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * How a deductible works, in clinical teal/slate on deep blue: monthly $420
- * premium payments flow from a member figure into a shared risk pool, claim
- * events fill the $1,500 deductible bar one by one, the remaining $8,500 of a
- * $10,000 medical bill splits into a you-pay vs plan-pays bar, and an
- * OUT-OF-POCKET MAX shield locks over the member's share.
+ * Loyalty tier climb: a member card hops up a stepped BRONZE -> SILVER ->
+ * GOLD ladder while the annual spend bar fills past each threshold, perk
+ * icons unlock with checkmarks per tier, and the GOLD tier flares with a
+ * radiant payoff at the climax.
  *
  * Register in Root.tsx:
- *   <Composition id="InsurancePremiumDeductible" component={InsurancePremiumDeductible}
+ *   <Composition id="LoyaltyTierProgression" component={LoyaltyTierProgression}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
@@ -22,107 +21,202 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette - clinical teal / slate on deep blue
+// Palette (bronze / silver / gold on deep navy)
 // ---------------------------------------------------------------------------
-const BG = '#07131F';
-const PANEL = 'rgba(13,30,46,0.72)';
-const INK = '#EAF3F8';
-const MUTED = 'rgba(158,178,196,0.66)';
-const TEAL = '#2DD4BF';
-const TEAL_BRIGHT = '#5EEAD4';
-const PLAN_BLUE = '#2E7CC4';
-const PLAN_LIGHT = '#9FD0F5';
-const HAIRLINE = 'rgba(45,212,191,0.22)';
+const BG = '#080B1A';
+const INK = '#EEF1FA';
+const MUTED = 'rgba(190,200,225,0.62)';
+const BRONZE = '#E8A75D';
+const BRONZE_DEEP = '#8A5A2B';
+const SILVER = '#DDE4F2';
+const SILVER_DEEP = '#7C8699';
+const GOLD = '#F5C044';
+const GOLD_DEEP = '#9A6B14';
+const VIOLET = '#8B7CF6';
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
 // Timeline (frames at 60 fps, 900 = 15 s)
 // ---------------------------------------------------------------------------
-const COIN_START = 60;
-const COIN_STAGGER = 32;
-const N_COINS = 6;
-const DEDUCT_START = 300;
-const CLAIMS = [
-  {label: 'ER VISIT', amount: 600, at: 320},
-  {label: 'LAB WORK', amount: 350, at: 400},
-  {label: 'IMAGING', amount: 550, at: 480},
+const COL_START = 40;
+const CARD_AT = 140;
+const HOP1_START = 300;
+const HOP1_END = 360;
+const HOP2_START = 480;
+const HOP2_END = 540;
+const SPEND_START = 140;
+const SPEND_END = 640;
+const FLARE_AT = 640;
+const PILL_AT = 660;
+const STATS_START = 740;
+
+// ---------------------------------------------------------------------------
+// Tier data
+// ---------------------------------------------------------------------------
+interface Perk {
+  label: string;
+  icon: 'mult' | 'gift' | 'tag' | 'truck' | 'bolt' | 'clock' | 'crown';
+  mult?: string;
+}
+interface Tier {
+  name: string;
+  color: string;
+  deep: string;
+  threshold: string;
+  spendAt: number;
+  perks: Perk[];
+}
+const TIERS: Tier[] = [
+  {
+    name: 'BRONZE',
+    color: BRONZE,
+    deep: BRONZE_DEEP,
+    threshold: 'JOIN FREE',
+    spendAt: 0,
+    perks: [
+      {label: 'EARN 1x POINTS', icon: 'mult', mult: '1x'},
+      {label: 'BIRTHDAY REWARD', icon: 'gift'},
+      {label: 'MEMBER PRICING', icon: 'tag'},
+    ],
+  },
+  {
+    name: 'SILVER',
+    color: SILVER,
+    deep: SILVER_DEEP,
+    threshold: 'SPEND $1,500+ / YEAR',
+    spendAt: 1500,
+    perks: [
+      {label: 'EARN 1.5x POINTS', icon: 'mult', mult: '1.5x'},
+      {label: 'FREE SHIPPING', icon: 'truck'},
+      {label: 'PRIORITY SUPPORT', icon: 'bolt'},
+    ],
+  },
+  {
+    name: 'GOLD',
+    color: GOLD,
+    deep: GOLD_DEEP,
+    threshold: 'SPEND $3,500+ / YEAR',
+    spendAt: 3500,
+    perks: [
+      {label: 'EARN 2x POINTS', icon: 'mult', mult: '2x'},
+      {label: 'EARLY ACCESS', icon: 'clock'},
+      {label: 'VIP EVENTS', icon: 'crown'},
+    ],
+  },
 ];
-const DEDUCTIBLE = 1500;
-const MET_AT = 570;
-const SPLIT_START = 600;
-const SHIELD_AT = 760;
+const UNLOCK_BASE = [180, 400, 580];
+const unlockAt = (j: number, k: number) => UNLOCK_BASE[j] + k * 24;
+
+// ---------------------------------------------------------------------------
+// Geometry
+// ---------------------------------------------------------------------------
+const COL_X = [250, 1330, 2410];
+const COL_W = 1080;
+const TIER_CARD_W = 600;
+const TIER_CARD_H = 440;
+const STEP_TOP = [1560, 1210, 860];
+const STEP_H = 110;
+const tierCardY = (j: number) => STEP_TOP[j] - TIER_CARD_H;
+
+const MC_W = 460;
+const MC_H = 280;
+const mcRest = (j: number) => ({x: COL_X[j] + 620, y: STEP_TOP[j] - MC_H});
+
+const BAR_X = 400;
+const BAR_W = 3040;
+const BAR_Y = 1700;
+const BAR_MAX = 4000;
+const FINAL_SPEND = 3940;
+
+const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
+const money = (n: number) => '$' + fmt(n);
 
 // ---------------------------------------------------------------------------
 // Static defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="ipBgGlow" cx="50%" cy="32%" r="72%">
-      <stop offset="0%" stopColor="rgba(45,212,191,0.10)" />
-      <stop offset="55%" stopColor="rgba(45,212,191,0.03)" />
-      <stop offset="100%" stopColor="rgba(7,19,31,0)" />
+    <radialGradient id="bgGlow" cx="50%" cy="38%" r="72%">
+      <stop offset="0%" stopColor="rgba(245,192,68,0.09)" />
+      <stop offset="50%" stopColor="rgba(139,124,246,0.05)" />
+      <stop offset="100%" stopColor="rgba(8,11,26,0)" />
     </radialGradient>
-    <radialGradient id="ipVignette" cx="50%" cy="50%" r="75%">
-      <stop offset="60%" stopColor="rgba(7,19,31,0)" />
-      <stop offset="100%" stopColor="rgba(2,6,11,0.74)" />
+    <radialGradient id="vignette" cx="50%" cy="50%" r="75%">
+      <stop offset="60%" stopColor="rgba(8,11,26,0)" />
+      <stop offset="100%" stopColor="rgba(2,3,8,0.74)" />
     </radialGradient>
-    <radialGradient id="ipPoolGrad" cx="50%" cy="42%" r="65%">
-      <stop offset="0%" stopColor="rgba(94,234,212,0.55)" />
-      <stop offset="60%" stopColor="rgba(45,212,191,0.22)" />
-      <stop offset="100%" stopColor="rgba(45,212,191,0.05)" />
-    </radialGradient>
-    <linearGradient id="ipTealGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={TEAL} />
-      <stop offset="100%" stopColor={TEAL_BRIGHT} />
+    <linearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stopColor="#FFD98A" />
+      <stop offset="55%" stopColor={GOLD} />
+      <stop offset="100%" stopColor="#D9931F" />
     </linearGradient>
-    <linearGradient id="ipPlanGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor="#1E5A8A" />
-      <stop offset="100%" stopColor={PLAN_BLUE} />
+    <linearGradient id="bronzeGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="#F0BE7E" />
+      <stop offset="100%" stopColor={BRONZE_DEEP} />
     </linearGradient>
-    <filter id="ipGlow" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="14" result="blur" />
+    <linearGradient id="silverGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="#F2F6FF" />
+      <stop offset="100%" stopColor={SILVER_DEEP} />
+    </linearGradient>
+    <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={BRONZE} />
+      <stop offset="55%" stopColor={SILVER} />
+      <stop offset="100%" stopColor={GOLD} />
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stopColor="#141B3D" />
+      <stop offset="100%" stopColor="#0A0E24" />
+    </linearGradient>
+    <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="10" result="blur" />
       <feMerge>
         <feMergeNode in="blur" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
+    <filter id="bigBlur" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="30" />
+    </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background: teal glow, vignette, faint grid, horizontal sweep
+// Background
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [0, 70], [0, 1], {
+  const fade = interpolate(frame, [0, 80], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const sweepY = -500 + ((frame / 900) * (2160 + 1000));
+  const sweepX = ((frame / 900) * (3840 + 600)) % (3840 + 600) - 300;
   return (
     <>
       <AbsoluteFill style={{backgroundColor: BG}} />
       <AbsoluteFill
         style={{
           background:
-            'radial-gradient(circle at 50% 30%, rgba(45,212,191,0.10), rgba(45,212,191,0.03) 45%, rgba(7,19,31,0) 72%)',
+            'radial-gradient(circle at 50% 38%, rgba(245,192,68,0.09), rgba(139,124,246,0.05) 50%, rgba(8,11,26,0) 72%)',
         }}
       />
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs />
         <g opacity={fade * 0.5}>
-          {Array.from({length: 33}, (_, i) => (
-            <line key={`v${i}`} x1={i * 120} y1={0} x2={i * 120} y2={2160} stroke="rgba(148,163,184,0.05)" strokeWidth={1.5} />
-          ))}
-          {Array.from({length: 19}, (_, i) => (
-            <line key={`h${i}`} x1={0} y1={i * 120} x2={3840} y2={i * 120} stroke="rgba(148,163,184,0.05)" strokeWidth={1.5} />
+          {Array.from({length: 26}).map((_, i) => (
+            <line
+              key={`dg${i}`}
+              x1={-400 + i * 180}
+              y1={2160}
+              x2={200 + i * 180}
+              y2={0}
+              stroke="rgba(190,200,225,0.05)"
+              strokeWidth={2}
+            />
           ))}
         </g>
-        <g opacity={0.55}>
-          <rect x={0} y={sweepY - 80} width={3840} height={160} fill="rgba(45,212,191,0.030)" />
-          <rect x={0} y={sweepY + 70} width={3840} height={10} fill="rgba(45,212,191,0.10)" />
-        </g>
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#ipVignette)" />
+        <circle cx={2710} cy={640} r={560} fill="rgba(245,192,68,0.06)" filter="url(#bigBlur)" opacity={fade} />
+        <rect x={sweepX - 110} y={0} width={220} height={2160} fill="rgba(245,192,68,0.02)" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#vignette)" />
       </svg>
     </>
   );
@@ -132,149 +226,219 @@ const Background: React.FC<{frame: number}> = ({frame}) => {
 // Title bar
 // ---------------------------------------------------------------------------
 const TitleBar: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [0, 50], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const rise = interpolate(frame, [0, 50], [30, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  const fade = interpolate(frame, [0, 50], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const rise = interpolate(frame, [0, 50], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
     <div style={{position: 'absolute', top: 84 + rise, left: 220, right: 220, opacity: fade}}>
-      <div style={{display: 'flex', alignItems: 'baseline', gap: 30}}>
-        <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 82, letterSpacing: -1}}>
-          HOW A DEDUCTIBLE WORKS
-        </span>
-        <span
+      <div style={{display: 'flex', alignItems: 'baseline', justifyContent: 'space-between'}}>
+        <div>
+          <div style={{display: 'flex', alignItems: 'baseline', gap: 30}}>
+            <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 82, letterSpacing: -1}}>
+              LOYALTY TIERS
+            </span>
+            <span
+              style={{
+                color: GOLD,
+                fontFamily: MONO,
+                fontSize: 36,
+                fontWeight: 700,
+                border: `2px solid ${GOLD}`,
+                borderRadius: 10,
+                padding: '6px 18px',
+              }}
+            >
+              TIER PROGRESSION
+            </span>
+          </div>
+          <div style={{color: MUTED, fontFamily: FONT, fontSize: 34, marginTop: 14}}>
+            Climb from Bronze to Gold &middot; richer perks unlock at every step
+          </div>
+        </div>
+        <div
           style={{
-            color: TEAL,
+            color: VIOLET,
             fontFamily: MONO,
-            fontSize: 36,
+            fontSize: 32,
             fontWeight: 700,
-            border: `2px solid ${TEAL}`,
-            borderRadius: 10,
-            padding: '6px 18px',
+            letterSpacing: 2,
+            border: `2px solid rgba(139,124,246,0.55)`,
+            borderRadius: 14,
+            padding: '12px 26px',
+            background: 'rgba(139,124,246,0.10)',
           }}
         >
-          $420 / MO PREMIUM
-        </span>
-      </div>
-      <div style={{color: MUTED, fontFamily: FONT, fontSize: 34, marginTop: 14}}>
-        Premiums feed the shared risk pool &middot; then one member faces a $10,000 medical bill
+          MEMBER NO. 2481
+        </div>
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Premium flow: member figure pays coins into the risk pool
+// Perk icon glyphs (simple geometric)
 // ---------------------------------------------------------------------------
-const MEMBER = {x: 520, y: 660};
-const POOL = {x: 1920, y: 660, r: 240};
+const PerkIcon: React.FC<{icon: Perk['icon']; mult?: string; color: string}> = ({icon, mult, color}) => {
+  switch (icon) {
+    case 'mult':
+      return (
+        <text x={0} y={9} fill={color} fontSize={24} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+          {mult}
+        </text>
+      );
+    case 'gift':
+      return (
+        <g stroke={color} strokeWidth={4.5} fill="none">
+          <rect x={-17} y={-7} width={34} height={26} rx={4} />
+          <line x1={0} y1={-7} x2={0} y2={19} />
+          <rect x={-21} y={-18} width={42} height={11} rx={3} />
+          <path d="M -5 -18 C -14 -30 -2 -32 -2 -20 M 5 -18 C 14 -30 2 -32 2 -20" />
+        </g>
+      );
+    case 'tag':
+      return (
+        <g>
+          <path d="M -16 -12 L 5 -19 L 19 -5 L -2 16 L -19 5 Z" fill="none" stroke={color} strokeWidth={4.5} strokeLinejoin="round" />
+          <circle cx={2} cy={-3} r={4} fill={color} />
+        </g>
+      );
+    case 'truck':
+      return (
+        <g stroke={color} strokeWidth={4.5} fill="none">
+          <rect x={-23} y={-12} width={30} height={21} rx={3} />
+          <path d="M 7 -5 L 21 -5 L 21 9 L 7 9 Z" />
+          <circle cx={-12} cy={14} r={5.5} fill={color} stroke="none" />
+          <circle cx={12} cy={14} r={5.5} fill={color} stroke="none" />
+        </g>
+      );
+    case 'bolt':
+      return <path d="M 5 -21 L -10 3 L -2 3 L -5 21 L 10 -4 L 2 -4 Z" fill={color} />;
+    case 'clock':
+      return (
+        <g stroke={color} strokeWidth={4.5} fill="none">
+          <circle r={18} />
+          <line x1={0} y1={0} x2={0} y2={-11} strokeLinecap="round" />
+          <line x1={0} y1={0} x2={8} y2={4} strokeLinecap="round" />
+        </g>
+      );
+    case 'crown':
+      return <path d="M -19 11 L -16 -9 L -6 2 L 0 -12 L 6 2 L 16 -9 L 19 11 Z" fill={color} opacity={0.95} />;
+    default:
+      return null;
+  }
+};
 
-const PremiumFlow: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const zoneIn = interpolate(frame, [20, 80], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const memberS = spring({frame: frame - 30, fps, config: {damping: 200, stiffness: 100}});
-  const poolS = spring({frame: frame - 45, fps, config: {damping: 200, stiffness: 90}});
+// ---------------------------------------------------------------------------
+// Tier columns: stepped ladder with perk lists
+// ---------------------------------------------------------------------------
+const tierReachedAt = (j: number) => [CARD_AT, HOP1_END, HOP2_END][j];
 
-  // quadratic bezier from member to pool, arcing upward
-  const p0 = {x: MEMBER.x + 130, y: MEMBER.y - 40};
-  const pc = {x: (MEMBER.x + POOL.x) / 2, y: 300};
-  const p1 = {x: POOL.x - 180, y: POOL.y - 120};
-  const quad = (t: number) => ({
-    x: (1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * pc.x + t * t * p1.x,
-    y: (1 - t) * (1 - t) * p0.y + 2 * (1 - t) * t * pc.y + t * t * p1.y,
-  });
-
-  const landed = Array.from({length: N_COINS}, (_, i) =>
-    frame >= COIN_START + i * COIN_STAGGER + 70 ? 1 : 0
-  ).reduce((a, b) => a + b, 0);
-  const poolTotal = 420 * landed;
-  const pulse = 0.5 + 0.5 * Math.sin(frame * 0.08);
-
+const TierColumns: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
   return (
     <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g opacity={zoneIn}>
-        {/* guide arc */}
-        <path
-          d={`M ${p0.x} ${p0.y} Q ${pc.x} ${pc.y} ${p1.x} ${p1.y}`}
-          fill="none"
-          stroke="rgba(45,212,191,0.25)"
-          strokeWidth={3}
-          strokeDasharray="16 18"
-        />
-        {/* member figure */}
-        <g opacity={Math.min(1, memberS)} transform={`translate(${MEMBER.x}, ${MEMBER.y}) scale(${0.7 + 0.3 * Math.min(1, memberS)})`}>
-          <circle cx={0} cy={-96} r={46} fill={TEAL} opacity={0.9} style={{filter: 'drop-shadow(0 0 18px rgba(45,212,191,0.7))'}} />
-          <rect x={-62} y={-36} width={124} height={150} rx={62} fill="rgba(45,212,191,0.28)" stroke={TEAL} strokeWidth={4} />
-          <circle cx={0} cy={-96} r={72} fill="none" stroke={TEAL} strokeWidth={3} opacity={0.45} />
-        </g>
-        <text x={MEMBER.x} y={MEMBER.y + 190} fill={INK} fontSize={34} fontFamily={FONT} fontWeight={700} textAnchor="middle">
-          MEMBER
-        </text>
-        <text x={MEMBER.x} y={MEMBER.y + 236} fill={TEAL} fontSize={36} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-          $420 / MO
-        </text>
-
-        {/* risk pool */}
-        <g opacity={Math.min(1, poolS)}>
-          <circle cx={POOL.x} cy={POOL.y} r={POOL.r + 26 + pulse * 10} fill="none" stroke={TEAL} strokeWidth={4} opacity={0.4 + pulse * 0.25} />
-          <circle cx={POOL.x} cy={POOL.y} r={POOL.r} fill="rgba(13,30,46,0.85)" stroke="rgba(45,212,191,0.5)" strokeWidth={5} />
-          {/* pool fill level rises with landed coins */}
-          <circle
-            cx={POOL.x}
-            cy={POOL.y}
-            r={70 + (landed / N_COINS) * 130}
-            fill="url(#ipPoolGrad)"
-            opacity={0.9}
-            style={{filter: 'drop-shadow(0 0 26px rgba(45,212,191,0.5))'}}
-          />
-          <text x={POOL.x} y={POOL.y - 34} fill={INK} fontSize={44} fontFamily={FONT} fontWeight={800} letterSpacing={4} textAnchor="middle">
-            RISK POOL
-          </text>
-          <text x={POOL.x} y={POOL.y + 26} fill={TEAL_BRIGHT} fontSize={64} fontFamily={MONO} fontWeight={800} textAnchor="middle"
-            style={{textShadow: '0 0 26px rgba(45,212,191,0.6)'}}>
-            ${poolTotal.toLocaleString('en-US')}
-          </text>
-          <text x={POOL.x} y={POOL.y + 72} fill={MUTED} fontSize={28} fontFamily={MONO} letterSpacing={2} textAnchor="middle">
-            {landed} OF {N_COINS} PAYMENTS IN
-          </text>
-        </g>
-
-        {/* pooled member chips on the far side */}
-        {[0, 1, 2].map((k) => (
-          <g key={`pm${k}`} transform={`translate(${POOL.x + 330 + k * 0}, ${POOL.y - 120 + k * 120})`} opacity={0.85}>
-            <circle cx={0} cy={0} r={34} fill="rgba(45,212,191,0.20)" stroke="rgba(45,212,191,0.55)" strokeWidth={3} />
-            <circle cx={0} cy={-8} r={12} fill={TEAL} opacity={0.8} />
-            <rect x={-16} y={6} width={32} height={26} rx={13} fill={TEAL} opacity={0.5} />
-          </g>
-        ))}
-        <text x={POOL.x + 330} y={POOL.y + 190} fill={MUTED} fontSize={28} fontFamily={MONO} letterSpacing={2} textAnchor="middle">
-          + THOUSANDS OF MEMBERS
-        </text>
-      </g>
-
-      {/* flying premium coins */}
-      {Array.from({length: N_COINS}, (_, i) => {
-        const at = COIN_START + i * COIN_STAGGER;
-        const t = interpolate(frame, [at, at + 70], [0, 1], {
-          extrapolateLeft: 'clamp',
-          extrapolateRight: 'clamp',
+      <Defs />
+      {TIERS.map((tier, j) => {
+        const s = spring({
+          frame: frame - (COL_START + j * 45),
+          fps,
+          config: {damping: 200, stiffness: 95},
         });
-        if (t <= 0 || t >= 1) return null;
-        const pos = quad(t);
-        const fadeCoin = t < 0.12 ? t / 0.12 : t > 0.85 ? (1 - t) / 0.15 : 1;
+        if (s <= 0.001) return null;
+        const x = COL_X[j];
+        const y = tierCardY(j);
+        const reached = frame >= tierReachedAt(j);
+        const gradId = j === 0 ? 'bronzeGrad' : j === 1 ? 'silverGrad' : 'goldGrad';
+
         return (
-          <g key={`coin${i}`} transform={`translate(${pos.x}, ${pos.y})`} opacity={fadeCoin}>
-            <rect x={-85} y={-34} width={170} height={68} rx={34} fill="rgba(7,25,32,0.95)" stroke={TEAL} strokeWidth={3.5}
-              style={{filter: 'drop-shadow(0 0 16px rgba(45,212,191,0.8))'}} />
-            <text x={0} y={14} fill={TEAL_BRIGHT} fontSize={38} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-              $420
+          <g key={`tier${j}`} opacity={Math.min(1, s)} transform={`translate(0, ${(1 - s) * 70})`}>
+            {/* platform step */}
+            <rect
+              x={x}
+              y={STEP_TOP[j]}
+              width={COL_W}
+              height={STEP_H}
+              rx={20}
+              fill={`url(#${gradId})`}
+              opacity={0.92}
+              style={reached ? {filter: `drop-shadow(0 0 26px ${tier.color}88)`} : undefined}
+            />
+            <rect x={x + 24} y={STEP_TOP[j] + 12} width={COL_W - 48} height={8} rx={4} fill="rgba(255,255,255,0.32)" />
+            <text
+              x={x + COL_W / 2}
+              y={STEP_TOP[j] + 74}
+              fill="rgba(10,14,36,0.72)"
+              fontSize={32}
+              fontFamily={MONO}
+              fontWeight={700}
+              letterSpacing={4}
+              textAnchor="middle"
+            >
+              STEP {j + 1} / 3
             </text>
+            {/* tier card */}
+            <rect
+              x={x}
+              y={y}
+              width={TIER_CARD_W}
+              height={TIER_CARD_H}
+              rx={28}
+              fill="rgba(12,16,36,0.92)"
+              stroke={tier.color}
+              strokeWidth={reached ? 5 : 2.5}
+              opacity={reached ? 1 : 0.78}
+              style={reached ? {filter: `drop-shadow(0 0 30px ${tier.color}66)`} : undefined}
+            />
+            {/* medal */}
+            <circle cx={x + 92} cy={y + 92} r={50} fill={`url(#${gradId})`} style={{filter: `drop-shadow(0 0 14px ${tier.color}77)`}} />
+            <text x={x + 92} y={y + 110} fill="#0A0E24" fontSize={48} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+              {tier.name[0]}
+            </text>
+            {/* name + threshold */}
+            <text x={x + 166} y={y + 88} fill={tier.color} fontSize={56} fontFamily={FONT} fontWeight={800} letterSpacing={2}>
+              {tier.name}
+            </text>
+            <text x={x + 166} y={y + 140} fill={MUTED} fontSize={27} fontFamily={MONO} letterSpacing={1}>
+              {tier.threshold}
+            </text>
+            <line x1={x + 48} y1={y + 180} x2={x + TIER_CARD_W - 48} y2={y + 180} stroke="rgba(190,200,225,0.16)" strokeWidth={1.5} />
+            {/* perks */}
+            {tier.perks.map((pk, k) => {
+              const rowY = y + 234 + k * 80;
+              const ua = unlockAt(j, k);
+              const pop = spring({frame: frame - ua, fps, config: {damping: 200, stiffness: 170}});
+              const unlocked = pop > 0.001;
+              return (
+                <g key={`pk${j}${k}`}>
+                  <circle
+                    cx={x + 82}
+                    cy={rowY}
+                    r={30}
+                    fill={unlocked ? 'rgba(255,255,255,0.06)' : 'rgba(190,200,225,0.05)'}
+                    stroke={unlocked ? tier.color : 'rgba(190,200,225,0.25)'}
+                    strokeWidth={3}
+                  />
+                  <g transform={`translate(${x + 82}, ${rowY})`}>
+                    <PerkIcon icon={pk.icon} mult={pk.mult} color={unlocked ? tier.color : 'rgba(190,200,225,0.35)'} />
+                  </g>
+                  <text
+                    x={x + 130}
+                    y={rowY + 11}
+                    fill={unlocked ? INK : 'rgba(190,200,225,0.42)'}
+                    fontSize={31}
+                    fontFamily={FONT}
+                    fontWeight={700}
+                    letterSpacing={1}
+                  >
+                    {pk.label}
+                  </text>
+                  {unlocked && (
+                    <g opacity={Math.min(1, pop)} transform={`translate(${x + TIER_CARD_W - 66}, ${rowY}) scale(${0.5 + 0.5 * pop})`}>
+                      <circle r={24} fill={tier.color} style={{filter: `drop-shadow(0 0 12px ${tier.color})`}} />
+                      <path d="M -10 1 L -3 9 L 11 -9" fill="none" stroke="#0A0E24" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" />
+                    </g>
+                  )}
+                </g>
+              );
+            })}
           </g>
         );
       })}
@@ -283,209 +447,289 @@ const PremiumFlow: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Deductible bar: claim events fill $1,500 one by one
+// Spend progress bar with tier threshold markers
 // ---------------------------------------------------------------------------
-const DeductibleBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const inT = interpolate(frame, [DEDUCT_START - 40, DEDUCT_START], [0, 1], {
+const SpendBar: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [100, 150], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const spend = interpolate(frame, [SPEND_START, SPEND_END], [0, FINAL_SPEND], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const x0 = 220;
-  const x1 = 3620;
-  const barY = 1150;
-  const barH = 66;
-
-  let running = 0;
-  const fills = CLAIMS.map((c) => {
-    const t = interpolate(frame, [c.at, c.at + 50], [0, 1], {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    });
-    const before = running;
-    running += c.amount * t;
-    return {claim: c, t, before: before / DEDUCTIBLE, after: running / DEDUCTIBLE};
-  });
-  const totalPaid = Math.round(running);
-  const full = totalPaid >= DEDUCTIBLE;
-
-  const metS = spring({frame: frame - MET_AT, fps, config: {damping: 200, stiffness: 120}});
+  const frac = spend / BAR_MAX;
+  const xFor = (v: number) => BAR_X + (v / BAR_MAX) * BAR_W;
 
   return (
     <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g opacity={inT}>
-        <text x={x0} y={1090} fill={INK} fontSize={46} fontFamily={FONT} fontWeight={800} letterSpacing={1}>
-          $1,500 DEDUCTIBLE
+      <g opacity={fade}>
+        <text x={BAR_X} y={BAR_Y - 40} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={4}>
+          ANNUAL SPEND
         </text>
-        <text x={x1} y={1090} fill={full ? TEAL : MUTED} fontSize={40} fontFamily={MONO} fontWeight={800} textAnchor="end">
-          ${totalPaid.toLocaleString('en-US')} OF $1,500 PAID
+        <text x={BAR_X + BAR_W} y={BAR_Y - 28} fill={GOLD} fontSize={64} fontFamily={MONO} fontWeight={800} textAnchor="end" style={{filter: 'drop-shadow(0 0 18px rgba(245,192,68,0.5))'}}>
+          {money(spend)}
         </text>
-        {/* track */}
-        <rect x={x0} y={barY} width={x1 - x0} height={barH} rx={33} fill="rgba(13,30,46,0.9)" stroke="rgba(148,163,184,0.30)" strokeWidth={2.5} />
-        {/* segment ticks */}
-        {[500, 1000].map((v) => (
-          <line key={`tick${v}`} x1={x0 + (v / DEDUCTIBLE) * (x1 - x0)} y1={barY + 12} x2={x0 + (v / DEDUCTIBLE) * (x1 - x0)} y2={barY + barH - 12}
-            stroke="rgba(148,163,184,0.35)" strokeWidth={2} />
-        ))}
-        {/* filled segments per claim */}
-        {fills.map((f, i) => {
-          if (f.t <= 0) return null;
-          const w = (f.after - f.before) * (x1 - x0);
+        <rect x={BAR_X} y={BAR_Y} width={BAR_W} height={34} rx={17} fill="rgba(190,200,225,0.10)" />
+        {frac > 0.001 && (
+          <rect
+            x={BAR_X}
+            y={BAR_Y}
+            width={BAR_W * frac}
+            height={34}
+            rx={17}
+            fill="url(#barGrad)"
+            style={{filter: 'drop-shadow(0 0 16px rgba(245,192,68,0.55))'}}
+          />
+        )}
+        {frac > 0.001 && (
+          <circle cx={xFor(spend)} cy={BAR_Y + 17} r={25} fill={GOLD} opacity={0.9} style={{filter: 'drop-shadow(0 0 18px rgba(245,192,68,0.9))'}} />
+        )}
+        {TIERS.map((t, j) => {
+          const mx = xFor(t.spendAt);
+          const passed = spend >= t.spendAt;
           return (
-            <rect
-              key={`seg${i}`}
-              x={x0 + f.before * (x1 - x0)}
-              y={barY}
-              width={Math.max(0, w)}
-              height={barH}
-              rx={w > 60 ? 33 : 8}
-              fill="url(#ipTealGrad)"
-              opacity={0.95}
-              style={{filter: 'drop-shadow(0 0 14px rgba(45,212,191,0.55))'}}
-            />
-          );
-        })}
-        {/* claim chips under the bar */}
-        {CLAIMS.map((c, i) => {
-          const s = spring({frame: frame - c.at, fps, config: {damping: 200, stiffness: 110}});
-          if (s <= 0.001) return null;
-          const cx = x0 + 40 + i * 560;
-          return (
-            <g key={`chip${i}`} opacity={Math.min(1, s)} transform={`translate(${cx}, 0) scale(${0.7 + 0.3 * Math.min(1, s)})`}>
-              <rect x={0} y={1252} width={500} height={72} rx={16} fill="rgba(7,25,32,0.94)" stroke={f.t > 0.6 ? TEAL : 'rgba(148,163,184,0.4)'} strokeWidth={2.5} />
-              <text x={24} y={1300} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={1}>
-                {c.label}
-              </text>
-              <text x={476} y={1300} fill={f.t > 0.6 ? TEAL_BRIGHT : INK} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="end">
-                ${c.amount}
+            <g key={`mk${j}`}>
+              <line x1={mx} y1={BAR_Y - 14} x2={mx} y2={BAR_Y + 48} stroke={passed ? t.color : 'rgba(190,200,225,0.35)'} strokeWidth={4} />
+              <circle cx={mx} cy={BAR_Y - 22} r={13} fill={passed ? t.color : 'rgba(190,200,225,0.25)'} style={passed ? {filter: `drop-shadow(0 0 12px ${t.color})`} : undefined} />
+              <text x={mx} y={BAR_Y + 94} fill={passed ? t.color : MUTED} fontSize={29} fontFamily={MONO} fontWeight={700} letterSpacing={2} textAnchor="middle">
+                {t.spendAt === 0 ? '$0' : money(t.spendAt)} &middot; {t.name}
               </text>
             </g>
           );
         })}
-        {/* DEDUCTIBLE MET tag */}
-        {metS > 0.001 && (
-          <g transform={`translate(${x1 - 240}, ${barY + barH + 95}) scale(${0.6 + 0.4 * Math.min(1, metS)})`} opacity={Math.min(1, metS)}>
-            <rect x={-430} y={-42} width={400} height={84} rx={16} fill="rgba(7,25,32,0.96)" stroke={TEAL} strokeWidth={3.5} />
-            <text x={-230} y={12} fill={TEAL_BRIGHT} fontSize={38} fontFamily={FONT} fontWeight={800} letterSpacing={3} textAnchor="middle">
-              DEDUCTIBLE MET
-            </text>
-          </g>
-        )}
       </g>
     </svg>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Split bar: you-pay vs plan-pays on the $10,000 bill
+// Member card climbing the ladder
 // ---------------------------------------------------------------------------
-const SplitBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const inT = interpolate(frame, [SPLIT_START - 40, SPLIT_START], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const x0 = 220;
-  const x1 = 3620;
-  const barY = 1490;
-  const barH = 96;
-  const YOU = 3200;
-  const BILL = 10000;
-  const youFrac = YOU / BILL;
-
-  const grow = spring({frame: frame - (SPLIT_START + 10), fps, config: {damping: 200, stiffness: 70}});
-  const w = Math.max(0, Math.min(1, grow));
-  const youW = youFrac * (x1 - x0) * w;
-  const planW = (1 - youFrac) * (x1 - x0) * w;
-
-  const coinT = interpolate(frame, [SPLIT_START + 30, SPLIT_START + 70], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g opacity={inT}>
-        <text x={x0} y={1424} fill={INK} fontSize={46} fontFamily={FONT} fontWeight={800} letterSpacing={1}>
-          $10,000 MEDICAL BILL
-        </text>
-        <text x={x1} y={1424} fill={MUTED} fontSize={34} fontFamily={MONO} textAnchor="end" opacity={coinT}>
-          DEDUCTIBLE $1,500 + 20% COINSURANCE ON $8,500 = $1,700
-        </text>
-        {/* track */}
-        <rect x={x0} y={barY} width={x1 - x0} height={barH} rx={24} fill="rgba(13,30,46,0.9)" stroke="rgba(148,163,184,0.30)" strokeWidth={2.5} />
-        {/* you-pay segment */}
-        <rect x={x0} y={barY} width={youW} height={barH} rx={24} fill="url(#ipTealGrad)"
-          style={{filter: 'drop-shadow(0 0 18px rgba(45,212,191,0.5))'}} />
-        {/* plan-pays segment */}
-        <rect x={x0 + youW} y={barY} width={planW} height={barH} rx={24} fill="url(#ipPlanGrad)" opacity={0.95} />
-        {/* divider */}
-        {w > 0.05 && (
-          <line x1={x0 + youW} y1={barY - 14} x2={x0 + youW} y2={barY + barH + 14} stroke={INK} strokeWidth={4} opacity={0.85} />
-        )}
-        {w > 0.55 && (
-          <>
-            <text x={x0 + youW / 2} y={barY + 62} fill="#052E28" fontSize={44} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-              YOU PAY $3,200
-            </text>
-            <text x={x0 + youW + planW / 2} y={barY + 62} fill={PLAN_LIGHT} fontSize={44} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-              PLAN PAYS $6,800
-            </text>
-          </>
-        )}
-        <text x={x0} y={barY + barH + 52} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={2}>
-          32% MEMBER SHARE
-        </text>
-        <text x={x1} y={barY + barH + 52} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={2} textAnchor="end">
-          68% COVERED BY THE POOL
-        </text>
-      </g>
-    </svg>
-  );
+const cardPose = (frame: number) => {
+  const b = mcRest(0);
+  const sv = mcRest(1);
+  const g = mcRest(2);
+  const bob = Math.sin(frame * 0.08) * 6;
+  if (frame < HOP1_START) return {x: b.x, y: b.y + bob, rot: 0, tier: 0};
+  if (frame < HOP1_END) {
+    const t = (frame - HOP1_START) / (HOP1_END - HOP1_START);
+    return {
+      x: b.x + (sv.x - b.x) * t,
+      y: b.y + (sv.y - b.y) * t - Math.sin(t * Math.PI) * 280,
+      rot: Math.sin(t * Math.PI) * 9,
+      tier: 1,
+    };
+  }
+  if (frame < HOP2_START) return {x: sv.x, y: sv.y + bob, rot: 0, tier: 1};
+  if (frame < HOP2_END) {
+    const t = (frame - HOP2_START) / (HOP2_END - HOP2_START);
+    return {
+      x: sv.x + (g.x - sv.x) * t,
+      y: sv.y + (g.y - sv.y) * t - Math.sin(t * Math.PI) * 280,
+      rot: Math.sin(t * Math.PI) * 9,
+      tier: 2,
+    };
+  }
+  return {x: g.x, y: g.y + bob, rot: 0, tier: 2};
 };
 
-// ---------------------------------------------------------------------------
-// Out-of-pocket max shield locks in
-// ---------------------------------------------------------------------------
-const Shield: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - SHIELD_AT, fps, config: {damping: 10, stiffness: 150, mass: 1}});
+const MemberCard: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - CARD_AT, fps, config: {damping: 200, stiffness: 110}});
   if (s <= 0.001) return null;
-  const scale = 2.0 - 1.0 * Math.min(1.35, s);
-  const shock = interpolate(frame, [SHIELD_AT, SHIELD_AT + 80], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const pulse = 0.5 + 0.5 * Math.sin((frame - SHIELD_AT) * 0.1);
-  const cx = 1920;
-  const cy = 1890;
+  const p = cardPose(frame);
+  const tier = TIERS[p.tier];
 
   return (
     <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <text x={cx} y={1680} fill={INK} fontSize={42} fontFamily={FONT} fontWeight={800} letterSpacing={6} textAnchor="middle"
-        opacity={Math.min(1, s)}>
-        OUT-OF-POCKET MAX · $5,000 CAP
-      </text>
-      {shock > 0 && shock < 1 && (
-        <circle cx={cx} cy={cy} r={90 + shock * 420} fill="none" stroke={TEAL} strokeWidth={9 * (1 - shock) + 1} opacity={(1 - shock) * 0.7} />
-      )}
-      <g transform={`translate(${cx}, ${cy}) scale(${Math.max(0.25, scale)})`} opacity={Math.min(1, s * 1.5)}>
-        {/* shield */}
-        <path
-          d="M 0 -130 C 40 -110 80 -104 118 -104 C 118 -20 96 62 0 118 C -96 62 -118 -20 -118 -104 C -80 -104 -40 -110 0 -130 Z"
-          fill="rgba(7,25,32,0.94)"
-          stroke={TEAL}
-          strokeWidth={7}
-          style={{filter: `drop-shadow(0 0 ${30 + pulse * 22}px rgba(45,212,191,${0.5 + pulse * 0.3}))`}}
+      <Defs />
+      <g
+        opacity={Math.min(1, s)}
+        transform={`translate(${p.x + MC_W / 2}, ${p.y + MC_H / 2}) rotate(${p.rot}) scale(${0.6 + 0.4 * s}) translate(${-MC_W / 2}, ${-MC_H / 2})`}
+      >
+        <rect
+          x={0}
+          y={0}
+          width={MC_W}
+          height={MC_H}
+          rx={26}
+          fill="url(#cardGrad)"
+          stroke={tier.color}
+          strokeWidth={5}
+          style={{filter: `drop-shadow(0 16px 40px rgba(0,0,0,0.55)) drop-shadow(0 0 28px ${tier.color}55)`}}
         />
-        {/* lock */}
-        <rect x={-34} y={-34} width={68} height={56} rx={12} fill={TEAL} />
-        <path d="M -22 -34 V -58 C -22 -80 22 -80 22 -58 V -34" fill="none" stroke={TEAL_BRIGHT} strokeWidth={11} />
-        <circle cx={0} cy={-10} r={8} fill="#052E28" />
-        <rect x={-4} y={-10} width={8} height={20} rx={4} fill="#052E28" />
+        <rect x={20} y={20} width={MC_W - 40} height={MC_H - 40} rx={18} fill="none" stroke={tier.color} strokeWidth={1.5} opacity={0.5} />
+        <text x={38} y={62} fill={MUTED} fontSize={24} fontFamily={MONO} letterSpacing={4}>
+          LOYALTY MEMBER
+        </text>
+        <rect x={38} y={88} width={82} height={62} rx={10} fill="url(#goldGrad)" opacity={0.9} />
+        <line x1={38} y1={119} x2={120} y2={119} stroke="#0A0E24" strokeWidth={3} opacity={0.6} />
+        <line x1={79} y1={88} x2={79} y2={150} stroke="#0A0E24" strokeWidth={3} opacity={0.6} />
+        <text x={38} y={216} fill={tier.color} fontSize={60} fontFamily={FONT} fontWeight={800} letterSpacing={3} style={{filter: `drop-shadow(0 0 14px ${tier.color}66)`}}>
+          {tier.name}
+        </text>
+        <text x={38} y={258} fill={INK} fontSize={30} fontFamily={MONO} fontWeight={700} letterSpacing={1}>
+          24,860 PTS
+        </text>
+        <text x={MC_W - 38} y={258} fill={MUTED} fontSize={24} fontFamily={MONO} letterSpacing={2} textAnchor="end">
+          NO. 2481
+        </text>
+        <circle cx={MC_W - 84} cy={80} r={54} fill="none" stroke={tier.color} strokeWidth={3} opacity={0.35} />
+        <circle cx={MC_W - 84} cy={80} r={34} fill="none" stroke={tier.color} strokeWidth={2} opacity={0.25} />
       </g>
-      <text x={cx} y={2078} fill={TEAL_BRIGHT} fontSize={36} fontFamily={MONO} fontWeight={700} letterSpacing={2} textAnchor="middle"
-        opacity={Math.min(1, s)} style={{textShadow: '0 0 18px rgba(45,212,191,0.5)'}}>
-        YOUR $3,200 SHARE IS PROTECTED
-      </text>
     </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Gold flare payoff: flash, rays, shockwaves, achievement pill
+// ---------------------------------------------------------------------------
+const GoldFlare: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const flash = interpolate(frame, [FLARE_AT, FLARE_AT + 45], [0.22, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const raysFade = interpolate(frame, [FLARE_AT, FLARE_AT + 30, 850, 890], [0, 1, 1, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const w1 = interpolate(frame, [FLARE_AT, FLARE_AT + 60], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const w2 = interpolate(frame, [FLARE_AT + 22, FLARE_AT + 82], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+
+  const pill = spring({frame: frame - PILL_AT, fps, config: {damping: 200, stiffness: 90}});
+
+  // flare centers on the gold tier card
+  const cx = COL_X[2] + TIER_CARD_W / 2;
+  const cy = tierCardY(2) + TIER_CARD_H / 2;
+  const twinkle = (ph: number) => 0.4 + 0.6 * Math.abs(Math.sin(frame * 0.11 + ph));
+
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      <Defs />
+      {raysFade > 0.001 && (
+        <g opacity={raysFade * 0.5}>
+          {Array.from({length: 16}).map((_, i) => {
+            const a = ((i * 360) / 16 + frame * 0.35) * (Math.PI / 180);
+            return (
+              <line
+                key={`ray${i}`}
+                x1={cx + Math.cos(a) * 300}
+                y1={cy + Math.sin(a) * 300}
+                x2={cx + Math.cos(a) * 520}
+                y2={cy + Math.sin(a) * 520}
+                stroke={GOLD}
+                strokeWidth={7}
+                strokeLinecap="round"
+              />
+            );
+          })}
+        </g>
+      )}
+      {w1 < 1 && (
+        <circle cx={cx} cy={cy} r={240 + w1 * 460} fill="none" stroke={GOLD} strokeWidth={10 * (1 - w1) + 2} opacity={(1 - w1) * 0.8} style={{filter: 'drop-shadow(0 0 24px rgba(245,192,68,0.8))'}} />
+      )}
+      {w2 < 1 && (
+        <circle cx={cx} cy={cy} r={240 + w2 * 460} fill="none" stroke="#FFE1A0" strokeWidth={6 * (1 - w2) + 2} opacity={(1 - w2) * 0.6} />
+      )}
+      {frame >= FLARE_AT &&
+        [
+          {dx: -480, dy: -240, ph: 0},
+          {dx: 500, dy: -260, ph: 1.3},
+          {dx: 540, dy: 240, ph: 2.5},
+          {dx: -540, dy: 220, ph: 3.7},
+          {dx: 420, dy: -180, ph: 4.6},
+        ].map((sp, i) => (
+          <g key={`gsp${i}`} opacity={twinkle(sp.ph)} transform={`translate(${cx + sp.dx}, ${cy + sp.dy})`}>
+            <path
+              d="M 0 -30 L 8 -8 L 30 0 L 8 8 L 0 30 L -8 8 L -30 0 L -8 -8 Z"
+              fill="#FFE1A0"
+              style={{filter: 'drop-shadow(0 0 14px rgba(245,192,68,0.9))'}}
+            />
+          </g>
+        ))}
+      {/* achievement pill above the gold card */}
+      {pill > 0.001 && (
+        <g opacity={Math.min(1, pill)} transform={`translate(${cx}, 320) scale(${0.5 + 0.5 * pill})`}>
+          <rect x={-400} y={-58} width={800} height={116} rx={58} fill="url(#goldGrad)" style={{filter: 'drop-shadow(0 0 44px rgba(245,192,68,0.85))'}} />
+          <text x={0} y={22} fill="#1A1206" fontSize={58} fontFamily={FONT} fontWeight={800} letterSpacing={3} textAnchor="middle">
+            GOLD STATUS ACHIEVED
+          </text>
+        </g>
+      )}
+      {flash > 0.001 && <rect x={0} y={0} width={3840} height={2160} fill={GOLD} opacity={flash} />}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Bottom stat cards
+// ---------------------------------------------------------------------------
+const StatsRow: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const points = Math.round(
+    interpolate(frame, [200, 700], [0, 48200], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})
+  );
+  let unlocked = 0;
+  TIERS.forEach((t, j) =>
+    t.perks.forEach((_, k) => {
+      if (frame >= unlockAt(j, k)) unlocked++;
+    })
+  );
+  const tierIdx = frame < HOP1_END ? 0 : frame < HOP2_END ? 1 : 2;
+  const tierColor = [BRONZE, SILVER, GOLD][tierIdx];
+
+  const cards = [
+    {label: 'POINTS EARNED', value: fmt(points), color: GOLD},
+    {label: 'PERKS UNLOCKED', value: `${unlocked}/9`, color: VIOLET},
+    {label: 'CURRENT TIER', value: TIERS[tierIdx].name, color: tierColor},
+  ];
+
+  const cardW = 860;
+  const gap = 60;
+  const totalW = cards.length * cardW + (cards.length - 1) * gap;
+  const startX = (3840 - totalW) / 2;
+  const y = 1820;
+
+  return (
+    <div style={{position: 'absolute', left: 0, top: 0, width: 3840, height: 2160, pointerEvents: 'none'}}>
+      {cards.map((c, k) => {
+        const s = spring({
+          frame: frame - (STATS_START + k * 24),
+          fps,
+          config: {damping: 200, stiffness: 95},
+        });
+        if (s <= 0.001) return null;
+        return (
+          <div
+            key={c.label}
+            style={{
+              position: 'absolute',
+              left: startX + k * (cardW + gap),
+              top: y + (1 - s) * 50,
+              width: cardW,
+              height: 200,
+              borderRadius: 26,
+              background:
+                'linear-gradient(160deg, rgba(245,192,68,0.09), rgba(139,124,246,0.05) 60%, rgba(255,255,255,0.02))',
+              border: '1.5px solid rgba(245,192,68,0.30)',
+              padding: '30px 48px',
+              opacity: Math.min(1, s),
+            }}
+          >
+            <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>{c.label}</div>
+            <div
+              style={{
+                color: c.color,
+                fontFamily: MONO,
+                fontWeight: 800,
+                fontSize: 76,
+                lineHeight: 1.2,
+                marginTop: 8,
+                textShadow: `0 0 26px ${c.color}55`,
+              }}
+            >
+              {c.value}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 };
 
@@ -493,25 +737,22 @@ const Shield: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 // Footer
 // ---------------------------------------------------------------------------
 const Footer: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [SHIELD_AT + 40, SHIELD_AT + 90], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  const fade = interpolate(frame, [800, 850], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
     <div
       style={{
         position: 'absolute',
-        bottom: 30,
+        bottom: 44,
         left: 0,
         width: 3840,
         textAlign: 'center',
-        color: 'rgba(148,163,184,0.55)',
+        color: 'rgba(190,200,225,0.5)',
         fontFamily: FONT,
         fontSize: 26,
         opacity: fade,
       }}
     >
-      Illustrative example &middot; plan terms, deductibles and coinsurance vary by policy
+      Illustrative loyalty program visualization &middot; sample spend values shown
     </div>
   );
 };
@@ -519,7 +760,7 @@ const Footer: React.FC<{frame: number}> = ({frame}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const InsurancePremiumDeductible: React.FC = () => {
+export const LoyaltyTierProgression: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
@@ -527,13 +768,14 @@ export const InsurancePremiumDeductible: React.FC = () => {
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
       <TitleBar frame={frame} />
-      <PremiumFlow frame={frame} fps={fps} />
-      <DeductibleBar frame={frame} fps={fps} />
-      <SplitBar frame={frame} fps={fps} />
-      <Shield frame={frame} fps={fps} />
+      <TierColumns frame={frame} fps={fps} />
+      <SpendBar frame={frame} />
+      <GoldFlare frame={frame} fps={fps} />
+      <MemberCard frame={frame} fps={fps} />
+      <StatsRow frame={frame} fps={fps} />
       <Footer frame={frame} />
     </AbsoluteFill>
   );
 };
 
-export default InsurancePremiumDeductible;
+export default LoyaltyTierProgression;
