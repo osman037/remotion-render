@@ -447,7 +447,6 @@ const Stations: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
                 <circle r={110} fill="none" stroke={AVAIL} strokeWidth={1.5} opacity={0.4} />
               </g>
             )}
-            )}
           </g>
         );
       })}
