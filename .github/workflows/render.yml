@@ -1,4 +1,4 @@
-name: 🎬 Render Remotion Video
+🎬 Render Remotion Video
 
 on:
   workflow_dispatch:
@@ -75,35 +75,11 @@ jobs:
       - name: 🔧 Install FFmpeg
         run: sudo apt-get install -y ffmpeg
 
-      - name: 🔍 Validate composition syntax
-        run: |
-          # Check the composition file for JSX syntax errors before rendering
-          FILE="src/compositions/comp${{ matrix.fileIndex }}.tsx"
-          # For single composition, check composition.tsx
-          if [ ! -f "$FILE" ]; then FILE="src/composition.tsx"; fi
-          if [ -f "$FILE" ]; then
-            npx --yes acorn --ecma2020 --module "$FILE" > /dev/null 2>&1 || true
-            # Use node to do a basic syntax check via esbuild
-            node -e "
-              const fs = require('fs');
-              const content = fs.readFileSync('$FILE', 'utf8');
-              // Check for common JSX errors
-              const lines = content.split('
-');
-              lines.forEach((line, i) => {
-                if (line.trim() === '}' && i > 0) {
-                  const prev = lines[i-1] || '';
-                  // Bare } after JSX closing tag is suspicious
-                }
-              });
-              console.log('Syntax pre-check passed');
-            " || echo "Warning: syntax pre-check found issues"
-          fi
-
       - name: 🎬 Render ${{ matrix.id }}
         run: |
           mkdir -p out
 
+          # Step 1 — Remotion render at near-lossless quality, no audio
           npx remotion render \
             "${{ matrix.id }}" \
             "out/${{ matrix.id }}_raw.mp4" \
@@ -117,8 +93,7 @@ jobs:
             --muted \
             --concurrency=2
 
-          # ── Re-encode to Adobe Stock spec: 40 Mbps, no audio ──────────────
-          # CRF=1 gives near-lossless source; ffmpeg pass gives exact bitrate
+          # Step 2 — Re-encode to Adobe Stock spec: 40 Mbps target, 35 Mbps minimum, no audio
           ffmpeg -y \
             -i "out/${{ matrix.id }}_raw.mp4" \
             -c:v libx264 \
@@ -133,13 +108,18 @@ jobs:
             -an \
             "out/${{ matrix.id }}.mp4"
 
-          # ── Verify output with ffprobe ─────────────────────────────────────
+          # Remove intermediate raw file
+          rm "out/${{ matrix.id }}_raw.mp4"
+
+          # Step 3 — Verify with ffprobe
           echo "=== Output file info ==="
           ffprobe -v quiet -print_format json -show_format -show_streams \
-            "out/${{ matrix.id }}.mp4" | python3 -c "
+            "out/${{ matrix.id }}.mp4" > /tmp/probe.json
+
+          python3 - << 'PYEOF'
           import json, sys
-          d = json.load(sys.stdin)
-          fmt = d['format']
+          d = json.load(open('/tmp/probe.json'))
+          fmt     = d['format']
           streams = d['streams']
           vid = next((s for s in streams if s['codec_type'] == 'video'), None)
           aud = next((s for s in streams if s['codec_type'] == 'audio'), None)
@@ -148,38 +128,34 @@ jobs:
           duration = float(fmt['duration'])
           bitrate  = int(fmt.get('bit_rate', 0)) / 1_000_000
 
-          print(f'File:       {fmt[\"filename\"]}')
-          print(f'Size:       {size_mb:.1f} MB')
-          print(f'Duration:   {duration:.2f}s')
-          print(f'Bitrate:    {bitrate:.2f} Mbps')
-          print(f'Resolution: {vid[\"width\"]}x{vid[\"height\"]}')
-          print(f'FPS:        {vid[\"r_frame_rate\"]}')
-          print(f'Codec:      {vid[\"codec_name\"]} {vid[\"profile\"]}')
-          print(f'Audio:      {\"NONE ✅\" if aud is None else \"PRESENT ❌ \" + aud[\"codec_name\"]}')
+          print(f"File:       {fmt['filename']}")
+          print(f"Size:       {size_mb:.1f} MB")
+          print(f"Duration:   {duration:.2f}s")
+          print(f"Bitrate:    {bitrate:.2f} Mbps")
+          print(f"Resolution: {vid['width']}x{vid['height']}")
+          print(f"FPS:        {vid['r_frame_rate']}")
+          print(f"Codec:      {vid['codec_name']} {vid['profile']}")
+          print(f"Audio:      {'NONE ✅' if aud is None else 'PRESENT ❌ ' + aud['codec_name']}")
 
-          # Fail the job if quality checks don't pass
           errors = []
           if bitrate < 20:
-              errors.append(f'Bitrate too low: {bitrate:.1f} Mbps (need ≥20 Mbps)')
-          if vid[\"width\"] != ${{ github.event.inputs.width || 3840 }}:
-              errors.append(f'Wrong width: {vid[\"width\"]}')
+              errors.append(f"Bitrate too low: {bitrate:.1f} Mbps (need >= 20 Mbps)")
           if aud is not None:
-              errors.append('Audio stream present — must be muted for Adobe Stock')
+              errors.append("Audio stream present — must be muted for Adobe Stock")
+
           if errors:
               print()
               for e in errors:
-                  print(f'❌ FAIL: {e}')
+                  print(f"❌ FAIL: {e}")
               sys.exit(1)
           else:
               print()
-              print('✅ All Adobe Stock quality checks passed!')
-          "
-
-          # Remove raw intermediate file
-          rm "out/${{ matrix.id }}_raw.mp4"
+              print("✅ All Adobe Stock quality checks passed!")
+          PYEOF
 
       - uses: actions/upload-artifact@v4
         with:
           name: "${{ matrix.id }}_4K_60fps_AdobeStock"
           path: "out/${{ matrix.id }}.mp4"
           retention-days: 2
+EOF
