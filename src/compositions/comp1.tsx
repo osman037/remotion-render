@@ -1,13 +1,13 @@
 /**
- * CustomsClearanceFlow.tsx
+ * CrossBorderRemittance.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * Port clearance arc: a cargo container rolls into frame, document icons
- * stack and verify one by one, a scanner beam sweeps the container, the
- * import-duty counter settles, a CLEARED stamp slams down, a dotted route
- * line extends, and a haulier truck rolls out of the yard.
+ * A transparent cross-border money transfer: $1,000 sends, the $4.28 fee
+ * peels off, a live FX ticker converts at 1 USD = 0.92 EUR, a route arc
+ * carries the packet from sender to receiver, and EUR 916.06 lands with a
+ * RECEIVED stamp. Intro -> build -> payoff -> resolve.
  *
  * Register in Root.tsx:
- *   <Composition id="CustomsClearanceFlow" component={CustomsClearanceFlow}
+ *   <Composition id="CrossBorderRemittance" component={CrossBorderRemittance}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
@@ -21,194 +21,271 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette: dark slate + amber/teal
+// Palette (deep emerald fintech)
 // ---------------------------------------------------------------------------
-const BG = '#0B1017';
-const INK = '#EAF1F8';
-const MUTED = 'rgba(170,188,208,0.62)';
-const AMBER = '#F5A524';
-const TEAL = '#2DD4BF';
+const BG = '#06231D';
+const INK = '#EAF5EE';
+const MUTED = 'rgba(234,245,238,0.60)';
+const MINT = '#2DE39B';
+const MINT_DEEP = '#0E9E66';
+const GOLD = '#F5C044';
+const WARN = '#FF7A59';
+const PANEL = 'rgba(10,42,34,0.72)';
+const HAIRLINE = 'rgba(234,245,238,0.16)';
+
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
-// Timeline (frames at 60 fps, 900 = 15 s)
+// Money math (kept consistent across the scene)
 // ---------------------------------------------------------------------------
-const ARRIVE_START = 80;
-const ARRIVE_END = 260;
-const DOC_STARTS = [280, 330, 380, 430];
-const SCAN_FRAME_AT = 520;
-const SCAN_START = 540;
-const SCAN_END = 680;
-const DUTY_START = 690;
-const DUTY_END = 790;
-const STAMP_AT = 800;
-const ROUTE_START = 800;
-const ROUTE_END = 860;
-const TRUCK_START = 790;
-const TRUCK_END = 905;
+const SEND_USD = 1000;
+const FEE_USD = 4.28;
+const CONVERT_USD = SEND_USD - FEE_USD; // 995.72
+const FX_RATE = 0.92;
+const ARRIVE_EUR = CONVERT_USD * FX_RATE; // 916.0624 -> 916.06
 
 // ---------------------------------------------------------------------------
-// Geometry
+// Timeline
 // ---------------------------------------------------------------------------
-const GROUND_Y = 1500;
-const CTN = {w: 1200, h: 450, y: 1050, restX: 420}; // rest: 420..1620 x, 1050..1500 y
+const SEND_COUNT = 60; // $1,000 counts up
+const FEE_START = 200; // fee peels off
+const FX_START = 300; // ticker + conversion
+const ROUTE_START = 460; // packet travels
+const RECEIVE_START = 600; // EUR counts up, stamp
+const COMPARE_START = 700; // bank comparison strip
+const RESOLVE_START = 800;
+
+const fmtUSD = (v: number) => `$${v.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+const fmtEUR = (v: number) => `\u20AC${v.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
 // ---------------------------------------------------------------------------
-// Static defs
+// SVG defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="bgGlowAmber" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stopColor="rgba(245,165,36,0.12)" />
-      <stop offset="100%" stopColor="rgba(245,165,36,0)" />
+    <radialGradient id="emeraldGlow" cx="50%" cy="34%" r="72%">
+      <stop offset="0%" stopColor="rgba(45,227,155,0.14)" />
+      <stop offset="55%" stopColor="rgba(45,227,155,0.04)" />
+      <stop offset="100%" stopColor="rgba(6,35,29,0)" />
     </radialGradient>
-    <radialGradient id="bgGlowTeal" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stopColor="rgba(45,212,191,0.10)" />
-      <stop offset="100%" stopColor="rgba(45,212,191,0)" />
+    <radialGradient id="emeraldVignette" cx="50%" cy="50%" r="76%">
+      <stop offset="60%" stopColor="rgba(2,12,10,0)" />
+      <stop offset="100%" stopColor="rgba(2,12,10,0.7)" />
     </radialGradient>
-    <radialGradient id="vignette" cx="50%" cy="50%" r="75%">
-      <stop offset="60%" stopColor="rgba(11,16,23,0)" />
-      <stop offset="100%" stopColor="rgba(2,4,8,0.76)" />
-    </radialGradient>
-    <linearGradient id="containerGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="#D99A35" />
-      <stop offset="55%" stopColor="#B57A24" />
-      <stop offset="100%" stopColor="#8A5A1C" />
+    <linearGradient id="mintBar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={MINT_DEEP} />
+      <stop offset="100%" stopColor={MINT} />
     </linearGradient>
-    <linearGradient id="boxGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="#1C2635" />
-      <stop offset="100%" stopColor="#101724" />
+    <linearGradient id="goldBar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={'#B97F1B'} />
+      <stop offset="100%" stopColor={GOLD} />
     </linearGradient>
-    <linearGradient id="beamGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor="rgba(245,165,36,0)" />
-      <stop offset="50%" stopColor="rgba(245,165,36,0.55)" />
-      <stop offset="100%" stopColor="rgba(245,165,36,0)" />
-    </linearGradient>
-    <linearGradient id="steelGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="#46586E" />
-      <stop offset="100%" stopColor="#232E3E" />
-    </linearGradient>
-    <filter id="glowBlur" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="10" result="blur" />
+    <filter id="mintGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
       <feMerge>
         <feMergeNode in="blur" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
+    <filter id="panelShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="22" stdDeviation="30" floodColor="#000000" floodOpacity="0.45" />
+    </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background: layered glow, faint yard grid, drifting streaks, vignette
+// Background
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const grid = useMemo(
-    () =>
-      Array.from({length: 30}, (_, i) => ({
-        x: (i / 29) * 3840,
-      })),
-    []
-  );
-  const drift = (frame * 0.5) % 300;
+  const sweepX = interpolate(frame, [0, 900], [-600, 4440], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  });
   return (
     <>
       <AbsoluteFill style={{backgroundColor: BG}} />
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs />
-        <ellipse cx={900} cy={500} rx={1200} ry={640} fill="url(#bgGlowAmber)" opacity={0.75} />
-        <ellipse cx={3100} cy={1820} rx={1300} ry={700} fill="url(#bgGlowTeal)" opacity={0.7} />
-        <g opacity={0.05}>
-          {grid.map((g, i) => (
-            <line key={`vg${i}`} x1={g.x} y1={0} x2={g.x} y2={2160} stroke={INK} strokeWidth={i % 5 === 0 ? 3 : 1.5} />
-          ))}
-        </g>
-        <g opacity={0.06}>
-          {Array.from({length: 12}, (_, i) => (
-            <rect key={`st${i}`} x={(i * 397 + 2400 - drift * 2) % 4200 - 200} y={200 + (i % 4) * 420} width={260} height={5} rx={2.5} fill={AMBER} />
-          ))}
-        </g>
-        {/* ground */}
-        <rect x={0} y={GROUND_Y} width={3840} height={660} fill="#0D141D" />
-        <rect x={0} y={GROUND_Y} width={3840} height={6} fill="rgba(245,165,36,0.35)" />
-        <g opacity={0.10} stroke={INK} strokeWidth={3}>
-          {[1620, 1780, 1950].map((yy) => (
-            <line key={`gl${yy}`} x1={0} y1={yy} x2={3840} y2={yy} />
-          ))}
-        </g>
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#vignette)" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#emeraldGlow)" />
+        <rect x={sweepX - 260} y={0} width={520} height={2160} fill="rgba(45,227,155,0.045)" transform={`skewX(-12)`} />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#emeraldVignette)" />
       </svg>
     </>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Title block + live port stats
+// Title bar
 // ---------------------------------------------------------------------------
-const TitleBlock: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [0, 55], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const rise = interpolate(frame, [0, 55], [30, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const count = (to: number, start: number) => {
-    const t = interpolate(frame, [start, start + 70], [0, 1], {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    });
-    return Math.round(to * (1 - Math.pow(1 - t, 3)));
-  };
-  const stats = [
-    {label: 'CONTAINERS TODAY', value: String(count(1284, 70)), color: AMBER},
-    {label: 'AVG CLEARANCE', value: `${count(38, 95)} MIN`, color: TEAL},
-    {label: 'VESSELS IN QUEUE', value: String(count(14, 120)), color: INK},
-  ];
+const TitleBar: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [0, 40], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const rise = interpolate(frame, [0, 40], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
-    <div style={{position: 'absolute', top: 96 + rise, left: 220, right: 220, opacity: fade}}>
-      <div style={{display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between'}}>
-        <div>
-          <div style={{display: 'flex', alignItems: 'baseline', gap: 30}}>
-            <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 88, letterSpacing: -1}}>
-              CUSTOMS CLEARANCE
-            </span>
-            <span
-              style={{
-                color: AMBER,
-                fontFamily: MONO,
-                fontSize: 36,
-                fontWeight: 700,
-                border: `2px solid ${AMBER}`,
-                borderRadius: 10,
-                padding: '6px 18px',
-              }}
-            >
-              BERTH 04
-            </span>
-          </div>
-          <div style={{color: MUTED, fontFamily: FONT, fontSize: 34, marginTop: 14}}>
-            Port operations &middot; Vessel MV Pacific Trader &middot; Import terminal
-          </div>
+    <div style={{position: 'absolute', top: 84 + rise, left: 200, right: 200, opacity: fade, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
+      <div>
+        <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 78, letterSpacing: -1.5}}>
+          Send money <span style={{color: MINT}}>across borders</span>
         </div>
-        <div style={{display: 'flex', gap: 56}}>
-          {stats.map((s) => (
-            <div key={s.label} style={{textAlign: 'right'}}>
-              <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, letterSpacing: 2}}>{s.label}</div>
-              <div
-                style={{
-                  color: s.color,
-                  fontFamily: MONO,
-                  fontWeight: 800,
-                  fontSize: 72,
-                  textShadow: `0 0 26px ${s.color}55`,
-                }}
-              >
-                {s.value}
+        <div style={{color: MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 3, marginTop: 12}}>
+          TRANSPARENT FEES &middot; LIVE EXCHANGE RATE
+        </div>
+      </div>
+      <div style={{
+        border: `2px solid ${HAIRLINE}`, borderRadius: 18, padding: '14px 30px',
+        color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 2,
+      }}>
+        USD &rarr; EUR
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Send panel: $1,000 counts up, then the fee peels off
+// ---------------------------------------------------------------------------
+const SendPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - 40, fps, config: {damping: 200, stiffness: 80}});
+  if (s <= 0.001) return null;
+
+  const count = interpolate(frame, [SEND_COUNT, SEND_COUNT + 80], [0, SEND_USD], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  });
+  const feeOut = spring({frame: frame - FEE_START, fps, config: {damping: 200, stiffness: 90}});
+  // bar: fee slice (4.28/1000) vs remainder
+  const feeFrac = FEE_USD / SEND_USD;
+  const barW = 1180;
+  const feeW = Math.max(64, barW * feeFrac);
+
+  return (
+    <div style={{
+      position: 'absolute', left: 200, top: 330, width: 1500,
+      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 40}px)`,
+    }}>
+      <div style={{
+        background: PANEL, borderRadius: 34, padding: '46px 52px',
+        border: `2px solid ${HAIRLINE}`, filter: 'url(#panelShadow)',
+        backdropFilter: 'blur(6px)',
+      }}>
+        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>YOU SEND</div>
+        <div style={{
+          color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 108,
+          marginTop: 10, textShadow: '0 0 34px rgba(45,227,155,0.35)',
+        }}>
+          {fmtUSD(count)}
+        </div>
+        {/* amount bar with fee peeling off */}
+        <div style={{marginTop: 30, position: 'relative', height: 64}}>
+          <div style={{
+            position: 'absolute', left: 0, top: 0, width: barW, height: 56,
+            borderRadius: 16, background: 'linear-gradient(90deg, #0E9E66, #2DE39B)',
+            transform: `scaleX(${interpolate(frame, [SEND_COUNT + 80, SEND_COUNT + 130], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})})`,
+            transformOrigin: 'left center',
+          }} />
+          {feeOut > 0.001 && (
+            <div style={{
+              position: 'absolute',
+              left: 880,
+              top: -190 * Math.min(1, feeOut),
+              width: 300,
+              opacity: Math.min(1, feeOut),
+            }}>
+              <div style={{
+                background: '#3A1508', border: `2px solid ${WARN}`, borderRadius: 16,
+                padding: '14px 22px', textAlign: 'center',
+              }}>
+                <div style={{color: WARN, fontFamily: MONO, fontWeight: 800, fontSize: 40}}>
+                  &minus;{fmtUSD(FEE_USD)}
+                </div>
+                <div style={{color: MUTED, fontFamily: MONO, fontSize: 24, letterSpacing: 2, marginTop: 2}}>
+                  OUR FEE
+                </div>
               </div>
             </div>
+          )}
+          {feeOut > 0.5 && (
+            <div style={{
+              position: 'absolute', left: 0, top: 84,
+              color: INK, fontFamily: MONO, fontSize: 34, fontWeight: 700,
+              opacity: interpolate(frame, [FEE_START + 30, FEE_START + 70], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
+            }}>
+              {fmtUSD(CONVERT_USD)} continues to conversion
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// FX ticker panel: live rate + converted amount
+// ---------------------------------------------------------------------------
+const FxPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - (FX_START - 60), fps, config: {damping: 200, stiffness: 80}});
+  if (s <= 0.001) return null;
+
+  // live-ticking rate (deterministic)
+  const live = frame >= FX_START;
+  const tick = live
+    ? FX_RATE + 0.0006 * Math.sin((frame - FX_START) * 0.55) + 0.0003 * Math.sin((frame - FX_START) * 1.7)
+    : FX_RATE;
+  const converted = interpolate(frame, [FX_START + 20, FX_START + 160], [0, ARRIVE_EUR], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  });
+
+  const ticks = useMemo(() => {
+    const out: number[] = [];
+    for (let i = 0; i < 24; i++) {
+      out.push(FX_RATE + 0.0011 * Math.sin(i * 1.9) + 0.0006 * Math.cos(i * 0.7));
+    }
+    return out;
+  }, []);
+  const shown = ticks.slice(0, Math.min(24, Math.max(0, Math.floor((frame - FX_START) / 8))));
+
+  return (
+    <div style={{
+      position: 'absolute', left: 1900, top: 330, width: 1740,
+      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 40}px)`,
+    }}>
+      <div style={{
+        background: PANEL, borderRadius: 34, padding: '46px 52px',
+        border: `2px solid ${HAIRLINE}`, filter: 'url(#panelShadow)',
+        backdropFilter: 'blur(6px)',
+      }}>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
+          <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>EXCHANGE RATE</div>
+          {live && (
+            <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
+              <div style={{
+                width: 18, height: 18, borderRadius: '50%', background: MINT,
+                filter: 'url(#mintGlow)',
+                opacity: 0.55 + 0.45 * Math.sin(frame * 0.25),
+              }} />
+              <span style={{color: MINT, fontFamily: MONO, fontSize: 28, letterSpacing: 2}}>LIVE</span>
+            </div>
+          )}
+        </div>
+        <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 72, marginTop: 12}}>
+          1 USD = <span style={{color: GOLD}}>{tick.toFixed(4)}</span> EUR
+        </div>
+        {/* rate sparkline */}
+        <svg width={1560} height={150} style={{marginTop: 18}}>
+          {shown.length > 1 && (
+            <polyline
+              points={shown.map((v, i) => `${60 + i * 62},${130 - ((v - (FX_RATE - 0.002)) / 0.004) * 110}`).join(' ')}
+              fill="none" stroke={GOLD} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round"
+            />
+          )}
+          {shown.map((v, i) => (
+            <circle key={i} cx={60 + i * 62} cy={130 - ((v - (FX_RATE - 0.002)) / 0.004) * 110} r={7} fill={GOLD} />
           ))}
+        </svg>
+        <div style={{marginTop: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
+          <span style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 2}}>CONVERTED</span>
+          <span style={{
+            color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 84,
+            textShadow: '0 0 30px rgba(245,192,68,0.4)',
+          }}>{fmtEUR(converted)}</span>
         </div>
       </div>
     </div>
@@ -216,369 +293,150 @@ const TitleBlock: React.FC<{frame: number}> = ({frame}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Port scene: ship silhouette + gantry crane (background)
+// Route arc: sender -> receiver with traveling packet
 // ---------------------------------------------------------------------------
-const PortScene: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [20, 110], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const beacon = Math.floor(frame / 24) % 2 === 0;
-  if (fade <= 0) return null;
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}} opacity={fade}>
-      {/* distant container ship */}
-      <g opacity={0.35} fill="#1B2534">
-        <rect x={300} y={1180} width={1400} height={170} rx={8} />
-        <rect x={1420} y={1060} width={180} height={120} rx={6} />
-        {[0, 1, 2, 3].map((r) =>
-          [0, 1, 2, 3, 4, 5].map((c) => (
-            <rect key={`sc${r}${c}`} x={380 + c * 160} y={1080 - r * 62} width={140} height={52} rx={4} fill={r % 2 ? '#24303F' : '#1B2534'} />
-          ))
-        )}
-      </g>
-      {/* gantry crane */}
-      <g opacity={0.6}>
-        <rect x={2665} y={480} width={70} height={1020} fill="url(#steelGrad)" />
-        <rect x={3415} y={480} width={70} height={1020} fill="url(#steelGrad)" />
-        <rect x={2450} y={410} width={1250} height={90} rx={8} fill="url(#steelGrad)" />
-        <rect x={2000} y={438} width={450} height={44} rx={6} fill="#2A3648" />
-        <line x1={2200} y1={482} x2={2200} y2={880} stroke="#54687F" strokeWidth={8} />
-        <rect x={2120} y={880} width={160} height={44} rx={8} fill="#54687F" />
-        <circle cx={3075} cy={392} r={16} fill={beacon ? '#FF5A5A' : 'rgba(255,90,90,0.25)'} style={beacon ? {filter: 'drop-shadow(0 0 18px rgba(255,90,90,0.9))'} : undefined} />
-        <text x={3075} y={1350} fill="rgba(170,188,208,0.5)" fontSize={34} fontFamily={MONO} letterSpacing={6} textAnchor="middle">
-          STS-04
-        </text>
-      </g>
-      {/* faint stacked containers behind the action */}
-      <g opacity={0.28}>
-        {[0, 1, 2].map((c) =>
-          [0, 1].map((r) => (
-            <rect
-              key={`ys${c}${r}`}
-              x={120 + c * 210}
-              y={1330 - r * 96}
-              width={190}
-              height={86}
-              rx={4}
-              fill={r % 2 ? '#1E2A3A' : '#243244'}
-              stroke="rgba(170,188,208,0.25)"
-              strokeWidth={2}
-            />
-          ))
-        )}
-      </g>
-    </svg>
-  );
-};
+const RouteMap: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - (ROUTE_START - 40), fps, config: {damping: 200, stiffness: 80}});
+  if (s <= 0.001) return null;
 
-// ---------------------------------------------------------------------------
-// Cargo container (arrives from the left, eases to rest)
-// ---------------------------------------------------------------------------
-const ContainerUnit: React.FC<{frame: number}> = ({frame}) => {
-  const p = interpolate(frame, [ARRIVE_START, ARRIVE_END], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+  const draw = interpolate(frame, [ROUTE_START, ROUTE_START + 120], [0, 1], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
-  if (p <= 0) return null;
-  const ease = 1 - Math.pow(1 - p, 3);
-  const x = -950 + ease * (CTN.restX + 950);
-  const bob = Math.sin(frame * 0.12) * 5 * (1 - p);
-  const top = CTN.y + bob;
-  const corr: number[] = [];
-  for (let cx = 40; cx < CTN.w - 40; cx += 60) corr.push(cx);
+  // traveling packet along the arc
+  const t = interpolate(frame, [ROUTE_START + 20, ROUTE_START + 140], [0, 1], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  });
+  const x0 = 480; const x1 = 3360; const yBase = 1250; const arcH = 330;
+  const px = x0 + (x1 - x0) * t;
+  const py = yBase - Math.sin(t * Math.PI) * arcH;
 
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g transform={`translate(${x}, ${top})`}>
-        {/* shadow */}
-        <ellipse cx={CTN.w / 2} cy={CTN.h + 44} rx={CTN.w / 2} ry={34} fill="rgba(0,0,0,0.45)" />
-        {/* body */}
-        <rect x={0} y={0} width={CTN.w} height={CTN.h} rx={10} fill="url(#containerGrad)" />
-        {corr.map((cx) => (
-          <line key={`cr${cx}`} x1={cx} y1={26} x2={cx} y2={CTN.h - 26} stroke="rgba(60,35,5,0.35)" strokeWidth={7} />
-        ))}
-        {/* rails */}
-        <rect x={0} y={0} width={CTN.w} height={26} fill="rgba(60,35,5,0.5)" />
-        <rect x={0} y={CTN.h - 26} width={CTN.w} height={26} fill="rgba(60,35,5,0.5)" />
-        {/* door lock rods */}
-        {[CTN.w - 130, CTN.w - 90, CTN.w - 50].map((rx) => (
-          <g key={`rod${rx}`}>
-            <line x1={rx} y1={40} x2={rx} y2={CTN.h - 40} stroke="rgba(40,24,4,0.7)" strokeWidth={9} />
-            <rect x={rx - 12} y={CTN.h / 2 - 26} width={24} height={52} rx={6} fill="rgba(40,24,4,0.7)" />
-          </g>
-        ))}
-        {/* stencil labels */}
-        <text x={60} y={120} fill="#FFF7E8" fontSize={52} fontFamily={MONO} fontWeight={800} letterSpacing={3}>
-          CTRU 482913-7
-        </text>
-        <text x={60} y={CTN.h - 60} fill="rgba(255,247,232,0.75)" fontSize={32} fontFamily={MONO} letterSpacing={2}>
-          MAX GROSS 30,480 KG
-        </text>
-        <rect x={60} y={150} width={420} height={10} fill="rgba(255,247,232,0.5)" />
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Scanner: dashed frame + sweeping beam + progress readout
-// ---------------------------------------------------------------------------
-const ScannerBeam: React.FC<{frame: number}> = ({frame}) => {
-  const frameFade = interpolate(frame, [SCAN_FRAME_AT, SCAN_FRAME_AT + 40], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  if (frameFade <= 0) return null;
-  const p = interpolate(frame, [SCAN_START, SCAN_END], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const beamX = 420 + p * 1200;
-  const pct = Math.round(p * 100);
-  const done = frame >= SCAN_END;
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g opacity={frameFade}>
-        <rect
-          x={400}
-          y={1030}
-          width={1240}
-          height={490}
-          rx={16}
-          fill="none"
-          stroke={TEAL}
-          strokeWidth={4}
-          strokeDasharray="26 20"
-          opacity={0.8}
-          style={{filter: 'drop-shadow(0 0 12px rgba(45,212,191,0.6))'}}
+    <div style={{position: 'absolute', left: 0, top: 0, opacity: Math.min(1, s)}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <path
+          d={`M ${x0} ${yBase} Q 1920 ${yBase - arcH * 2} ${x1} ${yBase}`}
+          fill="none" stroke={MINT} strokeWidth={7} strokeLinecap="round"
+          strokeDasharray={1} pathLength={1}
+          strokeDashoffset={1 - draw}
+          opacity={0.85} filter="url(#mintGlow)"
         />
-        {/* beam */}
-        {!done && p > 0 && (
-          <g>
-            <rect x={beamX - 55} y={1030} width={110} height={490} fill="url(#beamGrad)" />
-            <line x1={beamX} y1={1030} x2={beamX} y2={1520} stroke={AMBER} strokeWidth={7} style={{filter: 'drop-shadow(0 0 18px rgba(245,165,36,0.9))'}} />
-          </g>
-        )}
-        {/* readout */}
-        <g transform="translate(1020, 985)">
-          <rect x={-250} y={-52} width={500} height={88} rx={16} fill="rgba(8,12,19,0.92)" stroke={done ? TEAL : AMBER} strokeWidth={2.5} />
-          <text x={0} y={12} fill={done ? TEAL : AMBER} fontSize={44} fontFamily={MONO} fontWeight={800} letterSpacing={2} textAnchor="middle">
-            {done ? '\u2713 SCAN COMPLETE' : `SCAN ${pct}%`}
-          </text>
+        {/* sender node */}
+        <g opacity={draw}>
+          <circle cx={x0} cy={yBase} r={30} fill={BG} stroke={MINT} strokeWidth={6} />
+          <text x={x0} y={yBase + 92} fill={INK} fontSize={40} fontFamily={MONO} fontWeight={700} textAnchor="middle">SENDER</text>
+          <text x={x0} y={yBase + 140} fill={MUTED} fontSize={30} fontFamily={MONO} textAnchor="middle">United States</text>
         </g>
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Document stack: 4 cards slide in, each stamped with a check
-// ---------------------------------------------------------------------------
-const DOCS = [
-  {title: 'CARGO MANIFEST', ref: 'CM-2026-8841'},
-  {title: 'COMMERCIAL INVOICE', ref: 'INV-55912'},
-  {title: 'PACKING LIST', ref: 'PL-30987'},
-  {title: 'ORIGIN CERTIFICATE', ref: 'CO-11204'},
-];
-const DocStack: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const panelFade = interpolate(frame, [250, 300], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  if (panelFade <= 0) return null;
-  const px = 1900;
-  const pw = 660;
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g opacity={panelFade}>
-        <rect x={px} y={950} width={pw} height={600} rx={20} fill="rgba(13,20,29,0.92)" stroke="rgba(45,212,191,0.35)" strokeWidth={2.5} />
-        <text x={px + 40} y={1016} fill={TEAL} fontSize={36} fontFamily={MONO} fontWeight={800} letterSpacing={5}>
-          CARGO DOCUMENTS
-        </text>
-        {DOCS.map((d, i) => {
-          const s = spring({frame: frame - DOC_STARTS[i], fps, config: {damping: 200, stiffness: 110}});
-          if (s <= 0.001) return null;
-          const checkP = interpolate(frame, [DOC_STARTS[i] + 55, DOC_STARTS[i] + 105], [0, 1], {
-            extrapolateLeft: 'clamp',
-            extrapolateRight: 'clamp',
-          });
-          const y = 1060 + i * 118;
-          const cx = 2480;
-          const cy = y + 47;
-          const circ = 2 * Math.PI * 26;
-          return (
-            <g key={d.ref} opacity={Math.min(1, s)} transform={`translate(${(1 - s) * 120}, ${y})`}>
-              <rect x={1920} y={0} width={620} height={95} rx={14} fill="rgba(22,32,46,0.95)" stroke="rgba(148,163,184,0.3)" strokeWidth={2} />
-              {/* doc icon */}
-              <g transform="translate(1948, 20)">
-                <rect x={0} y={0} width={46} height={56} rx={4} fill="rgba(45,212,191,0.16)" stroke={TEAL} strokeWidth={2.5} />
-                <path d="M 32 0 L 46 14 L 32 14 Z" fill={TEAL} opacity={0.8} />
-                {[24, 32, 40].map((ly) => (
-                  <line key={`dl${ly}`} x1={9} y1={ly} x2={37} y2={ly} stroke={TEAL} strokeWidth={2.5} opacity={0.7} />
-                ))}
-              </g>
-              <text x={2014} y={40} fill={INK} fontSize={32} fontFamily={FONT} fontWeight={700}>
-                {d.title}
-              </text>
-              <text x={2014} y={72} fill={MUTED} fontSize={26} fontFamily={MONO}>
-                {d.ref}
-              </text>
-              {/* verification ring + check */}
-              <circle cx={cx} cy={cy} r={26} fill="none" stroke="rgba(45,212,191,0.25)" strokeWidth={5} />
-              <circle
-                cx={cx}
-                cy={cy}
-                r={26}
-                fill="none"
-                stroke={TEAL}
-                strokeWidth={5}
-                strokeLinecap="round"
-                strokeDasharray={circ}
-                strokeDashoffset={circ * (1 - checkP)}
-                transform={`rotate(-90 ${cx} ${cy})`}
-              />
-              <path
-                d={`M ${cx - 11} ${cy + 1} L ${cx - 3} ${cy + 9} L ${cx + 12} ${cy - 8}`}
-                fill="none"
-                stroke={TEAL}
-                strokeWidth={5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                pathLength={1}
-                strokeDasharray={1}
-                strokeDashoffset={1 - checkP}
-              />
-            </g>
-          );
-        })}
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Duty panel: counter settles + breakdown rows
-// ---------------------------------------------------------------------------
-const DUTY_ROWS = [
-  {label: 'Duty 6.5%', value: '$2,786.20', at: 700},
-  {label: 'VAT 12%', value: '$1,180.40', at: 725},
-  {label: 'Port & handling', value: '$319.90', at: 750},
-];
-const DutyPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 660, fps, config: {damping: 200, stiffness: 95}});
-  if (s <= 0.001) return null;
-  const p = interpolate(frame, [DUTY_START, DUTY_END], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const eased = 1 - Math.pow(1 - p, 3);
-  const val = 4286.5 * eased;
-  const intStr = Math.floor(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const fracStr = String(Math.floor((val - Math.floor(val)) * 100)).padStart(2, '0');
-  const px = 2720;
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: px,
-        top: 950 + (1 - s) * 50,
-        width: 900,
-        height: 560,
-        opacity: Math.min(1, s),
-        borderRadius: 20,
-        background: 'linear-gradient(150deg, rgba(30,24,12,0.94), rgba(14,12,8,0.95))',
-        border: '2px solid rgba(245,165,36,0.4)',
-        boxShadow: '0 30px 90px rgba(0,0,0,0.5)',
-        padding: '44px 60px',
-      }}
-    >
-      <div style={{color: AMBER, fontFamily: MONO, fontSize: 34, fontWeight: 700, letterSpacing: 5}}>
-        IMPORT DUTY &mdash; USD
-      </div>
-      <div
-        style={{
-          color: AMBER,
-          fontFamily: MONO,
-          fontWeight: 800,
-          fontSize: 104,
-          marginTop: 18,
-          textShadow: '0 0 34px rgba(245,165,36,0.5)',
-        }}
-      >
-        ${intStr}.{fracStr}
-      </div>
-      <div style={{height: 2, background: 'rgba(245,165,36,0.25)', margin: '26px 0'}} />
-      {DUTY_ROWS.map((r) => {
-        const rf = interpolate(frame, [r.at, r.at + 40], [0, 1], {
-          extrapolateLeft: 'clamp',
-          extrapolateRight: 'clamp',
-        });
-        if (rf <= 0) return null;
-        return (
-          <div
-            key={r.label}
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              opacity: rf,
-              transform: `translateY(${(1 - rf) * 18}px)`,
-              marginBottom: 18,
-            }}
-          >
-            <span style={{color: MUTED, fontFamily: FONT, fontSize: 32}}>{r.label}</span>
-            <span style={{color: INK, fontFamily: MONO, fontSize: 34, fontWeight: 700}}>{r.value}</span>
-          </div>
-        );
-      })}
+        {/* receiver node */}
+        <g opacity={draw}>
+          <circle cx={x1} cy={yBase} r={30} fill={BG} stroke={GOLD} strokeWidth={6} />
+          <text x={x1} y={yBase + 92} fill={INK} fontSize={40} fontFamily={MONO} fontWeight={700} textAnchor="middle">RECEIVER</text>
+          <text x={x1} y={yBase + 140} fill={MUTED} fontSize={30} fontFamily={MONO} textAnchor="middle">Germany</text>
+        </g>
+        {/* packet */}
+        {t > 0 && t < 1 && (
+          <g>
+            <circle cx={px} cy={py} r={44} fill={MINT} opacity={0.25} filter="url(#mintGlow)" />
+            <circle cx={px} cy={py} r={20} fill={MINT} filter="url(#mintGlow)" />
+            <text x={px} y={py - 66} fill={INK} fontSize={34} fontFamily={MONO} fontWeight={700} textAnchor="middle">
+              {fmtUSD(CONVERT_USD)}
+            </text>
+          </g>
+        )}
+      </svg>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// CLEARED stamp (slams onto the container)
+// Receive panel: EUR counts up + RECEIVED stamp
 // ---------------------------------------------------------------------------
-const ClearedStamp: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - STAMP_AT, fps, config: {damping: 15, stiffness: 150}});
+const ReceivePanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - (RECEIVE_START - 60), fps, config: {damping: 200, stiffness: 80}});
   if (s <= 0.001) return null;
-  const scale = 1.65 - 0.65 * s;
+
+  const count = interpolate(frame, [RECEIVE_START, RECEIVE_START + 110], [0, ARRIVE_EUR], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  });
+  const stamp = spring({frame: frame - (RECEIVE_START + 120), fps, config: {damping: 120, stiffness: 200}});
+  const stampScale = stamp <= 0.001 ? 2.2 : 2.2 - 1.2 * Math.min(1, stamp);
+
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: 1020,
-        top: 1275,
-        width: 0,
-        height: 0,
-        pointerEvents: 'none',
-      }}
-    >
-      <div
-        style={{
-          transform: `translate(-50%, -50%) rotate(-9deg) scale(${scale})`,
-          opacity: Math.min(1, s * 1.4),
-          border: `10px solid ${AMBER}`,
-          borderRadius: 24,
-          padding: '28px 80px',
-          background: 'rgba(245,165,36,0.10)',
-          boxShadow: '0 0 70px rgba(245,165,36,0.45), inset 0 0 40px rgba(245,165,36,0.16)',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        <div
-          style={{
-            color: AMBER,
-            fontFamily: FONT,
-            fontWeight: 800,
-            fontSize: 108,
-            letterSpacing: 12,
-            textShadow: '0 0 26px rgba(245,165,36,0.6)',
-          }}
-        >
-          CLEARED
+    <div style={{
+      position: 'absolute', left: 1170, top: 1430, width: 1500,
+      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 50}px)`,
+    }}>
+      <div style={{
+        background: PANEL, borderRadius: 34, padding: '44px 56px',
+        border: `2px solid ${HAIRLINE}`, filter: 'url(#panelShadow)',
+        backdropFilter: 'blur(6px)', textAlign: 'center', position: 'relative',
+      }}>
+        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>ARRIVES AS</div>
+        <div style={{
+          color: MINT, fontFamily: MONO, fontWeight: 800, fontSize: 124,
+          marginTop: 8, textShadow: '0 0 44px rgba(45,227,155,0.5)',
+        }}>
+          {fmtEUR(count)}
+        </div>
+        <div style={{color: MUTED, fontFamily: FONT, fontSize: 32, marginTop: 8}}>
+          in your recipient&apos;s account &middot; usually within minutes
+        </div>
+        {stamp > 0.001 && (
+          <div style={{
+            position: 'absolute', right: 60, top: -70,
+            transform: `rotate(-12deg) scale(${stampScale})`,
+            opacity: Math.min(1, stamp),
+          }}>
+            <div style={{
+              border: `6px solid ${MINT}`, borderRadius: 20, padding: '18px 44px',
+              color: MINT, fontFamily: FONT, fontWeight: 800, fontSize: 54, letterSpacing: 4,
+              background: 'rgba(6,35,29,0.85)',
+              boxShadow: '0 0 60px rgba(45,227,155,0.45)',
+            }}>
+              RECEIVED
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Comparison strip
+// ---------------------------------------------------------------------------
+const CompareStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - COMPARE_START, fps, config: {damping: 200, stiffness: 90}});
+  if (s <= 0.001) return null;
+  const typical = interpolate(frame, [COMPARE_START + 20, COMPARE_START + 120], [0, 1], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  });
+  return (
+    <div style={{
+      position: 'absolute', left: 200, top: 1430, width: 880,
+      opacity: Math.min(1, s), transform: `translateX(${(1 - s) * -50}px)`,
+    }}>
+      <div style={{
+        background: 'rgba(58,21,8,0.55)', borderRadius: 30, padding: '40px 46px',
+        border: `2px solid rgba(255,122,89,0.4)`, backdropFilter: 'blur(6px)',
+      }}>
+        <div style={{color: WARN, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>TYPICAL BANK COST</div>
+        <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 64, marginTop: 10}}>
+          {fmtUSD(35 * typical)}
+        </div>
+        <div style={{color: MUTED, fontFamily: FONT, fontSize: 30, marginTop: 8}}>
+          hidden markup buried in the rate
+        </div>
+      </div>
+      <div style={{
+        marginTop: 22, background: 'rgba(14,158,102,0.18)', borderRadius: 30, padding: '40px 46px',
+        border: `2px solid rgba(45,227,155,0.45)`,
+      }}>
+        <div style={{color: MINT, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>THIS TRANSFER</div>
+        <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 64, marginTop: 10}}>
+          {fmtUSD(FEE_USD)}
+        </div>
+        <div style={{color: MUTED, fontFamily: FONT, fontSize: 30, marginTop: 8}}>
+          flat fee &middot; real exchange rate
         </div>
       </div>
     </div>
@@ -586,201 +444,38 @@ const ClearedStamp: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Dotted route line extending to the right
+// Resolve summary bar
 // ---------------------------------------------------------------------------
-const RouteLine: React.FC<{frame: number}> = ({frame}) => {
-  const w = interpolate(frame, [ROUTE_START, ROUTE_END], [0, 2250], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+const ResolveBar: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [RESOLVE_START, RESOLVE_START + 40], [0, 1], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
-  if (w <= 0) return null;
+  if (fade <= 0) return null;
+  const items = [
+    ['FEE', fmtUSD(FEE_USD)],
+    ['RATE', '0.9200'],
+    ['ARRIVES', fmtEUR(ARRIVE_EUR)],
+    ['SPEED', 'MINUTES'],
+  ];
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <defs>
-        <clipPath id="routeClip">
-          <rect x={1700} y={1850} width={w} height={100} />
-        </clipPath>
-      </defs>
-      <g clipPath="url(#routeClip)">
-        <line
-          x1={1700}
-          y1={1900}
-          x2={3950}
-          y2={1900}
-          stroke={AMBER}
-          strokeWidth={10}
-          strokeLinecap="round"
-          strokeDasharray="2 34"
-          opacity={0.85}
-          style={{filter: 'drop-shadow(0 0 10px rgba(245,165,36,0.7))'}}
-        />
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Haulier truck rolling out along the route
-// ---------------------------------------------------------------------------
-const Truck: React.FC<{frame: number}> = ({frame}) => {
-  const p = interpolate(frame, [TRUCK_START, TRUCK_END], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  if (p <= 0) return null;
-  const x = -1750 + p * 6400;
-  const bob = Math.sin(frame * 0.25) * 4;
-  const wheelDeg = -((x / 72) * (180 / Math.PI));
-  const wheels = [220, 820, 1330];
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g transform={`translate(${x}, ${bob})`}>
-        {/* cargo box */}
-        <rect x={0} y={1480} width={1100} height={350} rx={12} fill="url(#boxGrad)" stroke="rgba(245,165,36,0.5)" strokeWidth={3} />
-        <rect x={0} y={1480} width={1100} height={26} fill="rgba(245,165,36,0.35)" />
-        <text x={550} y={1680} fill={AMBER} fontSize={44} fontFamily={FONT} fontWeight={800} letterSpacing={8} textAnchor="middle" opacity={0.9}>
-          CLEARED CARGO
-        </text>
-        <text x={550} y={1740} fill={MUTED} fontSize={28} fontFamily={MONO} letterSpacing={4} textAnchor="middle">
-          SEAL NO. 88412
-        </text>
-        {/* chassis */}
-        <rect x={-60} y={1830} width={1230} height={40} rx={8} fill="#0A0E14" />
-        {/* cab */}
-        <rect x={1150} y={1580} width={350} height={300} rx={18} fill="#16202E" stroke="rgba(148,163,184,0.45)" strokeWidth={3} />
-        <polygon points="1180,1620 1420,1620 1470,1720 1180,1720" fill="rgba(45,212,191,0.30)" stroke="rgba(45,212,191,0.6)" strokeWidth={3} />
-        <text x={1325} y={1800} fill={MUTED} fontSize={27} fontFamily={MONO} letterSpacing={3} textAnchor="middle">
-          CARGO HAULIER
-        </text>
-        <circle cx={1500} cy={1830} r={16} fill="#FFE9A8" style={{filter: 'drop-shadow(0 0 16px rgba(255,233,168,0.9))'}} />
-        {/* wheels */}
-        {wheels.map((wx) => (
-          <g key={`wh${wx}`}>
-            <circle cx={wx} cy={1880} r={72} fill="#0A0C10" stroke="#2A3546" strokeWidth={10} />
-            <g transform={`rotate(${wheelDeg} ${wx} 1880)`}>
-              {[0, 60, 120].map((a) => (
-                <line
-                  key={`sp${a}`}
-                  x1={wx}
-                  y1={1880}
-                  x2={wx + 52 * Math.cos((a * Math.PI) / 180)}
-                  y2={1880 + 52 * Math.sin((a * Math.PI) / 180)}
-                  stroke="#54687F"
-                  strokeWidth={10}
-                  strokeLinecap="round"
-                />
-              ))}
-            </g>
-            <circle cx={wx} cy={1880} r={24} fill={AMBER} opacity={0.85} />
-          </g>
+    <div style={{
+      position: 'absolute', bottom: 120, left: 0, width: 3840,
+      display: 'flex', justifyContent: 'center', opacity: fade,
+    }}>
+      <div style={{
+        display: 'flex', gap: 2, borderRadius: 24, overflow: 'hidden',
+        border: `2px solid ${HAIRLINE}`, background: 'rgba(6,20,16,0.85)',
+      }}>
+        {items.map(([k, v], i) => (
+          <div key={k} style={{
+            padding: '26px 70px', textAlign: 'center',
+            borderRight: i < items.length - 1 ? `2px solid ${HAIRLINE}` : 'none',
+          }}>
+            <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, letterSpacing: 3}}>{k}</div>
+            <div style={{color: i === 2 ? MINT : INK, fontFamily: MONO, fontWeight: 800, fontSize: 46, marginTop: 6}}>{v}</div>
+          </div>
         ))}
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Bottom stepper: arrival -> documents -> scan -> duty -> released
-// ---------------------------------------------------------------------------
-const STEPS = [
-  {label: 'ARRIVAL', at: 80},
-  {label: 'DOCUMENTS', at: 280},
-  {label: 'SCAN', at: 540},
-  {label: 'DUTY PAID', at: 690},
-  {label: 'RELEASED', at: 800},
-];
-const Stepper: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [100, 150], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  if (fade <= 0) return null;
-  const xs = [560, 1240, 1920, 2600, 3280];
-  const y = 2010;
-  const doneCount = STEPS.filter((st) => frame >= st.at).length;
-  const frac = doneCount / STEPS.length;
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}} opacity={fade}>
-      <line x1={xs[0]} y1={y} x2={xs[4]} y2={y} stroke="rgba(148,163,184,0.25)" strokeWidth={5} />
-      <line
-        x1={xs[0]}
-        y1={y}
-        x2={xs[0] + (xs[4] - xs[0]) * frac}
-        y2={y}
-        stroke={AMBER}
-        strokeWidth={5}
-        strokeLinecap="round"
-        style={{filter: 'drop-shadow(0 0 10px rgba(245,165,36,0.7))'}}
-      />
-      {STEPS.map((st, i) => {
-        const active = frame >= st.at;
-        return (
-          <g key={st.label}>
-            <circle
-              cx={xs[i]}
-              cy={y}
-              r={42}
-              fill={active ? AMBER : 'rgba(11,16,23,0.9)'}
-              stroke={active ? AMBER : 'rgba(148,163,184,0.45)'}
-              strokeWidth={4}
-              style={active ? {filter: 'drop-shadow(0 0 16px rgba(245,165,36,0.8))'} : undefined}
-            />
-            <text
-              x={xs[i]}
-              y={y + 15}
-              fill={active ? '#0B1017' : MUTED}
-              fontSize={36}
-              fontFamily={MONO}
-              fontWeight={800}
-              textAnchor="middle"
-            >
-              {active ? '\u2713' : String(i + 1)}
-            </text>
-            <text
-              x={xs[i]}
-              y={y + 98}
-              fill={active ? INK : MUTED}
-              fontSize={30}
-              fontFamily={MONO}
-              fontWeight={active ? 700 : 400}
-              letterSpacing={3}
-              textAnchor="middle"
-            >
-              {st.label}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Status line (appears once cleared)
-// ---------------------------------------------------------------------------
-const StatusLine: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [830, 875], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  if (fade <= 0) return null;
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 300,
-        right: 220,
-        opacity: fade,
-        color: TEAL,
-        fontFamily: MONO,
-        fontSize: 36,
-        fontWeight: 800,
-        letterSpacing: 3,
-        textShadow: '0 0 22px rgba(45,212,191,0.6)',
-      }}
-    >
-      STATUS: CLEARED &middot; RELEASED TO HAULIER
+      </div>
     </div>
   );
 };
@@ -788,26 +483,22 @@ const StatusLine: React.FC<{frame: number}> = ({frame}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const CustomsClearanceFlow: React.FC = () => {
+export const CrossBorderRemittance: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
-      <PortScene frame={frame} />
-      <TitleBlock frame={frame} />
-      <ContainerUnit frame={frame} />
-      <ScannerBeam frame={frame} />
-      <DocStack frame={frame} fps={fps} />
-      <DutyPanel frame={frame} fps={fps} />
-      <ClearedStamp frame={frame} fps={fps} />
-      <RouteLine frame={frame} />
-      <Truck frame={frame} />
-      <Stepper frame={frame} />
-      <StatusLine frame={frame} />
+      <TitleBar frame={frame} />
+      <SendPanel frame={frame} fps={fps} />
+      <FxPanel frame={frame} fps={fps} />
+      <RouteMap frame={frame} fps={fps} />
+      <ReceivePanel frame={frame} fps={fps} />
+      <CompareStrip frame={frame} fps={fps} />
+      <ResolveBar frame={frame} />
     </AbsoluteFill>
   );
 };
 
-export default CustomsClearanceFlow;
+export default CrossBorderRemittance;
