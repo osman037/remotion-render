@@ -1,17 +1,18 @@
 /**
- * EVChargingAvailabilityMap.tsx
+ * ESignatureSigningFlow.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * Live EV charging network availability map: status-ringed station pins
- * (green = available, amber = charging, blue = in queue), kW badges, queue
- * counters, and a route that draws from the driver marker to the nearest
- * available fast charger with a ticking ETA, ending in a charge-start payoff.
+ * An electronic signature workflow on warm parchment: a contract descends,
+ * "sign here" tabs pulse, an ink signature draws itself, fields check off,
+ * the document folds into an envelope, a gold SIGNED seal slams down, an
+ * audit trail writes out, and sealed copies land in both inboxes.
+ * Intro -> build -> payoff -> resolve.
  *
  * Register in Root.tsx:
- *   <Composition id="EVChargingAvailabilityMap" component={EVChargingAvailabilityMap}
+ *   <Composition id="ESignatureSigningFlow" component={ESignatureSigningFlow}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
-import React, {useMemo} from 'react';
+import React from 'react';
 import {
   AbsoluteFill,
   interpolate,
@@ -21,643 +22,413 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette
+// Palette (parchment + ink + gold seal)
 // ---------------------------------------------------------------------------
-const BG = '#060B12';
-const INK = '#EAF2FB';
-const MUTED = 'rgba(180,198,216,0.62)';
-const AVAIL = '#34D399'; // green - available
-const CHARGE = '#FBBF24'; // amber - charging
-const QUEUE = '#60A5FA'; // blue - queue
-const TEAL = '#2DD4BF';
+const BG = '#EFE6D2';
+const PAPER = '#FFFDF6';
+const INK = '#1C2B4A';
+const MUTED = 'rgba(28,43,74,0.58)';
+const FAINT = 'rgba(28,43,74,0.14)';
+const GOLD = '#C9A227';
+const GOLD_DEEP = '#9A7A14';
+const SUCCESS = '#1F9D6B';
+const SIGN_TAB = '#2B6CB0';
+
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
-// Timeline (frames at 60 fps, 900 = 15 s)
+// Timeline
 // ---------------------------------------------------------------------------
-const MAP_START = 20;
-const STATIONS_START = 90;
-const ROUTE_START = 260;
-const ROUTE_END = 560;
-const ARRIVE_START = 560;
-const PAYOFF_END = 720;
+const DOC_DROP = 60;
+const TABS_START = 190;
+const SIGN_DRAW_START = 260;
+const SIGN_DRAW_END = 430;
+const FIELDS_START = 440;
+const STAMP_DATE = 520;
+const ENVELOPE_START = 580;
+const SEAL_START = 680;
+const AUDIT_START = 740;
+const INBOX_START = 780;
+const BANNER_START = 830;
 
-// ---------------------------------------------------------------------------
-// Deterministic pseudo-random helper
-// ---------------------------------------------------------------------------
-const rand = (seed: number) => {
-  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
-};
+const SIGN_PATH =
+  'M 120 210 C 170 120, 200 260, 250 170 S 330 90, 350 200 ' +
+  'S 430 250, 470 150 S 560 120, 590 190 ' +
+  'M 470 235 C 560 215, 640 235, 720 205';
 
-// ---------------------------------------------------------------------------
-// Map geometry
-// ---------------------------------------------------------------------------
-const MAP_LEFT = 220;
-const MAP_RIGHT = 3620;
-const MAP_TOP = 330;
-const MAP_BOTTOM = 1920;
-
-interface Station {
-  id: number;
-  x: number; // 0..1 across map
-  y: number; // 0..1 down map
-  name: string;
-  kw: number;
-  status: 'avail' | 'charging' | 'queue';
-  queue: number;
-  ports: number;
-  free: number;
-}
-
-// Nine stations spread across the map
-const STATIONS: Station[] = [
-  {id: 0, x: 0.13, y: 0.24, name: 'HARBOUR POINT', kw: 350, status: 'avail', queue: 0, ports: 12, free: 7},
-  {id: 1, x: 0.33, y: 0.14, name: 'NORTHGATE PLAZA', kw: 180, status: 'charging', queue: 0, ports: 8, free: 0},
-  {id: 2, x: 0.52, y: 0.30, name: 'MIDTOWN EXCHANGE', kw: 350, status: 'queue', queue: 3, ports: 10, free: 0},
-  {id: 3, x: 0.70, y: 0.16, name: 'AIRPORT TERMINAL', kw: 250, status: 'charging', queue: 0, ports: 6, free: 0},
-  {id: 4, x: 0.86, y: 0.38, name: 'RIVERSIDE DEPOT', kw: 180, status: 'avail', queue: 0, ports: 8, free: 5},
-  {id: 5, x: 0.22, y: 0.62, name: 'OLD TOWN HUB', kw: 120, status: 'queue', queue: 2, ports: 6, free: 0},
-  {id: 6, x: 0.44, y: 0.55, name: 'CENTRAL YARDS', kw: 350, status: 'avail', queue: 0, ports: 14, free: 9},
-  {id: 7, x: 0.63, y: 0.72, name: 'SOUTHPORT MALL', kw: 250, status: 'charging', queue: 0, ports: 8, free: 0},
-  {id: 8, x: 0.84, y: 0.66, name: 'MARINA DRIVE', kw: 350, status: 'avail', queue: 0, ports: 10, free: 6},
+const FIELDS = [
+  {label: 'SIGNATURE', x: 120, w: 620},
+  {label: 'INITIALS', x: 120, w: 300},
+  {label: 'DATE', x: 120, w: 300},
 ];
 
-// Driver starts bottom-left; nearest available fast charger is CENTRAL YARDS (id 6)
-const DRIVER = {x: 0.06, y: 0.88};
-const TARGET = STATIONS[6];
-const statusColor = (s: Station['status']) =>
-  s === 'avail' ? AVAIL : s === 'charging' ? CHARGE : QUEUE;
+const AUDIT = [
+  'identity verified',
+  'timestamp 09:41:22 PKT',
+  'tamper-evident seal',
+  'audit trail stored',
+];
 
 // ---------------------------------------------------------------------------
-// Static defs
+// SVG defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="bgGlow" cx="50%" cy="42%" r="72%">
-      <stop offset="0%" stopColor="rgba(45,212,191,0.10)" />
-      <stop offset="55%" stopColor="rgba(45,212,191,0.03)" />
-      <stop offset="100%" stopColor="rgba(6,11,18,0)" />
+    <radialGradient id="parchGlow" cx="50%" cy="36%" r="72%">
+      <stop offset="0%" stopColor="rgba(201,162,39,0.16)" />
+      <stop offset="55%" stopColor="rgba(201,162,39,0.05)" />
+      <stop offset="100%" stopColor="rgba(239,230,210,0)" />
     </radialGradient>
-    <radialGradient id="vignette" cx="50%" cy="50%" r="75%">
-      <stop offset="60%" stopColor="rgba(6,11,18,0)" />
-      <stop offset="100%" stopColor="rgba(2,4,8,0.74)" />
+    <radialGradient id="parchVignette" cx="50%" cy="50%" r="76%">
+      <stop offset="62%" stopColor="rgba(120,90,40,0)" />
+      <stop offset="100%" stopColor="rgba(120,90,40,0.22)" />
     </radialGradient>
-    <linearGradient id="routeGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={TEAL} />
-      <stop offset="100%" stopColor={AVAIL} />
+    <linearGradient id="goldSeal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stopColor={'#E8C95A'} />
+      <stop offset="55%" stopColor={GOLD} />
+      <stop offset="100%" stopColor={GOLD_DEEP} />
     </linearGradient>
-    <filter id="pinGlow" x="-90%" y="-90%" width="280%" height="280%">
-      <feGaussianBlur stdDeviation="11" result="blur" />
+    <linearGradient id="docSheen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor="rgba(255,255,255,0)" />
+      <stop offset="50%" stopColor="rgba(255,255,255,0.35)" />
+      <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+    </linearGradient>
+    <filter id="docShadow" x="-25%" y="-25%" width="150%" height="160%">
+      <feDropShadow dx="0" dy="26" stdDeviation="34" floodColor="#1C2B4A" floodOpacity="0.28" />
+    </filter>
+    <filter id="sealGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="16" result="blur" />
       <feMerge>
         <feMergeNode in="blur" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
-    <filter id="softBlur" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="6" />
-    </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background: layered glow, vignette, faint map streets, scan sweep
+// Background
 // ---------------------------------------------------------------------------
-const Background: React.FC<{frame: number}> = ({frame}) => {
-  const sweep = useMemo(() => {
-    const cols = 21;
-    const rows = 12;
-    const lines: {x1: number; y1: number; x2: number; y2: number; w: number}[] = [];
-    for (let i = 0; i <= cols; i++) {
-      const x = MAP_LEFT + (i / cols) * (MAP_RIGHT - MAP_LEFT) + (rand(i) - 0.5) * 90;
-      lines.push({x1: x, y1: MAP_TOP, x2: x + (rand(i + 40) - 0.5) * 160, y2: MAP_BOTTOM, w: i % 5 === 0 ? 3 : 1.5});
-    }
-    for (let j = 0; j <= rows; j++) {
-      const y = MAP_TOP + (j / rows) * (MAP_BOTTOM - MAP_TOP) + (rand(j + 90) - 0.5) * 70;
-      lines.push({x1: MAP_LEFT, y1: y, x2: MAP_RIGHT, y2: y + (rand(j + 140) - 0.5) * 120, w: j % 4 === 0 ? 3 : 1.5});
-    }
-    return lines;
-  }, []);
+const Background: React.FC = () => (
+  <>
+    <AbsoluteFill style={{backgroundColor: BG}} />
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <Defs />
+      <rect x={0} y={0} width={3840} height={2160} fill="url(#parchGlow)" />
+      <rect x={0} y={0} width={3840} height={2160} fill="url(#parchVignette)" />
+    </svg>
+  </>
+);
 
-  const fade = interpolate(frame, [MAP_START, MAP_START + 80], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  const scanX = MAP_LEFT + ((frame / 900) * (MAP_RIGHT - MAP_LEFT + 400)) - 200;
-
+// ---------------------------------------------------------------------------
+// Title bar
+// ---------------------------------------------------------------------------
+const TitleBar: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [0, 40], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const rise = interpolate(frame, [0, 40], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
-    <>
-      <AbsoluteFill style={{backgroundColor: BG}} />
-      <AbsoluteFill
-        style={{
-          background:
-            'radial-gradient(circle at 50% 40%, rgba(45,212,191,0.10), rgba(45,212,191,0.03) 45%, rgba(6,11,18,0) 72%)',
-        }}
-      />
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <Defs />
-        <g opacity={fade * 0.55}>
-          {sweep.map((l, i) => (
-            <line
-              key={`st${i}`}
-              x1={l.x1}
-              y1={l.y1}
-              x2={l.x2}
-              y2={l.y2}
-              stroke={i % 7 === 0 ? 'rgba(96,165,250,0.10)' : 'rgba(148,163,184,0.07)'}
-              strokeWidth={l.w}
-            />
-          ))}
-          {/* river curve */}
-          <path
-            d={`M ${MAP_LEFT - 60} 1450 C 900 1380, 1400 1600, 2100 1520 S 3300 1700, ${MAP_RIGHT + 60} 1620`}
-            fill="none"
-            stroke="rgba(96,165,250,0.14)"
-            strokeWidth={46}
-            strokeLinecap="round"
-            opacity={0.7}
-          />
-          <path
-            d={`M ${MAP_LEFT - 60} 1450 C 900 1380, 1400 1600, 2100 1520 S 3300 1700, ${MAP_RIGHT + 60} 1620`}
-            fill="none"
-            stroke="rgba(96,165,250,0.20)"
-            strokeWidth={3}
-            strokeLinecap="round"
-          />
-        </g>
-        {/* district labels */}
-        <g opacity={fade * 0.8}>
-          <text x={640} y={480} fill="rgba(148,163,184,0.30)" fontSize={30} fontFamily={MONO} letterSpacing={8}>
-            HARBOUR DISTRICT
-          </text>
-          <text x={2450} y={560} fill="rgba(148,163,184,0.30)" fontSize={30} fontFamily={MONO} letterSpacing={8}>
-            MIDTOWN
-          </text>
-          <text x={1500} y={1700} fill="rgba(148,163,184,0.30)" fontSize={30} fontFamily={MONO} letterSpacing={8}>
-            OLD TOWN
-          </text>
-          <text x={3030} y={1330} fill="rgba(148,163,184,0.30)" fontSize={30} fontFamily={MONO} letterSpacing={8}>
-            RIVERSIDE
-          </text>
-        </g>
-        {/* scanning sweep */}
-        <rect x={scanX - 70} y={MAP_TOP} width={140} height={MAP_BOTTOM - MAP_TOP} fill="rgba(45,212,191,0.030)" />
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#vignette)" />
-      </svg>
-    </>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Title bar + network stats
-// ---------------------------------------------------------------------------
-const TitleBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const fade = interpolate(frame, [0, 50], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const rise = interpolate(frame, [0, 50], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-
-  const count = (to: number, start: number) => {
-    const t = interpolate(frame, [start, start + 70], [0, 1], {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    });
-    return Math.round(to * (1 - Math.pow(1 - t, 3)));
-  };
-
-  const stats = [
-    {label: 'CHARGERS FREE', value: count(27, 70), color: AVAIL},
-    {label: 'VEHICLES QUEUED', value: count(11, 90), color: QUEUE},
-    {label: 'AVG POWER', value: `${count(164, 110)}`, unit: 'kW', color: CHARGE},
-  ];
-
-  return (
-    <div style={{position: 'absolute', top: 84 + rise, left: 220, right: 220, opacity: fade}}>
-      <div style={{display: 'flex', alignItems: 'baseline', justifyContent: 'space-between'}}>
-        <div>
-          <div style={{display: 'flex', alignItems: 'baseline', gap: 30}}>
-            <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 82, letterSpacing: -1}}>
-              CHARGE NETWORK
-            </span>
-            <span
-              style={{
-                color: AVAIL,
-                fontFamily: MONO,
-                fontSize: 36,
-                fontWeight: 700,
-                border: `2px solid ${AVAIL}`,
-                borderRadius: 10,
-                padding: '6px 18px',
-              }}
-            >
-              LIVE
-            </span>
-          </div>
-          <div style={{color: MUTED, fontFamily: FONT, fontSize: 34, marginTop: 14}}>
-            Real-time charger availability &middot; city grid &middot; 9 hubs
-          </div>
-        </div>
-        <div style={{display: 'flex', gap: 40}}>
-          {stats.map((s) => (
-            <div key={s.label} style={{textAlign: 'right'}}>
-              <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, letterSpacing: 2}}>{s.label}</div>
-              <div
-                style={{
-                  color: s.color,
-                  fontFamily: MONO,
-                  fontWeight: 800,
-                  fontSize: 76,
-                  textShadow: `0 0 26px ${s.color}55`,
-                }}
-              >
-                {s.value}
-                {s.unit && <span style={{fontSize: 34, marginLeft: 6}}>{s.unit}</span>}
-              </div>
-            </div>
-          ))}
-        </div>
+    <div style={{position: 'absolute', top: 80 + rise, left: 200, opacity: fade}}>
+      <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 78, letterSpacing: -1.5}}>
+        Sign it. Seal it. <span style={{color: GOLD_DEEP}}>Done.</span>
+      </div>
+      <div style={{color: MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 3, marginTop: 12}}>
+        ELECTRONIC SIGNATURE WORKFLOW
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Legend chips
+// The contract document
 // ---------------------------------------------------------------------------
-const Legend: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [140, 190], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const items = [
-    {c: AVAIL, t: 'AVAILABLE'},
-    {c: CHARGE, t: 'CHARGING'},
-    {c: QUEUE, t: 'QUEUE'},
-  ];
+const DOC_W = 1180;
+const DOC_H = 1380;
+const DOC_X = (3840 - DOC_W) / 2;
+const DOC_Y = 330;
+
+const Document: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const drop = spring({frame: frame - DOC_DROP, fps, config: {damping: 200, stiffness: 55}});
+  if (drop <= 0.001) return null;
+
+  const env = spring({frame: frame - ENVELOPE_START, fps, config: {damping: 200, stiffness: 80}});
+  const envT = Math.min(1, Math.max(0, env));
+  // document folds into envelope: shrinks toward center-bottom
+  const foldScale = 1 - envT * 0.62;
+  const foldY = envT * 300;
+
+  const signDraw = interpolate(frame, [SIGN_DRAW_START, SIGN_DRAW_END], [0, 1], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  });
+
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: 220,
-        bottom: 78,
-        display: 'flex',
-        gap: 44,
-        opacity: fade,
-      }}
-    >
-      {items.map((it) => (
-        <div key={it.t} style={{display: 'flex', alignItems: 'center', gap: 16}}>
-          <div
-            style={{
-              width: 26,
-              height: 26,
-              borderRadius: 13,
-              background: it.c,
-              boxShadow: `0 0 18px ${it.c}`,
-            }}
-          />
-          <span style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>{it.t}</span>
+    <div style={{
+      position: 'absolute', left: DOC_X, top: DOC_Y + (1 - drop) * -900 + foldY,
+      width: DOC_W, height: DOC_H,
+      opacity: Math.min(1, drop) * (1 - interpolate(frame, [ENVELOPE_START + 60, ENVELOPE_START + 130], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})),
+      transform: `scale(${foldScale})`,
+      transformOrigin: 'center bottom',
+    }}>
+      <div style={{
+        width: DOC_W, height: DOC_H, background: PAPER, borderRadius: 26,
+        border: `2px solid ${FAINT}`, filter: 'url(#docShadow)',
+        padding: '70px 80px', position: 'relative', overflow: 'hidden',
+      }}>
+        <rect width={DOC_W} height={DOC_H} fill="url(#docSheen)" style={{position: 'absolute', top: 0, left: 0}} />
+        <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 56}}>
+          Services Agreement
         </div>
-      ))}
+        <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 2, marginTop: 10}}>
+          CONTRACT #SA-2026-0914 &middot; 4 PAGES
+        </div>
+        {/* body text lines */}
+        {Array.from({length: 9}).map((_, i) => {
+          const lw = spring({frame: frame - (DOC_DROP + 60 + i * 18), fps, config: {damping: 200, stiffness: 140}});
+          return (
+            <div key={i} style={{
+              height: 16, borderRadius: 8, background: FAINT, marginTop: 26,
+              width: `${88 - (i % 3) * 14}%`,
+              transform: `scaleX(${Math.min(1, Math.max(0, lw))})`,
+              transformOrigin: 'left center',
+            }} />
+          );
+        })}
+        {/* signature fields */}
+        <div style={{marginTop: 60}}>
+          {FIELDS.map((f, i) => {
+            const fs = spring({frame: frame - (FIELDS_START + i * 40), fps, config: {damping: 200, stiffness: 130}});
+            if (fs <= 0.001) return null;
+            const done = frame >= FIELDS_START + 120 + i * 40;
+            return (
+              <div key={f.label} style={{marginTop: 34, opacity: Math.min(1, fs)}}>
+                <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, letterSpacing: 3}}>{f.label}</div>
+                <div style={{
+                  marginTop: 10, height: 74, width: f.w, borderRadius: 12,
+                  border: `3px dashed ${done ? SUCCESS : SIGN_TAB}`,
+                  background: done ? 'rgba(31,157,107,0.08)' : 'rgba(43,108,176,0.08)',
+                  position: 'relative',
+                }}>
+                  {/* the drawn signature in the first field */}
+                  {i === 0 && signDraw > 0 && (
+                    <svg width={f.w} height={74} style={{position: 'absolute', top: -44, left: 0, overflow: 'visible'}}>
+                      <path
+                        d={SIGN_PATH}
+                        fill="none" stroke={INK} strokeWidth={7} strokeLinecap="round"
+                        pathLength={1} strokeDasharray={1} strokeDashoffset={1 - signDraw}
+                      />
+                    </svg>
+                  )}
+                  {i === 2 && frame >= STAMP_DATE && (
+                    <div style={{
+                      position: 'absolute', left: 20, top: 8,
+                      color: INK, fontFamily: MONO, fontWeight: 700, fontSize: 40,
+                      opacity: interpolate(frame, [STAMP_DATE, STAMP_DATE + 20], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
+                    }}>
+                      SEP 28, 2026
+                    </div>
+                  )}
+                  {done && (
+                    <div style={{
+                      position: 'absolute', right: -26, top: -26,
+                      width: 64, height: 64, borderRadius: '50%', background: SUCCESS,
+                      color: '#fff', fontSize: 38, fontWeight: 800,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>&#10003;</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {/* pulsing sign-here tabs (outside the clipped paper so they stick out fully) */}
+      {frame >= TABS_START && frame < ENVELOPE_START && (
+        <div style={{position: 'absolute', right: -70, top: 560}}>
+          {[0, 1, 2].map((i) => {
+            const tabOn = frame >= TABS_START + i * 60 && frame < FIELDS_START + 120 + i * 40;
+            if (!tabOn) return null;
+            const pulse = 1 + 0.08 * Math.sin(frame * 0.3);
+            return (
+              <div key={i} style={{
+                marginTop: i === 0 ? 0 : 120,
+                background: SIGN_TAB, color: '#fff',
+                fontFamily: MONO, fontWeight: 800, fontSize: 30, letterSpacing: 2,
+                padding: '18px 26px', borderRadius: '0 14px 14px 0',
+                transform: `scale(${pulse})`, transformOrigin: 'left center',
+                boxShadow: '0 0 30px rgba(43,108,176,0.6)',
+              }}>
+                SIGN HERE
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Station pins with status rings, kW badges, queue counters
+// Envelope + gold SIGNED seal
 // ---------------------------------------------------------------------------
-const Stations: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const px = (s: Station) => MAP_LEFT + s.x * (MAP_RIGHT - MAP_LEFT);
-  const py = (s: Station) => MAP_TOP + s.y * (MAP_BOTTOM - MAP_TOP);
+const Envelope: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - (ENVELOPE_START + 40), fps, config: {damping: 200, stiffness: 80}});
+  if (s <= 0.001) return null;
+  const seal = spring({frame: frame - SEAL_START, fps, config: {damping: 110, stiffness: 220}});
+  const sealScale = seal <= 0.001 ? 2.4 : 2.4 - 1.4 * Math.min(1, seal);
+  const impact = frame >= SEAL_START && frame < SEAL_START + 10;
+
+  const EW = 900; const EH = 620;
+  const EX = (3840 - EW) / 2; const EY = 830;
 
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      {STATIONS.map((st, i) => {
-        const appearAt = STATIONS_START + i * 26;
-        const s = spring({frame: frame - appearAt, fps, config: {damping: 200, stiffness: 100}});
-        if (s <= 0.001) return null;
-        const c = statusColor(st.status);
-        const x = px(st);
-        const y = py(st);
-        // pulsing outer ring
-        const pulse = 0.5 + 0.5 * Math.sin(frame * 0.07 + i * 1.3);
-        const ringR = 44 + pulse * 14;
-        // port availability arc
-        const portFrac = st.free / st.ports;
-        const circ = 2 * Math.PI * 62;
-        const isTarget = st.id === TARGET.id;
-
-        return (
-          <g key={`stn${st.id}`} opacity={Math.min(1, s)} transform={`translate(${x}, ${y}) scale(${0.6 + 0.4 * s})`}>
-            {/* glow halo */}
-            <circle r={52} fill={c} opacity={0.16} filter="url(#pinGlow)" />
-            {/* pulsing status ring */}
-            <circle
-              r={ringR}
-              fill="none"
-              stroke={c}
-              strokeWidth={5}
-              opacity={0.55 + pulse * 0.3}
-              style={{filter: `drop-shadow(0 0 12px ${c})`}}
-            />
-            {/* port ring */}
-            <circle
-              r={62}
-              fill="none"
-              stroke="rgba(148,163,184,0.22)"
-              strokeWidth={7}
-            />
-            <circle
-              r={62}
-              fill="none"
-              stroke={c}
-              strokeWidth={7}
-              strokeLinecap="round"
-              strokeDasharray={circ}
-              strokeDashoffset={circ * (1 - portFrac * s)}
-              transform="rotate(-90)"
-              opacity={0.95}
-            />
-            {/* pin body */}
-            <circle r={34} fill="#0B1420" stroke={c} strokeWidth={3.5} />
-            {/* lightning bolt */}
-            <path
-              d="M 4 -16 L -9 4 L -1 4 L -4 17 L 10 -3 L 1 -3 Z"
-              fill={c}
-              opacity={0.95}
-              style={{filter: `drop-shadow(0 0 8px ${c})`}}
-            />
-            {/* station name */}
-            <text
-              x={0}
-              y={-104}
-              fill={INK}
-              fontSize={30}
-              fontFamily={FONT}
-              fontWeight={700}
-              textAnchor="middle"
-              style={{textShadow: '0 2px 10px rgba(0,0,0,0.9)'}}
-            >
-              {st.name}
-            </text>
-            {/* kW badge */}
-            <g transform="translate(64, -96)">
-              <rect x={0} y={-30} width={168} height={58} rx={12} fill="rgba(8,13,22,0.92)" stroke="rgba(148,163,184,0.35)" strokeWidth={2} />
-              <text x={84} y={10} fill={TEAL} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-                {st.kw} kW
-              </text>
-            </g>
-            {/* queue chip */}
-            {st.status === 'queue' && (
-              <g transform="translate(-190, 66)">
-                <rect x={0} y={-34} width={262} height={62} rx={12} fill="rgba(8,13,22,0.92)" stroke={QUEUE} strokeWidth={2.5} />
-                <text x={131} y={12} fill={QUEUE} fontSize={33} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-                  {st.queue} IN QUEUE
-                </text>
-              </g>
-            )}
-            {/* available chip */}
-            {st.status === 'avail' && (
-              <g transform="translate(-178, 66)">
-                <rect x={0} y={-34} width={238} height={62} rx={12} fill="rgba(8,13,22,0.92)" stroke={AVAIL} strokeWidth={2.5} />
-                <text x={119} y={12} fill={AVAIL} fontSize={33} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-                  {st.free} FREE
-                </text>
-              </g>
-            )}
-            {/* charging chip */}
-            {st.status === 'charging' && (
-              <g transform="translate(-196, 66)">
-                <rect x={0} y={-34} width={274} height={62} rx={12} fill="rgba(8,13,22,0.92)" stroke={CHARGE} strokeWidth={2.5} />
-                <text x={137} y={12} fill={CHARGE} fontSize={33} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-                  ALL IN USE
-                </text>
-              </g>
-            )}
-            {/* target reticle on CENTRAL YARDS */}
-            {isTarget && (
-              <g>
-                <circle
-                  r={110}
-                  fill="none"
-                  stroke={AVAIL}
-                  strokeWidth={3}
-                  strokeDasharray="22 18"
-                  opacity={0.85}
-                >
-                  <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="6s" repeatCount="indefinite" />
-                </circle>
-                <circle r={110} fill="none" stroke={AVAIL} strokeWidth={1.5} opacity={0.4} />
-              </g>
-            )}
+    <div style={{
+      position: 'absolute', left: EX, top: EY,
+      width: EW, height: EH,
+      opacity: Math.min(1, s),
+      transform: `translateY(${(1 - s) * 80}px) scale(${0.9 + 0.1 * s}) ${impact ? 'translateY(14px)' : ''}`,
+    }}>
+      <svg width={EW} height={EH} viewBox={`0 0 ${EW} ${EH}`}>
+        <rect x={8} y={8} width={EW - 16} height={EH - 16} rx={28} fill={PAPER} stroke={FAINT} strokeWidth={3} filter="url(#docShadow)" />
+        <path d={`M 8 36 L ${EW / 2} ${EH * 0.62} L ${EW - 8} 36`} fill="none" stroke={FAINT} strokeWidth={4} />
+        <path d={`M 8 ${EH - 36} L ${EW * 0.38} ${EH * 0.55} M ${EW - 8} ${EH - 36} L ${EW * 0.62} ${EH * 0.55}`} fill="none" stroke={FAINT} strokeWidth={4} />
+        {seal > 0.001 && (
+          <g transform={`translate(${EW / 2} ${EH * 0.58}) scale(${sealScale})`} opacity={Math.min(1, seal)} filter="url(#sealGlow)">
+            <circle r={104} fill="url(#goldSeal)" stroke={GOLD_DEEP} strokeWidth={6} />
+            <circle r={84} fill="none" stroke={PAPER} strokeWidth={4} opacity={0.8} />
+            <text y={-8} textAnchor="middle" fill={PAPER} fontSize={40} fontFamily={FONT} fontWeight={800} letterSpacing={3}>SIGNED</text>
+            <text y={34} textAnchor="middle" fill={PAPER} fontSize={24} fontFamily={MONO} letterSpacing={2}>09&middot;28&middot;2026</text>
           </g>
+        )}
+      </svg>
+      {impact && (
+        <div style={{
+          position: 'absolute', left: EW / 2 - 260, top: EH * 0.58 - 12,
+          width: 520, height: 24, borderRadius: 12,
+          background: 'rgba(201,162,39,0.5)', filter: 'blur(10px)',
+        }} />
+      )}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Audit trail typing out
+// ---------------------------------------------------------------------------
+const AuditTrail: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - AUDIT_START, fps, config: {damping: 200, stiffness: 90}});
+  if (s <= 0.001) return null;
+  return (
+    <div style={{
+      position: 'absolute', left: 0, top: 1560, width: 3840,
+      display: 'flex', justifyContent: 'center', gap: 34,
+      opacity: Math.min(1, s),
+    }}>
+      {AUDIT.map((a, i) => {
+        const as = spring({frame: frame - (AUDIT_START + 20 + i * 44), fps, config: {damping: 200, stiffness: 140}});
+        if (as <= 0.001) return null;
+        return (
+          <div key={a} style={{
+            display: 'flex', alignItems: 'center', gap: 16,
+            background: PAPER, border: `2px solid ${FAINT}`, borderRadius: 999,
+            padding: '20px 38px',
+            opacity: Math.min(1, as),
+            transform: `translateY(${(1 - as) * 26}px)`,
+          }}>
+            <span style={{color: SUCCESS, fontSize: 32, fontWeight: 800}}>&#10003;</span>
+            <span style={{color: INK, fontFamily: MONO, fontSize: 30}}>{a}</span>
+          </div>
         );
       })}
-    </svg>
+    </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Driver marker + route to nearest available charger
+// Inbox copies: sealed doc flies to YOU and CLIENT
 // ---------------------------------------------------------------------------
-const Route: React.FC<{frame: number}> = ({frame}) => {
-  const sx = MAP_LEFT + DRIVER.x * (MAP_RIGHT - MAP_LEFT);
-  const sy = MAP_TOP + DRIVER.y * (MAP_BOTTOM - MAP_TOP);
-  const tx = MAP_LEFT + TARGET.x * (MAP_RIGHT - MAP_LEFT);
-  const ty = MAP_TOP + TARGET.y * (MAP_BOTTOM - MAP_TOP);
-
-  // Route with a waypoint bend for a natural road feel
-  const mx = sx + (tx - sx) * 0.45;
-  const my = Math.min(sy, ty) - 160;
-  const path = `M ${sx} ${sy} Q ${mx} ${my} ${tx} ${ty - 70}`;
-
-  const draw = interpolate(frame, [ROUTE_START, ROUTE_END], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  // traveling dot along the quadratic bezier
-  const quad = (t: number) => {
-    const ax = (1 - t) * (1 - t) * sx + 2 * (1 - t) * t * mx + t * t * tx;
-    const ay = (1 - t) * (1 - t) * sy + 2 * (1 - t) * t * my + t * t * (ty - 70);
-    return {x: ax, y: ay};
-  };
-  const dot = quad(draw);
-
-  const driverIn = interpolate(frame, [ROUTE_START - 40, ROUTE_START], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  // ETA counts down 04:48 -> 00:00 across the route
-  const etaSec = Math.round(interpolate(frame, [ROUTE_START, ROUTE_END], [288, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  }));
-  const etaStr = `${String(Math.floor(etaSec / 60)).padStart(2, '0')}:${String(etaSec % 60).padStart(2, '0')}`;
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      {/* driver marker */}
-      <g opacity={driverIn}>
-        <circle cx={sx} cy={sy} r={30} fill={TEAL} opacity={0.25} filter="url(#pinGlow)" />
-        <circle cx={sx} cy={sy} r={16} fill={TEAL} style={{filter: 'drop-shadow(0 0 14px rgba(45,212,191,0.9))'}} />
-        <circle cx={sx} cy={sy} r={46} fill="none" stroke={TEAL} strokeWidth={3} opacity={0.6} />
-        <text x={sx} y={sy + 92} fill={INK} fontSize={30} fontFamily={MONO} fontWeight={700} textAnchor="middle">
-          YOU
-        </text>
-      </g>
-
-      {/* route */}
-      {draw > 0.001 && (
-        <g>
-          <path
-            d={path}
-            fill="none"
-            stroke="rgba(45,212,191,0.25)"
-            strokeWidth={14}
-            strokeLinecap="round"
-            opacity={0.5}
-          />
-          <path
-            d={path}
-            fill="none"
-            stroke="url(#routeGrad)"
-            strokeWidth={7}
-            strokeLinecap="round"
-            pathLength={1}
-            strokeDasharray={1}
-            strokeDashoffset={1 - draw}
-            style={{filter: 'drop-shadow(0 0 16px rgba(52,211,153,0.7))'}}
-          />
-          {/* traveling car dot */}
-          <circle cx={dot.x} cy={dot.y} r={26} fill={AVAIL} opacity={0.22} filter="url(#pinGlow)" />
-          <circle cx={dot.x} cy={dot.y} r={13} fill="#FFFFFF" style={{filter: 'drop-shadow(0 0 12px rgba(255,255,255,0.9))'}} />
-          {/* ETA pill follows the dot */}
-          <g transform={`translate(${dot.x}, ${dot.y - 84})`}>
-            <rect x={-130} y={-40} width={260} height={78} rx={16} fill="rgba(8,13,22,0.94)" stroke={AVAIL} strokeWidth={2.5} />
-            <text x={0} y={-6} fill={MUTED} fontSize={24} fontFamily={MONO} letterSpacing={2} textAnchor="middle">
-              ETA
-            </text>
-            <text x={0} y={30} fill={AVAIL} fontSize={38} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-              {etaStr}
-            </text>
-          </g>
-        </g>
-      )}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Arrival payoff: charge ring + "CHARGING STARTED" stamp
-// ---------------------------------------------------------------------------
-const Payoff: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const tx = MAP_LEFT + TARGET.x * (MAP_RIGHT - MAP_LEFT);
-  const ty = MAP_TOP + TARGET.y * (MAP_BOTTOM - MAP_TOP);
-
-  const bloom = spring({frame: frame - ARRIVE_START, fps, config: {damping: 200, stiffness: 80}});
-  const stamp = spring({frame: frame - (ARRIVE_START + 40), fps, config: {damping: 200, stiffness: 120}});
-
-  // charge % fills 18 -> 64 across the payoff window
-  const pct = Math.round(interpolate(frame, [ARRIVE_START + 60, 880], [18, 64], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  }));
-  const circ = 2 * Math.PI * 150;
-
-  if (bloom <= 0.001) return null;
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g transform={`translate(${tx}, ${ty})`} opacity={Math.min(1, bloom)}>
-        {/* expanding shockwave */}
-        <circle
-          r={60 + bloom * 320}
-          fill="none"
-          stroke={AVAIL}
-          strokeWidth={6 * (1 - bloom) + 1}
-          opacity={(1 - bloom) * 0.8}
-        />
-        {/* charge ring */}
-        <circle r={150} fill="rgba(6,11,18,0.88)" stroke="rgba(52,211,153,0.25)" strokeWidth={16} />
-        <circle
-          r={150}
-          fill="none"
-          stroke={AVAIL}
-          strokeWidth={16}
-          strokeLinecap="round"
-          strokeDasharray={circ}
-          strokeDashoffset={circ * (1 - pct / 100)}
-          transform="rotate(-90)"
-          style={{filter: 'drop-shadow(0 0 20px rgba(52,211,153,0.8))'}}
-        />
-        <text x={0} y={-8} fill={INK} fontSize={84} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-          {pct}%
-        </text>
-        <text x={0} y={44} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={3} textAnchor="middle">
-          BATTERY
-        </text>
-      </g>
-      {/* stamp banner */}
-      {stamp > 0.001 && (
-        <g opacity={Math.min(1, stamp)}>
-          <g transform={`translate(${tx}, ${ty - 330}) scale(${0.7 + 0.3 * stamp})`}>
-            <rect x={-360} y={-58} width={720} height={116} rx={22} fill="rgba(6,20,16,0.95)" stroke={AVAIL} strokeWidth={4} />
-            <text x={0} y={22} fill={AVAIL} fontSize={58} fontFamily={FONT} fontWeight={800} letterSpacing={4} textAnchor="middle">
-              CHARGING STARTED
-            </text>
-          </g>
-        </g>
-      )}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Bottom ticker: live network feed
-// ---------------------------------------------------------------------------
-const Ticker: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [220, 270], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const items = [
-    'NORTHGATE PLAZA — all 8 ports occupied',
-    'CENTRAL YARDS — 9 of 14 free · fastest route',
-    'MIDTOWN EXCHANGE — 3 vehicles queued',
-    'SOUTHPORT MALL — charge session complete, port freed',
-    'MARINA DRIVE — 6 of 10 free · 350 kW',
-    'OLD TOWN HUB — 2 vehicles queued',
+const Inboxes: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - INBOX_START, fps, config: {damping: 200, stiffness: 80}});
+  if (s <= 0.001) return null;
+  const sides = [
+    {label: 'YOUR INBOX', x: 300},
+    {label: 'CLIENT INBOX', x: 3840 - 300 - 560},
   ];
-  const w = 3840;
-  const speed = 4.2;
-  const totalW = 6400;
-  const x = w - ((frame * speed) % (totalW + w));
   return (
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 160,
-        left: 0,
-        width: 3840,
-        height: 74,
-        overflow: 'hidden',
-        opacity: fade,
-        borderTop: '1px solid rgba(148,163,184,0.16)',
-        borderBottom: '1px solid rgba(148,163,184,0.16)',
-        background: 'rgba(6,11,18,0.55)',
-      }}
-    >
-      <svg width={3840} height={74} style={{position: 'absolute', top: 0, left: 0}}>
-        <g transform={`translate(${x}, 47)`}>
-          {items.map((t, i) => (
-            <text
-              key={`tk${i}`}
-              x={i * 1060}
-              fill={i % 2 === 0 ? 'rgba(180,198,216,0.75)' : 'rgba(52,211,153,0.75)'}
-              fontSize={30}
-              fontFamily={MONO}
-            >
-              ● {t}
-            </text>
-          ))}
-        </g>
-      </svg>
+    <div style={{position: 'absolute', left: 0, top: 0, opacity: Math.min(1, s)}}>
+      {sides.map((sd, i) => {
+        const fly = spring({frame: frame - (INBOX_START + 40 + i * 60), fps, config: {damping: 200, stiffness: 70}});
+        if (fly <= 0.001) return null;
+        const fx = interpolate(fly, [0, 1], [1920, sd.x + 280]);
+        const fy = interpolate(fly, [0, 1], [1140, 420]);
+        return (
+          <div key={sd.label}>
+            {/* inbox tray */}
+            <div style={{
+              position: 'absolute', left: sd.x, top: 620, width: 560, height: 300,
+              background: PAPER, borderRadius: 28, border: `2px solid ${FAINT}`,
+              filter: 'url(#docShadow)', display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 14,
+            }}>
+              <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>{sd.label}</div>
+              <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 44}}>
+                Agreement.pdf
+              </div>
+              {fly > 0.85 && (
+                <div style={{
+                  width: 60, height: 60, borderRadius: '50%', background: SUCCESS,
+                  color: '#fff', fontSize: 36, fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  opacity: interpolate(fly, [0.85, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
+                }}>&#10003;</div>
+              )}
+            </div>
+            {/* flying sealed copy */}
+            {fly < 1 && (
+              <div style={{
+                position: 'absolute', left: fx - 90, top: fy - 60,
+                width: 180, height: 120, background: PAPER,
+                border: `2px solid ${GOLD}`, borderRadius: 12,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 0 40px rgba(201,162,39,0.5)',
+                opacity: 1 - interpolate(fly, [0.8, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
+              }}>
+                <span style={{color: GOLD_DEEP, fontFamily: FONT, fontWeight: 800, fontSize: 30}}>SIGNED</span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Resolve banner
+// ---------------------------------------------------------------------------
+const ResolveBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - BANNER_START, fps, config: {damping: 200, stiffness: 100}});
+  if (s <= 0.001) return null;
+  return (
+    <div style={{
+      position: 'absolute', bottom: 110, left: 0, width: 3840,
+      display: 'flex', justifyContent: 'center',
+      opacity: Math.min(1, s),
+      transform: `translateY(${(1 - s) * 40}px)`,
+    }}>
+      <div style={{
+        background: INK, borderRadius: 999, padding: '30px 90px',
+        display: 'flex', alignItems: 'center', gap: 30,
+        boxShadow: '0 18px 60px rgba(28,43,74,0.35)',
+      }}>
+        <span style={{
+          width: 56, height: 56, borderRadius: '50%', background: SUCCESS,
+          color: '#fff', fontSize: 34, fontWeight: 800,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>&#10003;</span>
+        <span style={{color: '#fff', fontFamily: FONT, fontWeight: 800, fontSize: 52, letterSpacing: 1}}>
+          Legally binding &mdash; complete
+        </span>
+      </div>
     </div>
   );
 };
@@ -665,21 +436,21 @@ const Ticker: React.FC<{frame: number}> = ({frame}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const EVChargingAvailabilityMap: React.FC = () => {
+export const ESignatureSigningFlow: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
-      <Background frame={frame} />
-      <TitleBar frame={frame} fps={fps} />
-      <Stations frame={frame} fps={fps} />
-      <Route frame={frame} />
-      <Payoff frame={frame} fps={fps} />
-      <Ticker frame={frame} />
-      <Legend frame={frame} />
+      <Background />
+      <TitleBar frame={frame} />
+      <Document frame={frame} fps={fps} />
+      <Envelope frame={frame} fps={fps} />
+      <AuditTrail frame={frame} fps={fps} />
+      <Inboxes frame={frame} fps={fps} />
+      <ResolveBanner frame={frame} fps={fps} />
     </AbsoluteFill>
   );
 };
 
-export default EVChargingAvailabilityMap;
+export default ESignatureSigningFlow;
