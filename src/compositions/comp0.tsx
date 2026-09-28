@@ -141,11 +141,11 @@ const RuleBlock: React.FC<{
 };
 
 // ---------------------------------------------------------------------------
-// Film grain (deterministic SVG)
+// Film grain (deterministic SVG) — densified for the bitrate gate.
 // ---------------------------------------------------------------------------
 const Grain: React.FC<{frame: number}> = ({frame}) => {
   const dots: React.ReactElement[] = [];
-  for (let i = 0; i < 400; i++) {
+  for (let i = 0; i < 1200; i++) {
     const s = 2 + random(`gx-${frame}-${i}`) * 2.5;
     dots.push(
       <rect
@@ -155,7 +155,7 @@ const Grain: React.FC<{frame: number}> = ({frame}) => {
         width={s}
         height={s}
         fill="#FFFFFF"
-        opacity={0.015 + random(`go-${frame}-${i}`) * 0.035}
+        opacity={0.02 + random(`go-${frame}-${i}`) * 0.05}
       />
     );
   }
@@ -163,6 +163,48 @@ const Grain: React.FC<{frame: number}> = ({frame}) => {
     <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
       {dots}
     </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Barely-visible drifting dot grid — high-frequency texture + constant
+// motion to keep the encoder busy while the frame still reads as pure black.
+// ---------------------------------------------------------------------------
+const DotGrid: React.FC<{frame: number}> = ({frame}) => {
+  const dots: React.ReactElement[] = [];
+  const step = 64;
+  const offX = (frame * 0.7) % step;
+  const offY = (frame * 0.4) % step;
+  let di = 0;
+  for (let y = -step; y < 2160 + step; y += step) {
+    for (let x = -step; x < 3840 + step; x += step) {
+      dots.push(
+        <circle key={di++} cx={x + offX} cy={y + offY} r={2.2} fill="#FFFFFF" opacity={0.045} />
+      );
+    }
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {dots}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Slow "breathing" spotlight drifting across the frame — large-scale
+// per-frame luminance change, deterministic.
+// ---------------------------------------------------------------------------
+const Breath: React.FC<{frame: number}> = ({frame}) => {
+  const cx = 1920 + Math.sin(frame * 0.01) * 700;
+  const cy = 1080 + Math.cos(frame * 0.008) * 350;
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        background: `radial-gradient(circle 900px at ${cx}px ${cy}px, rgba(255,255,255,0.045), rgba(255,255,255,0) 70%)`,
+      }}
+    />
   );
 };
 
@@ -177,6 +219,10 @@ export const SigmaRules: React.FC = () => {
 
   return (
     <AbsoluteFill style={{backgroundColor: '#000000'}}>
+      {/* bitrate-proof texture: dot grid + breathing light (near-invisible) */}
+      <DotGrid frame={frame} />
+      <Breath frame={frame} />
+
       {/* kicker */}
       <div
         style={{
