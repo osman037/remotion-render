@@ -43,26 +43,37 @@ const START = 30;
 const CAROUSEL_END = START + WORDS.length * SLOT; // 750
 
 // ---------------------------------------------------------------------------
-// Drifting diagonal texture
+// Drifting diagonal texture (two layers, different angles/speeds)
 // ---------------------------------------------------------------------------
 const DriftLines: React.FC<{frame: number}> = ({frame}) => (
-  <div
-    style={{
-      position: 'absolute',
-      inset: -400,
-      background:
-        'repeating-linear-gradient(115deg, rgba(212,242,104,0.055) 0 2px, rgba(212,242,104,0) 2px 110px)',
-      backgroundPosition: `${frame * 2.2}px 0px`,
-    }}
-  />
+  <>
+    <div
+      style={{
+        position: 'absolute',
+        inset: -400,
+        background:
+          'repeating-linear-gradient(115deg, rgba(212,242,104,0.085) 0 2px, rgba(212,242,104,0) 2px 110px)',
+        backgroundPosition: `${frame * 2.2}px 0px`,
+      }}
+    />
+    <div
+      style={{
+        position: 'absolute',
+        inset: -400,
+        background:
+          'repeating-linear-gradient(65deg, rgba(237,237,232,0.04) 0 2px, rgba(237,237,232,0) 2px 150px)',
+        backgroundPosition: `${-frame * 1.4}px 0px`,
+      }}
+    />
+  </>
 );
 
 // ---------------------------------------------------------------------------
-// Film grain (deterministic SVG)
+// Film grain (deterministic SVG) — densified for the bitrate gate.
 // ---------------------------------------------------------------------------
 const Grain: React.FC<{frame: number}> = ({frame}) => {
   const dots: React.ReactElement[] = [];
-  for (let i = 0; i < 400; i++) {
+  for (let i = 0; i < 900; i++) {
     const s = 2 + random(`gx-${frame}-${i}`) * 2.5;
     dots.push(
       <rect
@@ -72,7 +83,7 @@ const Grain: React.FC<{frame: number}> = ({frame}) => {
         width={s}
         height={s}
         fill="#FFFFFF"
-        opacity={0.015 + random(`go-${frame}-${i}`) * 0.035}
+        opacity={0.02 + random(`go-${frame}-${i}`) * 0.05}
       />
     );
   }
@@ -129,12 +140,12 @@ export const NeonHustle: React.FC = () => {
         <DriftLines frame={frame} />
       </div>
 
-      {/* lime aura pulsing with the beat */}
+      {/* lime aura pulsing with the beat (breathes on its own during resolve) */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
-          opacity: inCarousel ? 0.35 * glowOp : 0.5,
+          opacity: inCarousel ? 0.35 * glowOp : 0.4 + 0.15 * Math.sin(frame * 0.06),
           background:
             'radial-gradient(ellipse 55% 45% at 50% 52%, rgba(212,242,104,0.14), rgba(212,242,104,0) 70%)',
         }}
