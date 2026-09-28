@@ -1,17 +1,19 @@
 /**
- * EventCheckinFlow.tsx
+ * KYCVerificationFlow.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * An event attendee check-in on deep indigo: a ticket builds, a scan line
- * sweeps its QR, a VERIFIED badge stamps, an attendee badge assembles piece
- * by piece, it clips onto a lanyard, the entry gate swings open, and a
- * WELCOME burst closes the arc. Intro -> build -> payoff -> resolve.
+ * A KYC identity verification on dark slate: an ID card slides in, scan
+ * brackets activate, three document checks validate in sequence (document
+ * authenticity, photo match, liveness), the checks converge into a decision
+ * shield that locks into a green VERIFIED badge, and an account panel
+ * unlocks. Document-plus-steps arc only - no facial scanning visuals.
+ * Intro -> build -> payoff -> resolve.
  *
  * Register in Root.tsx:
- *   <Composition id="EventCheckinFlow" component={EventCheckinFlow}
+ *   <Composition id="KYCVerificationFlow" component={KYCVerificationFlow}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
-import React, {useMemo} from 'react';
+import React from 'react';
 import {
   AbsoluteFill,
   interpolate,
@@ -21,24 +23,18 @@ import {
   useVideoConfig,
 } from 'remotion';
 
-const rand = (seed: number): number => {
-  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
-};
-
 // ---------------------------------------------------------------------------
-// Palette (deep indigo event)
+// Palette (dark slate fintech security)
 // ---------------------------------------------------------------------------
-const BG = '#131029';
-const INK = '#F2EEFF';
-const MUTED = 'rgba(242,238,255,0.60)';
-const VIOLET = '#8B5CF6';
-const VIOLET_DEEP = '#5B34C7';
-const AMBER = '#FFB020';
-const AMBER_DEEP = '#C77E0A';
+const BG = '#0B1220';
+const INK = '#EAF1FB';
+const MUTED = 'rgba(234,241,251,0.60)';
+const CYAN = '#38E1FF';
+const CYAN_DEEP = '#0E7FA8';
 const SUCCESS = '#34D399';
-const PANEL = 'rgba(28,22,62,0.78)';
-const HAIRLINE = 'rgba(242,238,255,0.16)';
+const AMBER = '#FFB020';
+const PANEL = 'rgba(16,26,44,0.78)';
+const HAIRLINE = 'rgba(234,241,251,0.16)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
@@ -46,19 +42,18 @@ const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 // ---------------------------------------------------------------------------
 // Timeline
 // ---------------------------------------------------------------------------
-const TICKET_START = 60;
-const SCAN_START = 230;
-const VERIFY_START = 360;
-const BADGE_START = 460;
-const LANYARD_START = 640;
-const GATE_START = 700;
-const WELCOME_START = 780;
-const STATS_START = 830;
+const CARD_START = 60;
+const BRACKETS_START = 200;
+const CHECKS_START = 300;
+const SHIELD_START = 560;
+const BADGE_START = 680;
+const UNLOCK_START = 740;
+const RESOLVE_START = 830;
 
-const BADGE_ROWS = [
-  {label: 'ATTENDEE', value: 'Danish A.'},
-  {label: 'ROLE', value: 'Speaker · AI Track'},
-  {label: 'SESSION', value: 'Hall B · 10:00 AM'},
+const CHECKS = [
+  {label: 'DOCUMENT AUTHENTICITY', sub: 'hologram · MRZ · fonts', delay: 0},
+  {label: 'PHOTO MATCH', sub: 'ID portrait vs selfie · 98%', delay: 90},
+  {label: 'LIVENESS', sub: 'motion challenge passed', delay: 180},
 ];
 
 // ---------------------------------------------------------------------------
@@ -66,31 +61,32 @@ const BADGE_ROWS = [
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="indigoGlow" cx="50%" cy="32%" r="72%">
-      <stop offset="0%" stopColor="rgba(139,92,246,0.16)" />
-      <stop offset="55%" stopColor="rgba(139,92,246,0.05)" />
-      <stop offset="100%" stopColor="rgba(19,16,41,0)" />
+    <radialGradient id="slateGlow" cx="50%" cy="32%" r="72%">
+      <stop offset="0%" stopColor="rgba(56,225,255,0.12)" />
+      <stop offset="55%" stopColor="rgba(56,225,255,0.04)" />
+      <stop offset="100%" stopColor="rgba(11,18,32,0)" />
     </radialGradient>
-    <radialGradient id="indigoVignette" cx="50%" cy="50%" r="76%">
-      <stop offset="60%" stopColor="rgba(6,4,16,0)" />
-      <stop offset="100%" stopColor="rgba(6,4,16,0.72)" />
+    <radialGradient id="slateVignette" cx="50%" cy="50%" r="76%">
+      <stop offset="60%" stopColor="rgba(3,6,12,0)" />
+      <stop offset="100%" stopColor="rgba(3,6,12,0.72)" />
     </radialGradient>
-    <linearGradient id="violetBar" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={VIOLET_DEEP} />
-      <stop offset="100%" stopColor={VIOLET} />
+    <linearGradient id="cyanBar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={CYAN_DEEP} />
+      <stop offset="100%" stopColor={CYAN} />
     </linearGradient>
-    <linearGradient id="amberBar" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor={AMBER} />
-      <stop offset="100%" stopColor={AMBER_DEEP} />
+    <linearGradient id="idSheen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stopColor="rgba(255,255,255,0.14)" />
+      <stop offset="45%" stopColor="rgba(255,255,255,0.03)" />
+      <stop offset="100%" stopColor="rgba(255,255,255,0)" />
     </linearGradient>
-    <filter id="violetGlow" x="-80%" y="-80%" width="260%" height="260%">
+    <filter id="cyanGlow" x="-80%" y="-80%" width="260%" height="260%">
       <feGaussianBlur stdDeviation="14" result="blur" />
       <feMerge>
         <feMergeNode in="blur" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
-    <filter id="panelShadow3" x="-20%" y="-20%" width="140%" height="150%">
+    <filter id="panelShadow4" x="-20%" y="-20%" width="140%" height="150%">
       <feDropShadow dx="0" dy="22" stdDeviation="30" floodColor="#000000" floodOpacity="0.5" />
     </filter>
   </defs>
@@ -100,21 +96,25 @@ const Defs: React.FC = () => (
 // Background
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const orbs = useMemo(() => [
-    {x: 700, y: 500, r: 420, c: 'rgba(139,92,246,0.10)'},
-    {x: 3200, y: 1600, r: 520, c: 'rgba(255,176,32,0.07)'},
-    {x: 3000, y: 420, r: 340, c: 'rgba(52,211,153,0.06)'},
-  ], []);
+  // Drifting dot grid — keeps large background regions from encoding too cleanly.
+  // Drift wraps by exactly one grid period (96px), so the motion loops seamlessly.
+  const drift = (frame * 0.6) % 96;
+  const bgDots: JSX.Element[] = [];
+  for (let gx = -1; gx <= 41; gx++) {
+    for (let gy = 0; gy < 23; gy++) {
+      bgDots.push(
+        <circle key={`${gx}-${gy}`} cx={48 + gx * 96 - drift} cy={48 + gy * 96} r={2.4} fill="rgba(255,255,255,0.05)" />
+      );
+    }
+  }
   return (
     <>
       <AbsoluteFill style={{backgroundColor: BG}} />
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs />
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#indigoGlow)" />
-        {orbs.map((o, i) => (
-          <circle key={i} cx={o.x} cy={o.y + 30 * Math.sin(frame * 0.02 + i * 2)} r={o.r} fill={o.c} />
-        ))}
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#indigoVignette)" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#slateGlow)" />
+        {bgDots}
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#slateVignette)" />
       </svg>
     </>
   );
@@ -129,284 +129,326 @@ const TitleBar: React.FC<{frame: number}> = ({frame}) => {
   return (
     <div style={{position: 'absolute', top: 80 + rise, left: 200, opacity: fade}}>
       <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 78, letterSpacing: -1.5}}>
-        Check in. Badge on. <span style={{color: AMBER}}>You&apos;re in.</span>
+        Verify identity <span style={{color: CYAN}}>in seconds</span>
       </div>
       <div style={{color: MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 3, marginTop: 12}}>
-        EVENT ATTENDEE CHECK-IN
+        KYC &middot; DIGITAL IDENTITY VERIFICATION
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Ticket with QR + scan line + VERIFIED stamp
+// ID card sliding in with scan brackets
 // ---------------------------------------------------------------------------
-const Ticket: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - TICKET_START, fps, config: {damping: 200, stiffness: 70}});
-  if (s <= 0.001) return null;
+const ID_W = 1180;
+const ID_H = 700;
+const ID_X = 200;
+const ID_Y = 400;
 
-  const qrCells = useMemo(() => {
-    const out: boolean[] = [];
-    for (let i = 0; i < 64; i++) {
-      const r = Math.floor(i / 8); const c = i % 8;
-      const finder = (r < 2 && c < 2) || (r < 2 && c > 5) || (r > 5 && c < 2);
-      out.push(finder ? true : rand(i * 11.7 + 3) > 0.5);
-    }
-    return out;
-  }, []);
+const IdCard: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const slide = spring({frame: frame - CARD_START, fps, config: {damping: 200, stiffness: 60}});
+  if (slide <= 0.001) return null;
 
-  const scanY = interpolate(frame, [SCAN_START, SCAN_START + 110], [0, 1], {
+  const brackets = spring({frame: frame - BRACKETS_START, fps, config: {damping: 200, stiffness: 120}});
+  const scanT = interpolate(frame, [BRACKETS_START + 30, BRACKETS_START + 150], [0, 1], {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
-  const stamp = spring({frame: frame - VERIFY_START, fps, config: {damping: 130, stiffness: 200}});
+  const holo = 0.5 + 0.5 * Math.sin(frame * 0.15);
 
-  const TW = 1300; const TH = 620;
-  const TX = 200; const TY = 380;
+  const corner = (x: number, y: number, sx: number, sy: number) => (
+    <path d={`M ${x + sx * 90} ${y} L ${x} ${y} L ${x} ${y + sy * 90}`}
+      fill="none" stroke={CYAN} strokeWidth={10} strokeLinecap="round" filter="url(#cyanGlow)" />
+  );
 
   return (
     <div style={{
-      position: 'absolute', left: TX, top: TY, width: TW,
-      opacity: Math.min(1, s),
-      transform: `translateY(${(1 - s) * 70}px) rotate(${(1 - s) * -3}deg)`,
+      position: 'absolute', left: ID_X + (1 - slide) * -1400, top: ID_Y,
+      width: ID_W, opacity: Math.min(1, slide),
     }}>
       <div style={{
-        width: TW, height: TH, background: PANEL, borderRadius: 34,
-        border: `2px solid ${HAIRLINE}`, filter: 'url(#panelShadow3)',
-        backdropFilter: 'blur(6px)', display: 'flex', overflow: 'hidden',
-        position: 'relative',
+        width: ID_W, height: ID_H, borderRadius: 34, position: 'relative',
+        background: 'linear-gradient(135deg, #16233C 0%, #0E1830 55%, #14243F 100%)',
+        border: `2px solid ${HAIRLINE}`, filter: 'url(#panelShadow4)', overflow: 'hidden',
       }}>
-        {/* stub */}
+        <div style={{position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.03) 45%, rgba(255,255,255,0))'}} />
+        {/* hologram shimmer band */}
         <div style={{
-          width: 380, background: 'linear-gradient(90deg, #5B34C7, #8B5CF6)', padding: '48px 40px',
-          display: 'flex', flexDirection: 'column', justifyContent: 'center',
-        }}>
-          <div style={{color: 'rgba(255,255,255,0.75)', fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>ADMIT ONE</div>
-          <div style={{color: '#fff', fontFamily: FONT, fontWeight: 800, fontSize: 62, marginTop: 12, lineHeight: 1.05}}>
-            Future<br />Tech<br />Summit
-          </div>
-          <div style={{color: 'rgba(255,255,255,0.75)', fontFamily: MONO, fontSize: 28, marginTop: 18}}>
-            OCT 14 &middot; HALL B
-          </div>
-        </div>
-        <div style={{
-          width: 6, margin: '36px 0',
-          backgroundImage: `repeating-linear-gradient(180deg, ${HAIRLINE} 0 18px, transparent 18px 36px)`,
+          position: 'absolute', left: 60, right: 60, top: 250, height: 90, borderRadius: 14,
+          background: `linear-gradient(100deg, rgba(56,225,255,${0.10 + holo * 0.16}), rgba(139,92,246,${0.10 + (1 - holo) * 0.16}), rgba(56,225,255,${0.10 + holo * 0.16}))`,
+          border: '1px solid rgba(56,225,255,0.35)',
         }} />
-        {/* QR zone */}
-        <div style={{flex: 1, padding: '48px 56px', position: 'relative'}}>
-          <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>SCAN TO VERIFY</div>
-          <svg width={330} height={330} viewBox="0 0 330 330" style={{marginTop: 22}}>
-            <rect x={0} y={0} width={330} height={330} rx={20} fill="#0D0A20" stroke={HAIRLINE} strokeWidth={3} />
-            {qrCells.map((on, i) => {
-              const r = Math.floor(i / 8); const c = i % 8;
-              return (
-                <rect key={i} x={26 + c * 34.75} y={26 + r * 34.75} width={28} height={28} rx={4}
-                  fill={on ? VIOLET : 'rgba(139,92,246,0.14)'} />
-              );
-            })}
-            {/* scan line */}
-            {frame >= SCAN_START && frame <= SCAN_START + 120 && (
-              <g>
-                <rect x={14} y={20 + scanY * 290} width={302} height={10} rx={5} fill={AMBER} filter="url(#violetGlow)" />
-                <rect x={14} y={20 + scanY * 290 - 60} width={302} height={60} fill="rgba(255,176,32,0.10)" />
-              </g>
-            )}
-          </svg>
-          <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, marginTop: 16}}>
-            TICKET #FTS-2941-08
-          </div>
-        </div>
-        {/* VERIFIED stamp */}
-        {stamp > 0.001 && (
-          <div style={{
-            position: 'absolute', right: 60, top: 60,
-            transform: `rotate(-12deg) scale(${2.2 - 1.2 * Math.min(1, stamp)})`,
-            opacity: Math.min(1, stamp),
-          }}>
+        <div style={{padding: '52px 64px', position: 'relative'}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+            <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 4}}>NATIONAL ID CARD</div>
             <div style={{
-              border: `6px solid ${SUCCESS}`, borderRadius: 18, padding: '14px 40px',
-              color: SUCCESS, fontFamily: FONT, fontWeight: 800, fontSize: 52, letterSpacing: 4,
-              background: 'rgba(13,10,32,0.88)', boxShadow: '0 0 60px rgba(52,211,153,0.5)',
+              width: 120, height: 76, borderRadius: 12,
+              background: 'linear-gradient(135deg, #C9A227, #8A6D1F)',
+              border: '2px solid rgba(201,162,39,0.6)',
+            }} />
+          </div>
+          <div style={{display: 'flex', gap: 48, marginTop: 44, alignItems: 'center'}}>
+            {/* abstract portrait placeholder (initials, not a face) */}
+            <div style={{
+              width: 250, height: 250, borderRadius: 24, flexShrink: 0,
+              background: 'linear-gradient(135deg, #24365A, #16233C)',
+              border: `3px solid ${HAIRLINE}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: CYAN, fontFamily: FONT, fontWeight: 800, fontSize: 88,
             }}>
-              VERIFIED
+              DK
+            </div>
+            <div style={{flex: 1}}>
+              <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 62}}>DANISH KHAN</div>
+              <div style={{color: MUTED, fontFamily: MONO, fontSize: 32, marginTop: 10}}>ID 35202-XXXXXXX-X &middot; EXP 2031</div>
+              <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, marginTop: 22, letterSpacing: 2}}>
+                DOB 14 MAR 2006 &middot; PK
+              </div>
+              {/* MRZ lines */}
+              <div style={{marginTop: 26}}>
+                {['PK<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<', '35202XXXXXX0PAK0603148M3101018<<<'].map((l) => (
+                  <div key={l} style={{color: 'rgba(234,241,251,0.45)', fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>{l}</div>
+                ))}
+              </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
+      {/* scan brackets */}
+      {brackets > 0.001 && (
+        <svg width={ID_W + 120} height={ID_H + 120} style={{position: 'absolute', left: -60, top: -60, overflow: 'visible'}} opacity={Math.min(1, brackets)}>
+          {corner(0, 0, 1, 1)}
+          {corner(ID_W + 120, 0, -1, 1)}
+          {corner(0, ID_H + 120, 1, -1)}
+          {corner(ID_W + 120, ID_H + 120, -1, -1)}
+          {frame >= BRACKETS_START + 30 && frame <= BRACKETS_START + 160 && (
+            <rect x={20} y={30 + scanT * (ID_H + 40)} width={ID_W + 80} height={12} rx={6} fill={CYAN} filter="url(#cyanGlow)" />
+          )}
+        </svg>
+      )}
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Attendee badge assembling
+// Three verification check cards
 // ---------------------------------------------------------------------------
-const AttendeeBadge: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - BADGE_START, fps, config: {damping: 200, stiffness: 75}});
-  if (s <= 0.001) return null;
+const CheckCards: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  return (
+    <div style={{position: 'absolute', left: 1620, top: 400, width: 2020}}>
+      {CHECKS.map((c, i) => {
+        const s = spring({frame: frame - (CHECKS_START + c.delay - 40), fps, config: {damping: 200, stiffness: 85}});
+        if (s <= 0.001) return null;
+        const active = frame >= CHECKS_START + c.delay;
+        const doneAt = CHECKS_START + c.delay + 70;
+        const done = frame >= doneAt;
+        const prog = interpolate(frame, [CHECKS_START + c.delay, doneAt], [0, 1], {
+          extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+        });
+        return (
+          <div key={c.label} style={{
+            background: PANEL, borderRadius: 28, marginBottom: 34,
+            border: `2px solid ${done ? SUCCESS : active ? CYAN : HAIRLINE}`,
+            padding: '36px 48px', backdropFilter: 'blur(6px)',
+            filter: 'url(#panelShadow4)',
+            opacity: Math.min(1, s),
+            transform: `translateX(${(1 - s) * 80}px)`,
+            boxShadow: done ? '0 0 44px rgba(52,211,153,0.25)' : active ? '0 0 44px rgba(56,225,255,0.25)' : 'none',
+            display: 'flex', alignItems: 'center', gap: 36,
+          }}>
+            {/* status orb */}
+            <div style={{
+              width: 96, height: 96, borderRadius: '50%', flexShrink: 0,
+              background: done ? SUCCESS : 'rgba(234,241,251,0.08)',
+              border: `3px solid ${done ? SUCCESS : CYAN}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              position: 'relative', overflow: 'hidden',
+            }}>
+              {/* progress ring fill */}
+              {!done && active && (
+                <svg width={96} height={96} viewBox="0 0 96 96" style={{position: 'absolute', inset: 0}}>
+                  <circle cx={48} cy={48} r={40} fill="none" stroke={CYAN} strokeWidth={9}
+                    strokeLinecap="round" pathLength={1} strokeDasharray={1}
+                    strokeDashoffset={1 - prog} transform="rotate(-90 48 48)" />
+                </svg>
+              )}
+              {done && (
+                <span style={{color: '#06231D', fontSize: 52, fontWeight: 800}}>&#10003;</span>
+              )}
+              {active && !done && (
+                <span style={{color: CYAN, fontFamily: MONO, fontWeight: 800, fontSize: 30}}>
+                  {Math.round(prog * 100)}
+                </span>
+              )}
+            </div>
+            <div style={{flex: 1}}>
+              <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 42, letterSpacing: 1}}>
+                {i + 1}. {c.label}
+              </div>
+              <div style={{color: MUTED, fontFamily: FONT, fontSize: 30, marginTop: 8}}>{c.sub}</div>
+            </div>
+            {i === 1 && done && (
+              <div style={{
+                color: SUCCESS, fontFamily: MONO, fontWeight: 800, fontSize: 56,
+                textShadow: '0 0 30px rgba(52,211,153,0.5)',
+              }}>
+                98%
+              </div>
+            )}
+            {i === 2 && active && !done && (
+              <svg width={120} height={120} viewBox="0 0 120 120">
+                {[0, 1, 2].map((d) => {
+                  const a = frame * 0.09 + d * (Math.PI * 2 / 3);
+                  return (
+                    <circle key={d} cx={60 + 34 * Math.cos(a)} cy={60 + 34 * Math.sin(a)} r={10} fill={CYAN} filter="url(#cyanGlow)" />
+                  );
+                })}
+                <circle cx={60} cy={60} r={14} fill="none" stroke={CYAN} strokeWidth={4} opacity={0.6} />
+              </svg>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
-  const BX = 1780; const BY = 380; const BW = 1040; const BH = 620;
+// ---------------------------------------------------------------------------
+// Decision shield -> VERIFIED badge
+// ---------------------------------------------------------------------------
+const Shield: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - SHIELD_START, fps, config: {damping: 200, stiffness: 80}});
+  if (s <= 0.001) return null;
+  const pulse = 1 + 0.04 * Math.sin(frame * 0.18);
+  const badge = spring({frame: frame - BADGE_START, fps, config: {damping: 120, stiffness: 190}});
+  const locked = frame >= BADGE_START + 30;
 
   return (
     <div style={{
-      position: 'absolute', left: BX, top: BY, width: BW,
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 70}px)`,
+      position: 'absolute', left: 200, top: 1230, width: 1180,
+      opacity: Math.min(1, s), textAlign: 'center',
     }}>
-      <div style={{
-        width: BW, height: BH, background: '#FFFDF8', borderRadius: 34,
-        filter: 'url(#panelShadow3)', padding: '48px 56px', position: 'relative', overflow: 'hidden',
-      }}>
-        <div style={{position: 'absolute', top: 0, left: 0, right: 0, height: 26, background: 'linear-gradient(180deg, #FFB020, #C77E0A)'}} />
-        <div style={{display: 'flex', gap: 40, alignItems: 'center'}}>
-          {/* avatar */}
-          <div style={{
-            width: 190, height: 190, borderRadius: '50%',
-            background: 'linear-gradient(90deg, #5B34C7, #8B5CF6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontFamily: FONT, fontWeight: 800, fontSize: 76,
-            flexShrink: 0,
+      <svg width={420} height={460} viewBox="0 0 420 460" style={{transform: `scale(${pulse})`}}>
+        <path d="M210 20 L380 90 V240 C380 350 300 410 210 440 C120 410 40 350 40 240 V90 Z"
+          fill={locked ? 'rgba(52,211,153,0.14)' : 'rgba(56,225,255,0.10)'}
+          stroke={locked ? SUCCESS : CYAN} strokeWidth={10}
+          filter="url(#cyanGlow)" />
+        {locked ? (
+          <g>
+            <path d="M150 220 L195 268 L272 175" fill="none" stroke={SUCCESS} strokeWidth={26} strokeLinecap="round" strokeLinejoin="round" />
+          </g>
+        ) : (
+          <g opacity={0.85}>
+            {[0, 1, 2].map((d) => (
+              <circle key={d} cx={210} cy={230} r={40 + d * 34} fill="none" stroke={CYAN} strokeWidth={5} opacity={0.7 - d * 0.2} />
+            ))}
+            <circle cx={210} cy={230} r={18} fill={CYAN} filter="url(#cyanGlow)" />
+          </g>
+        )}
+      </svg>
+      {badge > 0.001 && (
+        <div style={{
+          marginTop: 10,
+          transform: `scale(${2.0 - 1.0 * Math.min(1, badge)})`,
+          opacity: Math.min(1, badge),
+        }}>
+          <span style={{
+            border: `6px solid ${SUCCESS}`, borderRadius: 20, padding: '18px 60px',
+            color: SUCCESS, fontFamily: FONT, fontWeight: 800, fontSize: 64, letterSpacing: 6,
+            background: 'rgba(11,18,32,0.9)', boxShadow: '0 0 70px rgba(52,211,153,0.5)',
+            display: 'inline-block',
           }}>
-            DA
-          </div>
-          <div style={{flex: 1}}>
-            {BADGE_ROWS.map((row, i) => {
-              const rs = spring({frame: frame - (BADGE_START + 40 + i * 46), fps, config: {damping: 200, stiffness: 130}});
-              if (rs <= 0.001) return null;
-              return (
-                <div key={row.label} style={{
-                  opacity: Math.min(1, rs),
-                  transform: `translateX(${(1 - rs) * -30}px)`,
-                  marginTop: i === 0 ? 0 : 18,
-                }}>
-                  <div style={{color: 'rgba(28,22,62,0.55)', fontFamily: MONO, fontSize: 24, letterSpacing: 3}}>{row.label}</div>
-                  <div style={{
-                    color: '#1B1740', fontFamily: FONT,
-                    fontWeight: i === 0 ? 800 : 600,
-                    fontSize: i === 0 ? 56 : 38, marginTop: 2,
-                  }}>{row.value}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        {/* session color bar + lanyard clip */}
-        <div style={{display: 'flex', gap: 18, marginTop: 44, alignItems: 'center'}}>
-          {['#8B5CF6', '#FFB020', '#34D399', '#7FD8F7'].map((c, i) => {
-            const cs = spring({frame: frame - (BADGE_START + 180 + i * 30), fps, config: {damping: 200, stiffness: 160}});
-            return (
-              <div key={c} style={{
-                width: 120, height: 34, borderRadius: 17, background: c,
-                transform: `scaleX(${Math.min(1, Math.max(0, cs))})`, transformOrigin: 'left center',
-              }} />
-            );
-          })}
-          <span style={{color: 'rgba(28,22,62,0.55)', fontFamily: MONO, fontSize: 26, marginLeft: 8}}>
-            AI TRACK &middot; ALL ACCESS
+            VERIFIED
           </span>
         </div>
-        {/* lanyard strap + clip */}
-        {frame >= LANYARD_START && (
-          <svg width={BW} height={120} style={{position: 'absolute', top: -96, left: 0, overflow: 'visible'}}>
-            <rect x={BW / 2 - 34} y={-40} width={68} height={140} fill={VIOLET} opacity={0.95} />
-            <rect x={BW / 2 - 34} y={-40} width={68} height={140} fill="none" stroke={VIOLET_DEEP} strokeWidth={4} />
-            <circle cx={BW / 2} cy={104} r={26} fill="none" stroke={AMBER} strokeWidth={10} />
-          </svg>
-        )}
-      </div>
+      )}
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Entry gate: turnstile arms swing open
+// Account panel unlocking
 // ---------------------------------------------------------------------------
-const EntryGate: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - (GATE_START - 60), fps, config: {damping: 200, stiffness: 80}});
+const AccountPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - (UNLOCK_START - 60), fps, config: {damping: 200, stiffness: 80}});
   if (s <= 0.001) return null;
-  const open = interpolate(frame, [GATE_START, GATE_START + 90], [0, 1], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
-  const GX = 3040; const GY = 380; const GW = 600; const GH = 620;
-
+  const unlocked = frame >= UNLOCK_START + 40;
+  const rows = [
+    ['ACCOUNT', 'DK-88412 · ACTIVE'],
+    ['LIMITS', 'FULL ACCESS'],
+    ['REGION', 'PK · COMPLIANT'],
+  ];
   return (
     <div style={{
-      position: 'absolute', left: GX, top: GY, width: GW,
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 60}px)`,
+      position: 'absolute', left: 1620, top: 1230, width: 2020,
+      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 50}px)`,
     }}>
       <div style={{
-        width: GW, height: GH, background: PANEL, borderRadius: 34,
-        border: `2px solid ${HAIRLINE}`, filter: 'url(#panelShadow3)',
-        backdropFilter: 'blur(6px)', padding: '40px 44px',
+        background: PANEL, borderRadius: 32, padding: '48px 60px',
+        border: `2px solid ${unlocked ? SUCCESS : HAIRLINE}`,
+        filter: 'url(#panelShadow4)', backdropFilter: 'blur(6px)',
+        boxShadow: unlocked ? '0 0 60px rgba(52,211,153,0.25)' : 'none',
+        position: 'relative',
       }}>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>ENTRY GATE 03</div>
-        <svg width={GW - 88} height={440} viewBox="0 0 512 440" style={{marginTop: 20}}>
-          {/* posts */}
-          <rect x={20} y={60} width={36} height={340} rx={12} fill={VIOLET_DEEP} />
-          <rect x={456} y={60} width={36} height={340} rx={12} fill={VIOLET_DEEP} />
-          {/* arms swing open */}
-          <g transform={`translate(56 230) rotate(${-open * 78})`}>
-            <rect x={0} y={-14} width={200} height={28} rx={14} fill={AMBER} filter="url(#violetGlow)" />
-          </g>
-          <g transform={`translate(456 230) rotate(${open * 78})`}>
-            <rect x={-200} y={-14} width={200} height={28} rx={14} fill={AMBER} filter="url(#violetGlow)" />
-          </g>
-          {/* walkway glow when open */}
-          {open > 0.6 && (
-            <rect x={120} y={330} width={272} height={50} rx={25} fill={SUCCESS} opacity={0.35 * open} />
-          )}
-          <text x={256} y={46} textAnchor="middle" fill={open > 0.6 ? SUCCESS : MUTED} fontSize={34} fontFamily={MONO} fontWeight={700} letterSpacing={4}>
-            {open > 0.6 ? 'OPEN' : 'READY'}
-          </text>
-        </svg>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+          <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 56}}>
+            Account access
+          </div>
+          {/* lock */}
+          <svg width={90} height={110} viewBox="0 0 90 110">
+            <rect x={10} y={44} width={70} height={56} rx={12} fill={unlocked ? SUCCESS : 'rgba(234,241,251,0.2)'} />
+            <path d={unlocked
+              ? 'M25 44 V32 a20 20 0 0 1 40 0'
+              : 'M25 44 V32 a20 20 0 0 1 40 0 v12'}
+              fill="none" stroke={unlocked ? SUCCESS : 'rgba(234,241,251,0.5)'} strokeWidth={10} />
+            {unlocked && <circle cx={45} cy={72} r={9} fill="#06231D" />}
+          </svg>
+        </div>
+        <div style={{marginTop: 26}}>
+          {rows.map(([k, v], i) => {
+            const rs = spring({frame: frame - (UNLOCK_START + 40 + i * 44), fps, config: {damping: 200, stiffness: 130}});
+            if (rs <= 0.001) return null;
+            return (
+              <div key={k} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '20px 0', borderBottom: i < rows.length - 1 ? `2px dashed ${HAIRLINE}` : 'none',
+                opacity: Math.min(1, rs), transform: `translateX(${(1 - rs) * -30}px)`,
+              }}>
+                <span style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>{k}</span>
+                <span style={{color: unlocked ? SUCCESS : MUTED, fontFamily: MONO, fontWeight: 800, fontSize: 40}}>{v}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// WELCOME burst
+// Resolve strip
 // ---------------------------------------------------------------------------
-const Welcome: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - WELCOME_START, fps, config: {damping: 150, stiffness: 130}});
+const ResolveStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - RESOLVE_START, fps, config: {damping: 200, stiffness: 100}});
   if (s <= 0.001) return null;
-  const confetti = useMemo(() => {
-    const out: {seed: number; x: number; c: string; r: number}[] = [];
-    const colors = [VIOLET, AMBER, SUCCESS, '#7FD8F7', '#fff'];
-    for (let i = 0; i < 60; i++) {
-      out.push({
-        seed: i * 1.37, x: 400 + rand(i * 3.1) * 3040,
-        c: colors[i % colors.length], r: 8 + rand(i * 7.7) * 14,
-      });
-    }
-    return out;
-  }, []);
-  const t = Math.min(1, (frame - WELCOME_START) / 110);
   return (
-    <div style={{position: 'absolute', left: 0, top: 0, opacity: Math.min(1, s)}}>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        {confetti.map((cf, i) => {
-          const fall = t * (900 + (cf.seed % 500));
-          const y = 1080 - 700 * (1 - t) * (1 - t) + fall * 0.4;
-          if (y > 2200) return null;
-          return (
-            <g key={i} opacity={Math.max(0, 1 - t * 0.7)}>
-              <rect
-                x={cf.x + 60 * Math.sin(cf.seed + t * 9)} y={y}
-                width={cf.r} height={cf.r * 0.6} rx={3} fill={cf.c}
-                transform={`rotate(${cf.seed * 57 + t * 540} ${cf.x} ${y})`}
-              />
-            </g>
-          );
-        })}
-      </svg>
+    <div style={{
+      position: 'absolute', bottom: 100, left: 0, width: 3840,
+      display: 'flex', justifyContent: 'center',
+      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 40}px)`,
+    }}>
       <div style={{
-        position: 'absolute', left: 0, top: 1150, width: 3840, textAlign: 'center',
-        transform: `scale(${0.6 + 0.4 * Math.min(1, s)})`,
+        background: 'rgba(52,211,153,0.12)', border: `2px solid ${SUCCESS}`,
+        borderRadius: 999, padding: '28px 90px',
+        display: 'flex', alignItems: 'center', gap: 40,
       }}>
         <span style={{
-          color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 120, letterSpacing: 6,
-          textShadow: '0 0 80px rgba(139,92,246,0.8)',
-        }}>
-          WELCOME IN
+          width: 58, height: 58, borderRadius: '50%', background: SUCCESS,
+          color: '#06231D', fontSize: 36, fontWeight: 800,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>&#10003;</span>
+        <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 48, letterSpacing: 2}}>
+          KYC COMPLETE &middot; 42 SECONDS &middot; ZERO MANUAL REVIEW
         </span>
       </div>
     </div>
@@ -414,39 +456,8 @@ const Welcome: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Resolve stats strip
-// ---------------------------------------------------------------------------
-const StatsStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - STATS_START, fps, config: {damping: 200, stiffness: 100}});
-  if (s <= 0.001) return null;
-  const items: [string, string][] = [
-    ['CHECKED IN', '1,248'],
-    ['ON-TIME RATE', '96%'],
-    ['AVG PER SCAN', '8 SEC'],
-  ];
-  return (
-    <div style={{
-      position: 'absolute', bottom: 110, left: 0, width: 3840,
-      display: 'flex', justifyContent: 'center',
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 40}px)`,
-    }}>
-      <div style={{display: 'flex', gap: 2, borderRadius: 26, overflow: 'hidden', border: `2px solid ${HAIRLINE}`, background: 'rgba(13,10,32,0.88)'}}>
-        {items.map(([k, v], i) => (
-          <div key={k} style={{
-            padding: '28px 90px', textAlign: 'center',
-            borderRight: i < items.length - 1 ? `2px solid ${HAIRLINE}` : 'none',
-          }}>
-            <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, letterSpacing: 3}}>{k}</div>
-            <div style={{color: i === 0 ? SUCCESS : INK, fontFamily: MONO, fontWeight: 800, fontSize: 58, marginTop: 8}}>{v}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
 // Main composition
+// ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // Deterministic full-frame film grain — bitrate insurance for the >= 20 Mbps verify gate.
 // random() from 'remotion' is seeded; positions re-seed every frame. Subtle by design.
@@ -468,7 +479,7 @@ const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
   );
 };
 
-export const EventCheckinFlow: React.FC = () => {
+export const KYCVerificationFlow: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
@@ -476,14 +487,14 @@ export const EventCheckinFlow: React.FC = () => {
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
       <TitleBar frame={frame} />
-      <Ticket frame={frame} fps={fps} />
-      <AttendeeBadge frame={frame} fps={fps} />
-      <EntryGate frame={frame} fps={fps} />
-      <Welcome frame={frame} fps={fps} />
-      <StatsStrip frame={frame} fps={fps} />
+      <IdCard frame={frame} fps={fps} />
+      <CheckCards frame={frame} fps={fps} />
+      <Shield frame={frame} fps={fps} />
+      <AccountPanel frame={frame} fps={fps} />
+      <ResolveStrip frame={frame} fps={fps} />
       <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
 };
 
-export default EventCheckinFlow;
+export default KYCVerificationFlow;
