@@ -1,5 +1,17 @@
 name: 🎬 Remotion Universal Renderer
 
+# ─────────────────────────────────────────────────────────────────────────────
+# ⚠️  GITHUB LIMIT: a `workflow_dispatch` event may define AT MOST 25 inputs.
+#     The previous revision defined 26, so GitHub rejected the whole file with
+#     "Invalid workflow file — you may only define up to 25 `inputs`".
+#
+#     This revision defines exactly 25 inputs. Before adding a 26th, either:
+#       1. pass the flag through `advanced_args` (any raw Remotion CLI flag), or
+#       2. merge two related inputs (see `audio_track` / `codec_preset` below).
+#
+#     To use this as the main workflow, save it as .github/workflows/render.yml
+#     (replacing the old 4K-locked pipeline, or keep both files side by side).
+# ─────────────────────────────────────────────────────────────────────────────
 on:
   workflow_dispatch:
     inputs:
@@ -31,7 +43,7 @@ on:
         required: false
         default: ''
       frames:
-        description: 'Render frame range e.g. 0-299 or single frame e.g. 150 (for stills). Default: all frames'
+        description: 'Render frame range e.g. 0-299, or a single frame e.g. 150 (stills). Default: all frames'
         required: false
         default: ''
       scale:
@@ -52,20 +64,17 @@ on:
         description: 'jpeg | png (png supports transparency). Default: jpeg'
         required: false
         default: 'jpeg'
-      prores_profile:
-        description: 'ProRes only: proxy | light | standard | hq | 4444 | 4444-xq'
-        required: false
-        default: 'hq'
-      crf:
-        description: 'CRF quality (h264:1-51, h265:0-51, vp8:4-63, vp9:0-63). Lower=better. Leave blank for preset default'
+      # 1 input instead of 2: becomes --x264-preset for h264, --prores-profile for prores
+      codec_preset:
+        description: 'h264: ultrafast…veryslow · prores: proxy|light|standard|hq|4444|4444-xq (blank = codec default)'
         required: false
         default: ''
-      x264_preset:
-        description: 'h264 only: ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow'
+      crf:
+        description: 'CRF quality (h264:1-51, h265:0-51, vp8:4-63, vp9:0-63). Lower=better. Blank = preset default'
         required: false
-        default: 'medium'
+        default: ''
       video_bitrate:
-        description: 'Target bitrate e.g. 40M (overrides CRF if set). Use for Adobe Stock: 40M'
+        description: 'Target bitrate e.g. 40M (overrides CRF if set). Adobe Stock: 40M'
         required: false
         default: ''
       audio_bitrate:
@@ -74,14 +83,17 @@ on:
         default: ''
 
       # ── Audio ────────────────────────────────────────────────────────────────
-      muted:
-        description: 'true = no audio track (Adobe Stock / motion graphics). false = include audio'
+      # Replaces the old `muted` + `enforce_audio_track` pair (they were mutually
+      # exclusive and used 2 of the 25 available input slots).
+      audio_track:
+        description: 'include = keep audio | muted = no audio track (Adobe Stock) | enforce = always add a (silent) audio track'
         required: false
-        default: 'false'
-      enforce_audio_track:
-        description: 'true = always include audio track even if silent'
-        required: false
-        default: 'false'
+        type: choice
+        options:
+          - include
+          - muted
+          - enforce
+        default: 'include'
 
       # ── GIF options ──────────────────────────────────────────────────────────
       every_nth_frame:
@@ -101,7 +113,7 @@ on:
 
       # ── Adobe Stock post-processing ──────────────────────────────────────────
       adobe_stock:
-        description: 'true = re-encode to Adobe Stock spec (40Mbps H264, no audio) after render'
+        description: 'true = re-encode to Adobe Stock spec (40 Mbps H264, no audio) after render'
         required: false
         default: 'false'
 
@@ -123,9 +135,15 @@ on:
         required: false
         default: 'info'
 
+      # ── Escape hatch (this is the 25th and last input) ───────────────────────
+      advanced_args:
+        description: 'Extra raw Remotion CLI flags appended as-is (e.g. --gl=angle --number-of-gif-loops=0)'
+        required: false
+        default: ''
+
 # ─────────────────────────────────────────────────────────────────────────────
 jobs:
-  # ── 1. Build matrix from inputs ───────────────────────────────────────────
+  # ── 1. Build matrix from inputs ────────────────────────────────────────────
   prepare:
     runs-on: ubuntu-latest
     outputs:
@@ -133,62 +151,67 @@ jobs:
       last_frame: ${{ steps.calc.outputs.last_frame }}
       ext:        ${{ steps.ext.outputs.ext }}
     steps:
-      - uses: actions/checkout@main
+      - uses: actions/checkout@v4
 
       - id: set
         name: Build render matrix
         run: |
           BULK='${{ github.event.inputs.compositions_json }}'
           SINGLE='${{ github.event.inputs.composition_id }}'
-          if [ -n "$BULK" ] && [ "$BULK" != "null" ] && [ "$BULK" != "" ]; then
-            echo "matrix={\"include\":$(echo $BULK)}" >> $GITHUB_OUTPUT
-          elif [ -n "$SINGLE" ] && [ "$SINGLE" != "" ]; then
-            echo "matrix={\"include\":[{\"id\":\"$SINGLE\"}]}" >> $GITHUB_OUTPUT
+          if [ -n "$BULK" ] && [ "$BULK" != "null" ]; then
+            if ! echo "$BULK" | jq -e 'type == "array" and length > 0' > /dev/null; then
+              echo "❌ compositions_json must be a non-empty JSON array: $BULK"
+              exit 1
+            fi
+            echo "matrix={\"include\":$BULK}" >> "$GITHUB_OUTPUT"
+          elif [ -n "$SINGLE" ]; then
+            echo "matrix={\"include\":[{\"id\":\"$SINGLE\"}]}" >> "$GITHUB_OUTPUT"
           else
-            # Auto-detect from composition.tsx
-            ID=$(grep -oP 'export\s+const\s+\K\w+(?=\s*:\s*React\.FC)' src/composition.tsx | head -1 || echo "Composition")
-            echo "matrix={\"include\":[{\"id\":\"$ID\"}]}" >> $GITHUB_OUTPUT
+            # Auto-detect from composition.tsx (or src/compositions/comp*.tsx)
+            ID=$(grep -hoP 'export\s+const\s+\K\w+(?=\s*:\s*React\.FC)' src/composition.tsx src/compositions/*.tsx 2>/dev/null | head -1 || true)
+            ID=${ID:-Composition}
+            echo "matrix={\"include\":[{\"id\":\"$ID\"}]}" >> "$GITHUB_OUTPUT"
           fi
+          cat "$GITHUB_OUTPUT"
 
       - id: calc
         name: Calculate frame range
         run: |
           FRAMES='${{ github.event.inputs.frames }}'
-          if [ -n "$FRAMES" ] && [ "$FRAMES" != "" ]; then
-            echo "last_frame=$FRAMES" >> $GITHUB_OUTPUT
+          FPS='${{ github.event.inputs.fps }}'
+          SECS='${{ github.event.inputs.duration_seconds }}'
+          if [ -n "$FRAMES" ]; then
+            echo "last_frame=$FRAMES" >> "$GITHUB_OUTPUT"
           else
-            # Auto-detect durationInFrames from TSX
-            TSX_FRAMES=$(grep -oP 'durationInFrames[=\s]*\{?\K[0-9]+' src/composition.tsx 2>/dev/null | head -1 || echo "")
+            # Auto-detect durationInFrames from TSX (falls back to fps x seconds)
+            TSX_FRAMES=$(grep -hoP 'durationInFrames[=\s]*\{?\K[0-9]+' src/composition.tsx src/compositions/*.tsx 2>/dev/null | head -1 || true)
             if [ -n "$TSX_FRAMES" ]; then
-              echo "last_frame=0-$(( TSX_FRAMES - 1 ))" >> $GITHUB_OUTPUT
+              echo "last_frame=0-$(( TSX_FRAMES - 1 ))" >> "$GITHUB_OUTPUT"
               echo "Auto-detected durationInFrames=$TSX_FRAMES from TSX"
             else
-              FPS=${{ github.event.inputs.fps || 30 }}
-              SECS=${{ github.event.inputs.duration_seconds || 15 }}
-              LAST=$(( FPS * SECS - 1 ))
-              echo "last_frame=0-$LAST" >> $GITHUB_OUTPUT
+              FPS=${FPS:-30}
+              SECS=${SECS:-15}
+              echo "last_frame=0-$(( FPS * SECS - 1 ))" >> "$GITHUB_OUTPUT"
             fi
           fi
+          cat "$GITHUB_OUTPUT"
 
       - id: ext
         name: Determine output extension
         run: |
-          CODEC='${{ github.event.inputs.codec }}'
+          CODEC="${{ github.event.inputs.codec || 'h264' }}"
           case "$CODEC" in
-            h264)   echo "ext=mp4" >> $GITHUB_OUTPUT ;;
-            h265)   echo "ext=mp4" >> $GITHUB_OUTPUT ;;
-            vp8)    echo "ext=webm" >> $GITHUB_OUTPUT ;;
-            vp9)    echo "ext=webm" >> $GITHUB_OUTPUT ;;
-            av1)    echo "ext=mp4" >> $GITHUB_OUTPUT ;;
-            prores) echo "ext=mov" >> $GITHUB_OUTPUT ;;
-            gif)    echo "ext=gif" >> $GITHUB_OUTPUT ;;
-            mp3)    echo "ext=mp3" >> $GITHUB_OUTPUT ;;
-            wav)    echo "ext=wav" >> $GITHUB_OUTPUT ;;
-            aac)    echo "ext=aac" >> $GITHUB_OUTPUT ;;
-            *)      echo "ext=mp4" >> $GITHUB_OUTPUT ;;
+            h264|h265|av1) echo "ext=mp4"  >> "$GITHUB_OUTPUT" ;;
+            vp8|vp9)       echo "ext=webm" >> "$GITHUB_OUTPUT" ;;
+            prores)        echo "ext=mov"  >> "$GITHUB_OUTPUT" ;;
+            gif)           echo "ext=gif"  >> "$GITHUB_OUTPUT" ;;
+            mp3)           echo "ext=mp3"  >> "$GITHUB_OUTPUT" ;;
+            wav)           echo "ext=wav"  >> "$GITHUB_OUTPUT" ;;
+            aac)           echo "ext=aac"  >> "$GITHUB_OUTPUT" ;;
+            *)             echo "ext=mp4"  >> "$GITHUB_OUTPUT" ;;
           esac
 
-  # ── 2. Render — parallel per matrix entry ─────────────────────────────────
+  # ── 2. Render — one parallel job per matrix entry ─────────────────────────
   render:
     needs: prepare
     name: Render ${{ matrix.id }}
@@ -199,9 +222,9 @@ jobs:
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@main
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@main
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
@@ -209,13 +232,15 @@ jobs:
         run: npm i
 
       - name: 🔧 Install FFmpeg
-        run: sudo apt-get install -y ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
 
       - name: 🔍 Validate TSX syntax
         run: |
-          # Find the composition file
+          # Find the composition file(s)
           if [ -f "src/compositions/comp0.tsx" ]; then
-            FILES=$(ls src/compositions/comp*.tsx 2>/dev/null)
+            FILES=$(ls src/compositions/comp*.tsx 2>/dev/null || true)
           else
             FILES="src/composition.tsx"
           fi
@@ -223,14 +248,14 @@ jobs:
           echo "Validating files: $FILES"
           for FILE in $FILES; do
             if [ -f "$FILE" ]; then
-              # Check for balanced braces (basic)
-              OPEN=$(grep -o '{' "$FILE" | wc -l)
-              CLOSE=$(grep -o '}' "$FILE" | wc -l)
+              # Basic brace balance check
+              OPEN=$(grep -o '{' "$FILE" | wc -l || true)
+              CLOSE=$(grep -o '}' "$FILE" | wc -l || true)
               echo "$FILE: { count=$OPEN } count=$CLOSE"
               if [ "$OPEN" != "$CLOSE" ]; then
                 echo "⚠ Warning: Brace mismatch in $FILE (open=$OPEN close=$CLOSE)"
               fi
-              # Check export exists
+              # A renderable composition must export a React.FC component
               if ! grep -qP 'export\s+const\s+\w+\s*:\s*React\.FC' "$FILE"; then
                 echo "❌ ERROR: No 'export const X: React.FC' found in $FILE"
                 exit 1
@@ -249,14 +274,12 @@ jobs:
           FRAMES="${{ needs.prepare.outputs.last_frame }}"
           SCALE="${{ github.event.inputs.scale || '1' }}"
           CONCURRENCY="${{ github.event.inputs.concurrency || '2' }}"
-          MUTED="${{ github.event.inputs.muted || 'false' }}"
-          ENFORCE_AUDIO="${{ github.event.inputs.enforce_audio_track || 'false' }}"
+          AUDIO_MODE="${{ github.event.inputs.audio_track || 'include' }}"
           IMAGE_FORMAT="${{ github.event.inputs.image_format || 'jpeg' }}"
           JPEG_QUALITY="${{ github.event.inputs.jpeg_quality || '80' }}"
           TIMEOUT="${{ github.event.inputs.timeout || '30000' }}"
           LOG="${{ github.event.inputs.log_level || 'info' }}"
-          PRORES="${{ github.event.inputs.prores_profile || 'hq' }}"
-          PRESET="${{ github.event.inputs.x264_preset || 'medium' }}"
+          PRESET="${{ github.event.inputs.codec_preset }}"
           PIXEL_FMT="${{ github.event.inputs.pixel_format || 'yuv420p' }}"
           CRF="${{ github.event.inputs.crf }}"
           VIDEO_BITRATE="${{ github.event.inputs.video_bitrate }}"
@@ -265,11 +288,13 @@ jobs:
           GIF_LOOPS="${{ github.event.inputs.gif_loops }}"
           PROPS='${{ github.event.inputs.props }}'
           ADOBE="${{ github.event.inputs.adobe_stock || 'false' }}"
-
-          # Override width/height only if explicitly provided
+          ADVANCED_ARGS="${{ github.event.inputs.advanced_args }}"
           W="${{ github.event.inputs.width }}"
           H="${{ github.event.inputs.height }}"
           FPS="${{ github.event.inputs.fps }}"
+
+          # Expose the Adobe flag to the later "Inspect output" step
+          echo "ADOBE_STOCK=$ADOBE" >> "$GITHUB_ENV"
 
           # Build the remotion render command dynamically
           CMD="npx remotion render \"${{ matrix.id }}\" \"$OUTPUT\""
@@ -282,13 +307,13 @@ jobs:
           CMD="$CMD --log=$LOG"
           CMD="$CMD --scale=$SCALE"
 
-          # Only add if provided
+          # Only pass dimensions / timing when explicitly provided
           [ -n "$W" ] && CMD="$CMD --width=$W"
           [ -n "$H" ] && CMD="$CMD --height=$H"
           [ -n "$FPS" ] && CMD="$CMD --fps=$FPS"
           [ -n "$FRAMES" ] && CMD="$CMD --frames=$FRAMES"
 
-          # CRF or video-bitrate (mutually exclusive — bitrate wins if both set)
+          # CRF or video bitrate (mutually exclusive — bitrate wins if both are set)
           if [ -n "$VIDEO_BITRATE" ]; then
             CMD="$CMD --video-bitrate=$VIDEO_BITRATE"
           elif [ -n "$CRF" ]; then
@@ -298,27 +323,36 @@ jobs:
           # Audio bitrate
           [ -n "$AUDIO_BITRATE" ] && CMD="$CMD --audio-bitrate=$AUDIO_BITRATE"
 
-          # Muted / enforce audio
-          [ "$MUTED" = "true" ] && CMD="$CMD --muted"
-          [ "$ENFORCE_AUDIO" = "true" ] && CMD="$CMD --enforce-audio-track"
+          # Audio track handling (replaces the old muted / enforce_audio_track pair)
+          if [ "$AUDIO_MODE" = "muted" ]; then
+            CMD="$CMD --muted"
+          elif [ "$AUDIO_MODE" = "enforce" ]; then
+            CMD="$CMD --enforce-audio-track"
+          fi
 
-          # ProRes profile (only for prores codec)
-          [ "$CODEC" = "prores" ] && CMD="$CMD --prores-profile=$PRORES"
+          # Codec preset (replaces the old prores_profile / x264_preset pair)
+          if [ -n "$PRESET" ]; then
+            if [ "$CODEC" = "prores" ]; then
+              CMD="$CMD --prores-profile=$PRESET"
+            elif [ "$CODEC" = "h264" ]; then
+              CMD="$CMD --x264-preset=$PRESET"
+            fi
+          fi
 
-          # x264 preset (only for h264 codec)
-          [ "$CODEC" = "h264" ] && CMD="$CMD --x264-preset=$PRESET"
-
-          # GIF-specific
+          # GIF-specific options
           if [ "$CODEC" = "gif" ]; then
             [ "$EVERY_NTH" != "1" ] && CMD="$CMD --every-nth-frame=$EVERY_NTH"
             [ -n "$GIF_LOOPS" ] && CMD="$CMD --number-of-gif-loops=$GIF_LOOPS"
           fi
 
           # Props JSON
-          if [ -n "$PROPS" ] && [ "$PROPS" != "" ] && [ "$PROPS" != "{}" ]; then
+          if [ -n "$PROPS" ] && [ "$PROPS" != "{}" ]; then
             echo "$PROPS" > /tmp/props.json
             CMD="$CMD --props=/tmp/props.json"
           fi
+
+          # Escape hatch: any extra raw Remotion CLI flags
+          [ -n "$ADVANCED_ARGS" ] && CMD="$CMD $ADVANCED_ARGS"
 
           echo "=== Render Command ==="
           echo "$CMD"
@@ -356,11 +390,12 @@ jobs:
           CODEC="${{ github.event.inputs.codec || 'h264' }}"
 
           if [ "$CODEC" = "gif" ] || [ "$CODEC" = "mp3" ] || [ "$CODEC" = "wav" ] || [ "$CODEC" = "aac" ]; then
-            echo "Output: $(ls -lh $OUTPUT)"
+            echo "Output: $(ls -lh "$OUTPUT")"
           else
             ffprobe -v quiet -print_format json -show_format -show_streams "$OUTPUT" > /tmp/probe.json 2>&1 || true
             python3 - << 'PYEOF'
           import json, os, sys
+          ADOBE = os.environ.get("ADOBE_STOCK", "false")
           try:
             d = json.load(open('/tmp/probe.json'))
             fmt = d.get('format', {})
@@ -370,9 +405,9 @@ jobs:
             size_mb  = int(fmt.get('size', 0)) / 1024 / 1024
             duration = float(fmt.get('duration', 0))
             bitrate  = int(fmt.get('bit_rate', 0)) / 1_000_000
-            print(f"\n{'='*50}")
-            print(f"✅ Render Complete")
-            print(f"{'='*50}")
+            print()
+            print("=" * 50)
+            print(f"File:       {fmt.get('filename','')}")
             print(f"Size:       {size_mb:.1f} MB")
             print(f"Duration:   {duration:.2f}s")
             print(f"Bitrate:    {bitrate:.2f} Mbps")
@@ -380,8 +415,21 @@ jobs:
               print(f"Resolution: {vid.get('width')}x{vid.get('height')}")
               print(f"FPS:        {vid.get('r_frame_rate')}")
               print(f"Codec:      {vid.get('codec_name')} {vid.get('profile','')}")
-            print(f"Audio:      {'NONE' if aud is None else aud.get('codec_name','unknown') + ' ' + str(aud.get('bit_rate','?')) + 'bps'}")
-            print(f"{'='*50}")
+            print(f"Audio:      {'NONE' if aud is None else aud.get('codec_name','unknown') + ' (present)'}")
+            print("=" * 50)
+            errors = []
+            if ADOBE == "true":
+              if bitrate < 20:
+                errors.append(f"Bitrate too low: {bitrate:.1f} Mbps (need >= 20 Mbps for Adobe Stock)")
+              if aud is not None:
+                errors.append("Audio stream present — must be muted for Adobe Stock")
+            if errors:
+              print()
+              for e in errors:
+                print(f"FAIL: {e}")
+              sys.exit(1)
+            else:
+              print("All checks passed!")
           except Exception as e:
             print(f"Could not parse probe: {e}")
           PYEOF
@@ -392,4 +440,5 @@ jobs:
         with:
           name: "${{ matrix.id }}_${{ github.event.inputs.codec || 'h264' }}"
           path: "out/${{ matrix.id }}.${{ needs.prepare.outputs.ext }}"
+          if-no-files-found: error
           retention-days: 2
