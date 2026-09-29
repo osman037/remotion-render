@@ -1,13 +1,13 @@
 /**
- * EventCheckinFlow.tsx
+ * LoanAmortizationChart.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * An event attendee check-in on deep indigo: a ticket builds, a scan line
- * sweeps its QR, a VERIFIED badge stamps, an attendee badge assembles piece
- * by piece, it clips onto a lanyard, the entry gate swings open, and a
- * WELCOME burst closes the arc. Intro -> build -> payoff -> resolve.
+ * A 30-year mortgage story on deep midnight blue: stacked payment bars show
+ * each dollar splitting between interest and principal, the balance curve
+ * descends, a year cursor sweeps the timeline, and the equity gauge rises to a
+ * "what-if extra payment" payoff. Intro -> build -> payoff -> resolve.
  *
  * Register in Root.tsx:
- *   <Composition id="EventCheckinFlow" component={EventCheckinFlow}
+ *   <Composition id="LoanAmortizationChart" component={LoanAmortizationChart}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
@@ -21,77 +21,107 @@ import {
   useVideoConfig,
 } from 'remotion';
 
-const rand = (seed: number): number => {
-  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
-};
-
 // ---------------------------------------------------------------------------
-// Palette (deep indigo event)
+// Palette (midnight blue + gold finance)
 // ---------------------------------------------------------------------------
-const BG = '#131029';
-const INK = '#F2EEFF';
-const MUTED = 'rgba(242,238,255,0.60)';
-const VIOLET = '#8B5CF6';
-const VIOLET_DEEP = '#5B34C7';
-const AMBER = '#FFB020';
-const AMBER_DEEP = '#C77E0A';
-const SUCCESS = '#34D399';
-const PANEL = 'rgba(28,22,62,0.78)';
-const HAIRLINE = 'rgba(242,238,255,0.16)';
+const BG = '#0A1526';
+const INK = '#EAF0FB';
+const MUTED = 'rgba(234,240,251,0.60)';
+const GOLD = '#F0B429';
+const GOLD_DEEP = '#9A6E0E';
+const INTEREST = '#FF6B6B';
+const INTEREST_DEEP = '#B02E2E';
+const PRINCIPAL = '#F0B429';
+const GREEN = '#34D399';
+const PANEL = 'rgba(16,30,54,0.82)';
+const HAIRLINE = 'rgba(234,240,251,0.16)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
+// Loan math: $420,000 at 6.25% for 30 years — precomputed schedule
+// ---------------------------------------------------------------------------
+const PRINCIPAL0 = 420000;
+const ANNUAL_RATE = 0.0625;
+const MONTHLY_RATE = ANNUAL_RATE / 12;
+const N = 360;
+const MONTHLY_PAYMENT =
+  (PRINCIPAL0 * MONTHLY_RATE) / (1 - Math.pow(1 + MONTHLY_RATE, -N)); // ~$2586
+
+interface SchedRow {interest: number; principal: number; balance: number}
+
+const SCHEDULE: SchedRow[] = (() => {
+  const rows: SchedRow[] = [];
+  let bal = PRINCIPAL0;
+  for (let m = 1; m <= N; m++) {
+    const interest = bal * MONTHLY_RATE;
+    const principal = Math.min(MONTHLY_PAYMENT - interest, bal);
+    bal = Math.max(0, bal - principal);
+    rows.push({interest, principal, balance: bal});
+  }
+  return rows;
+})();
+
+const BARS = 60; // sample 60 of 360 months
+const BAR_IDX = Array.from({length: BARS}, (_, i) => Math.floor(((i + 0.5) / BARS) * N));
+
+// ---------------------------------------------------------------------------
 // Timeline
 // ---------------------------------------------------------------------------
-const TICKET_START = 60;
-const SCAN_START = 230;
-const VERIFY_START = 360;
-const BADGE_START = 460;
-const LANYARD_START = 640;
-const GATE_START = 700;
-const WELCOME_START = 780;
-const STATS_START = 830;
+const CHART_START = 70;
+const CURSOR_START = 150;
+const CURSOR_END = 700;
+const GAUGE_START = 250;
+const WHATIF_START = 620;
+const RESOLVE_START = 800;
 
-const BADGE_ROWS = [
-  {label: 'ATTENDEE', value: 'Danish A.'},
-  {label: 'ROLE', value: 'Speaker · AI Track'},
-  {label: 'SESSION', value: 'Hall B · 10:00 AM'},
-];
+// ---------------------------------------------------------------------------
+// Geometry
+// ---------------------------------------------------------------------------
+const PLOT_LEFT = 220;
+const PLOT_RIGHT = 2500;
+const PLOT_TOP = 560;
+const PLOT_BOTTOM = 1640;
+const PLOT_WIDTH = PLOT_RIGHT - PLOT_LEFT;
+const PLOT_HEIGHT = PLOT_BOTTOM - PLOT_TOP;
+const MAX_INT_PRIN = Math.max(...BAR_IDX.map((i) => SCHEDULE[i].interest + SCHEDULE[i].principal));
 
 // ---------------------------------------------------------------------------
 // SVG defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="indigoGlow" cx="50%" cy="32%" r="72%">
-      <stop offset="0%" stopColor="rgba(139,92,246,0.16)" />
-      <stop offset="55%" stopColor="rgba(139,92,246,0.05)" />
-      <stop offset="100%" stopColor="rgba(19,16,41,0)" />
+    <radialGradient id="laGlow" cx="50%" cy="32%" r="72%">
+      <stop offset="0%" stopColor="rgba(240,180,41,0.11)" />
+      <stop offset="55%" stopColor="rgba(240,180,41,0.03)" />
+      <stop offset="100%" stopColor="rgba(10,21,38,0)" />
     </radialGradient>
-    <radialGradient id="indigoVignette" cx="50%" cy="50%" r="76%">
-      <stop offset="60%" stopColor="rgba(6,4,16,0)" />
-      <stop offset="100%" stopColor="rgba(6,4,16,0.72)" />
+    <radialGradient id="laVignette" cx="50%" cy="50%" r="76%">
+      <stop offset="60%" stopColor="rgba(4,8,16,0)" />
+      <stop offset="100%" stopColor="rgba(4,8,16,0.72)" />
     </radialGradient>
-    <linearGradient id="violetBar" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={VIOLET_DEEP} />
-      <stop offset="100%" stopColor={VIOLET} />
+    <linearGradient id="laInterest" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stopColor={INTEREST_DEEP} />
+      <stop offset="100%" stopColor={INTEREST} />
     </linearGradient>
-    <linearGradient id="amberBar" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor={AMBER} />
-      <stop offset="100%" stopColor={AMBER_DEEP} />
+    <linearGradient id="laPrincipal" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stopColor={GOLD_DEEP} />
+      <stop offset="100%" stopColor={PRINCIPAL} />
     </linearGradient>
-    <filter id="violetGlow" x="-80%" y="-80%" width="260%" height="260%">
+    <linearGradient id="laBalance" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor={GREEN} stopOpacity={0.35} />
+      <stop offset="100%" stopColor={GREEN} stopOpacity={0} />
+    </linearGradient>
+    <filter id="laGlow14" x="-80%" y="-80%" width="260%" height="260%">
       <feGaussianBlur stdDeviation="14" result="blur" />
       <feMerge>
         <feMergeNode in="blur" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
-    <filter id="panelShadow3" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="22" stdDeviation="30" floodColor="#000000" floodOpacity="0.5" />
+    <filter id="laShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="22" stdDeviation="30" floodColor="#000000" floodOpacity="0.55" />
     </filter>
   </defs>
 );
@@ -100,21 +130,25 @@ const Defs: React.FC = () => (
 // Background
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const orbs = useMemo(() => [
-    {x: 700, y: 500, r: 420, c: 'rgba(139,92,246,0.10)'},
-    {x: 3200, y: 1600, r: 520, c: 'rgba(255,176,32,0.07)'},
-    {x: 3000, y: 420, r: 340, c: 'rgba(52,211,153,0.06)'},
-  ], []);
+  const scanX = ((frame / 900) * (3840 + 300)) % (3840 + 300) - 150;
+  const dots: React.ReactElement[] = [];
+  for (let gx = 0; gx <= 33; gx++) {
+    for (let gy = 0; gy <= 19; gy++) {
+      const shimmer = 0.05 + 0.05 * Math.sin(frame * 0.09 + gx * 1.1 + gy * 0.6);
+      dots.push(
+        <circle key={`${gx}-${gy}`} cx={gx * 120} cy={gy * 120} r={2.2} fill="#F0B429" opacity={shimmer} />
+      );
+    }
+  }
   return (
     <>
       <AbsoluteFill style={{backgroundColor: BG}} />
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs />
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#indigoGlow)" />
-        {orbs.map((o, i) => (
-          <circle key={i} cx={o.x} cy={o.y + 30 * Math.sin(frame * 0.02 + i * 2)} r={o.r} fill={o.c} />
-        ))}
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#indigoVignette)" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#laGlow)" />
+        {dots}
+        <rect x={scanX - 90} y={0} width={180} height={2160} fill="rgba(240,180,41,0.028)" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#laVignette)" />
       </svg>
     </>
   );
@@ -127,286 +161,212 @@ const TitleBar: React.FC<{frame: number}> = ({frame}) => {
   const fade = interpolate(frame, [0, 40], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const rise = interpolate(frame, [0, 40], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
-    <div style={{position: 'absolute', top: 80 + rise, left: 200, opacity: fade}}>
+    <div style={{position: 'absolute', top: 80 + rise, left: 220, opacity: fade}}>
       <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 78, letterSpacing: -1.5}}>
-        Check in. Badge on. <span style={{color: AMBER}}>You&apos;re in.</span>
+        Where your <span style={{color: GOLD}}>mortgage payment</span> really goes
       </div>
       <div style={{color: MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 3, marginTop: 12}}>
-        EVENT ATTENDEE CHECK-IN
+        $420,000 &middot; 30-YEAR FIXED &middot; 6.25% &middot; $2,586/MO
       </div>
     </div>
   );
 };
 
+const fmt = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+
 // ---------------------------------------------------------------------------
-// Ticket with QR + scan line + VERIFIED stamp
+// Chart: stacked bars + balance curve + year cursor
 // ---------------------------------------------------------------------------
-const Ticket: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - TICKET_START, fps, config: {damping: 200, stiffness: 70}});
+const AmortChart: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - (CHART_START - 40), fps, config: {damping: 200, stiffness: 80}});
   if (s <= 0.001) return null;
 
-  const qrCells = useMemo(() => {
-    const out: boolean[] = [];
-    for (let i = 0; i < 64; i++) {
-      const r = Math.floor(i / 8); const c = i % 8;
-      const finder = (r < 2 && c < 2) || (r < 2 && c > 5) || (r > 5 && c < 2);
-      out.push(finder ? true : rand(i * 11.7 + 3) > 0.5);
-    }
-    return out;
+  const cursorT = interpolate(frame, [CURSOR_START, CURSOR_END], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const cursorMonth = 1 + cursorT * (N - 1);
+  const cursorBarF = cursorT * (BARS - 1);
+  const cx = PLOT_LEFT + (cursorBarF / (BARS - 1)) * PLOT_WIDTH;
+
+  const rowAtCursor = SCHEDULE[Math.min(N - 1, Math.floor(cursorMonth))];
+  const intFrac = rowAtCursor.interest / MONTHLY_PAYMENT;
+  const prinFrac = rowAtCursor.principal / MONTHLY_PAYMENT;
+
+  const balancePath = useMemo(() => {
+    const pts = BAR_IDX.map((i, b) => {
+      const x = PLOT_LEFT + (b / (BARS - 1)) * PLOT_WIDTH;
+      const y = PLOT_BOTTOM - (SCHEDULE[i].balance / PRINCIPAL0) * PLOT_HEIGHT;
+      return `${b === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    });
+    return pts.join(' ');
   }, []);
 
-  const scanY = interpolate(frame, [SCAN_START, SCAN_START + 110], [0, 1], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
-  const stamp = spring({frame: frame - VERIFY_START, fps, config: {damping: 130, stiffness: 200}});
+  const balanceArea = `${balancePath} L ${PLOT_RIGHT} ${PLOT_BOTTOM} L ${PLOT_LEFT} ${PLOT_BOTTOM} Z`;
+  const balAtCursor = PLOT_BOTTOM - (rowAtCursor.balance / PRINCIPAL0) * PLOT_HEIGHT;
 
-  const TW = 1300; const TH = 620;
-  const TX = 200; const TY = 380;
+  const barW = PLOT_WIDTH / BARS;
 
-  return (
-    <div style={{
-      position: 'absolute', left: TX, top: TY, width: TW,
-      opacity: Math.min(1, s),
-      transform: `translateY(${(1 - s) * 70}px) rotate(${(1 - s) * -3}deg)`,
-    }}>
-      <div style={{
-        width: TW, height: TH, background: PANEL, borderRadius: 34,
-        border: `2px solid ${HAIRLINE}`, filter: 'url(#panelShadow3)',
-        backdropFilter: 'blur(6px)', display: 'flex', overflow: 'hidden',
-        position: 'relative',
-      }}>
-        {/* stub */}
-        <div style={{
-          width: 380, background: 'linear-gradient(90deg, #5B34C7, #8B5CF6)', padding: '48px 40px',
-          display: 'flex', flexDirection: 'column', justifyContent: 'center',
-        }}>
-          <div style={{color: 'rgba(255,255,255,0.75)', fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>ADMIT ONE</div>
-          <div style={{color: '#fff', fontFamily: FONT, fontWeight: 800, fontSize: 62, marginTop: 12, lineHeight: 1.05}}>
-            Future<br />Tech<br />Summit
-          </div>
-          <div style={{color: 'rgba(255,255,255,0.75)', fontFamily: MONO, fontSize: 28, marginTop: 18}}>
-            OCT 14 &middot; HALL B
-          </div>
-        </div>
-        <div style={{
-          width: 6, margin: '36px 0',
-          backgroundImage: `repeating-linear-gradient(180deg, ${HAIRLINE} 0 18px, transparent 18px 36px)`,
-        }} />
-        {/* QR zone */}
-        <div style={{flex: 1, padding: '48px 56px', position: 'relative'}}>
-          <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>SCAN TO VERIFY</div>
-          <svg width={330} height={330} viewBox="0 0 330 330" style={{marginTop: 22}}>
-            <rect x={0} y={0} width={330} height={330} rx={20} fill="#0D0A20" stroke={HAIRLINE} strokeWidth={3} />
-            {qrCells.map((on, i) => {
-              const r = Math.floor(i / 8); const c = i % 8;
-              return (
-                <rect key={i} x={26 + c * 34.75} y={26 + r * 34.75} width={28} height={28} rx={4}
-                  fill={on ? VIOLET : 'rgba(139,92,246,0.14)'} />
-              );
-            })}
-            {/* scan line */}
-            {frame >= SCAN_START && frame <= SCAN_START + 120 && (
-              <g>
-                <rect x={14} y={20 + scanY * 290} width={302} height={10} rx={5} fill={AMBER} filter="url(#violetGlow)" />
-                <rect x={14} y={20 + scanY * 290 - 60} width={302} height={60} fill="rgba(255,176,32,0.10)" />
-              </g>
-            )}
-          </svg>
-          <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, marginTop: 16}}>
-            TICKET #FTS-2941-08
-          </div>
-        </div>
-        {/* VERIFIED stamp */}
-        {stamp > 0.001 && (
-          <div style={{
-            position: 'absolute', right: 60, top: 60,
-            transform: `rotate(-12deg) scale(${2.2 - 1.2 * Math.min(1, stamp)})`,
-            opacity: Math.min(1, stamp),
-          }}>
-            <div style={{
-              border: `6px solid ${SUCCESS}`, borderRadius: 18, padding: '14px 40px',
-              color: SUCCESS, fontFamily: FONT, fontWeight: 800, fontSize: 52, letterSpacing: 4,
-              background: 'rgba(13,10,32,0.88)', boxShadow: '0 0 60px rgba(52,211,153,0.5)',
-            }}>
-              VERIFIED
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Attendee badge assembling
-// ---------------------------------------------------------------------------
-const AttendeeBadge: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - BADGE_START, fps, config: {damping: 200, stiffness: 75}});
-  if (s <= 0.001) return null;
-
-  const BX = 1780; const BY = 380; const BW = 1040; const BH = 620;
-
-  return (
-    <div style={{
-      position: 'absolute', left: BX, top: BY, width: BW,
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 70}px)`,
-    }}>
-      <div style={{
-        width: BW, height: BH, background: '#FFFDF8', borderRadius: 34,
-        filter: 'url(#panelShadow3)', padding: '48px 56px', position: 'relative', overflow: 'hidden',
-      }}>
-        <div style={{position: 'absolute', top: 0, left: 0, right: 0, height: 26, background: 'linear-gradient(180deg, #FFB020, #C77E0A)'}} />
-        <div style={{display: 'flex', gap: 40, alignItems: 'center'}}>
-          {/* avatar */}
-          <div style={{
-            width: 190, height: 190, borderRadius: '50%',
-            background: 'linear-gradient(90deg, #5B34C7, #8B5CF6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontFamily: FONT, fontWeight: 800, fontSize: 76,
-            flexShrink: 0,
-          }}>
-            DA
-          </div>
-          <div style={{flex: 1}}>
-            {BADGE_ROWS.map((row, i) => {
-              const rs = spring({frame: frame - (BADGE_START + 40 + i * 46), fps, config: {damping: 200, stiffness: 130}});
-              if (rs <= 0.001) return null;
-              return (
-                <div key={row.label} style={{
-                  opacity: Math.min(1, rs),
-                  transform: `translateX(${(1 - rs) * -30}px)`,
-                  marginTop: i === 0 ? 0 : 18,
-                }}>
-                  <div style={{color: 'rgba(28,22,62,0.55)', fontFamily: MONO, fontSize: 24, letterSpacing: 3}}>{row.label}</div>
-                  <div style={{
-                    color: '#1B1740', fontFamily: FONT,
-                    fontWeight: i === 0 ? 800 : 600,
-                    fontSize: i === 0 ? 56 : 38, marginTop: 2,
-                  }}>{row.value}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        {/* session color bar + lanyard clip */}
-        <div style={{display: 'flex', gap: 18, marginTop: 44, alignItems: 'center'}}>
-          {['#8B5CF6', '#FFB020', '#34D399', '#7FD8F7'].map((c, i) => {
-            const cs = spring({frame: frame - (BADGE_START + 180 + i * 30), fps, config: {damping: 200, stiffness: 160}});
-            return (
-              <div key={c} style={{
-                width: 120, height: 34, borderRadius: 17, background: c,
-                transform: `scaleX(${Math.min(1, Math.max(0, cs))})`, transformOrigin: 'left center',
-              }} />
-            );
-          })}
-          <span style={{color: 'rgba(28,22,62,0.55)', fontFamily: MONO, fontSize: 26, marginLeft: 8}}>
-            AI TRACK &middot; ALL ACCESS
-          </span>
-        </div>
-        {/* lanyard strap + clip */}
-        {frame >= LANYARD_START && (
-          <svg width={BW} height={120} style={{position: 'absolute', top: -96, left: 0, overflow: 'visible'}}>
-            <rect x={BW / 2 - 34} y={-40} width={68} height={140} fill={VIOLET} opacity={0.95} />
-            <rect x={BW / 2 - 34} y={-40} width={68} height={140} fill="none" stroke={VIOLET_DEEP} strokeWidth={4} />
-            <circle cx={BW / 2} cy={104} r={26} fill="none" stroke={AMBER} strokeWidth={10} />
-          </svg>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Entry gate: turnstile arms swing open
-// ---------------------------------------------------------------------------
-const EntryGate: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - (GATE_START - 60), fps, config: {damping: 200, stiffness: 80}});
-  if (s <= 0.001) return null;
-  const open = interpolate(frame, [GATE_START, GATE_START + 90], [0, 1], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
-  const GX = 3040; const GY = 380; const GW = 600; const GH = 620;
-
-  return (
-    <div style={{
-      position: 'absolute', left: GX, top: GY, width: GW,
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 60}px)`,
-    }}>
-      <div style={{
-        width: GW, height: GH, background: PANEL, borderRadius: 34,
-        border: `2px solid ${HAIRLINE}`, filter: 'url(#panelShadow3)',
-        backdropFilter: 'blur(6px)', padding: '40px 44px',
-      }}>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>ENTRY GATE 03</div>
-        <svg width={GW - 88} height={440} viewBox="0 0 512 440" style={{marginTop: 20}}>
-          {/* posts */}
-          <rect x={20} y={60} width={36} height={340} rx={12} fill={VIOLET_DEEP} />
-          <rect x={456} y={60} width={36} height={340} rx={12} fill={VIOLET_DEEP} />
-          {/* arms swing open */}
-          <g transform={`translate(56 230) rotate(${-open * 78})`}>
-            <rect x={0} y={-14} width={200} height={28} rx={14} fill={AMBER} filter="url(#violetGlow)" />
-          </g>
-          <g transform={`translate(456 230) rotate(${open * 78})`}>
-            <rect x={-200} y={-14} width={200} height={28} rx={14} fill={AMBER} filter="url(#violetGlow)" />
-          </g>
-          {/* walkway glow when open */}
-          {open > 0.6 && (
-            <rect x={120} y={330} width={272} height={50} rx={25} fill={SUCCESS} opacity={0.35 * open} />
-          )}
-          <text x={256} y={46} textAnchor="middle" fill={open > 0.6 ? SUCCESS : MUTED} fontSize={34} fontFamily={MONO} fontWeight={700} letterSpacing={4}>
-            {open > 0.6 ? 'OPEN' : 'READY'}
-          </text>
-        </svg>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// WELCOME burst
-// ---------------------------------------------------------------------------
-const Welcome: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - WELCOME_START, fps, config: {damping: 150, stiffness: 130}});
-  if (s <= 0.001) return null;
-  const confetti = useMemo(() => {
-    const out: {seed: number; x: number; c: string; r: number}[] = [];
-    const colors = [VIOLET, AMBER, SUCCESS, '#7FD8F7', '#fff'];
-    for (let i = 0; i < 60; i++) {
-      out.push({
-        seed: i * 1.37, x: 400 + rand(i * 3.1) * 3040,
-        c: colors[i % colors.length], r: 8 + rand(i * 7.7) * 14,
-      });
-    }
-    return out;
-  }, []);
-  const t = Math.min(1, (frame - WELCOME_START) / 110);
   return (
     <div style={{position: 'absolute', left: 0, top: 0, opacity: Math.min(1, s)}}>
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        {confetti.map((cf, i) => {
-          const fall = t * (900 + (cf.seed % 500));
-          const y = 1080 - 700 * (1 - t) * (1 - t) + fall * 0.4;
-          if (y > 2200) return null;
+        {/* year gridlines */}
+        {[0, 5, 10, 15, 20, 25, 30].map((y) => {
+          const gx = PLOT_LEFT + (y / 30) * PLOT_WIDTH;
           return (
-            <g key={i} opacity={Math.max(0, 1 - t * 0.7)}>
-              <rect
-                x={cf.x + 60 * Math.sin(cf.seed + t * 9)} y={y}
-                width={cf.r} height={cf.r * 0.6} rx={3} fill={cf.c}
-                transform={`rotate(${cf.seed * 57 + t * 540} ${cf.x} ${y})`}
-              />
+            <g key={y}>
+              <line x1={gx} y1={PLOT_TOP} x2={gx} y2={PLOT_BOTTOM} stroke="rgba(234,240,251,0.08)" strokeWidth={2} />
+              <text x={gx} y={PLOT_BOTTOM + 62} textAnchor="middle" fill={MUTED} fontSize={30} fontFamily={MONO}>
+                YEAR {y}
+              </text>
             </g>
           );
         })}
+        {/* baseline */}
+        <line x1={PLOT_LEFT} y1={PLOT_BOTTOM} x2={PLOT_RIGHT} y2={PLOT_BOTTOM} stroke="rgba(234,240,251,0.4)" strokeWidth={2.5} />
+
+        {/* stacked bars */}
+        {BAR_IDX.map((mi, b) => {
+          const r = SCHEDULE[mi];
+          const totalH = ((r.interest + r.principal) / MAX_INT_PRIN) * PLOT_HEIGHT;
+          const intH = (r.interest / MAX_INT_PRIN) * PLOT_HEIGHT;
+          const prinH = (r.principal / MAX_INT_PRIN) * PLOT_HEIGHT;
+          const x = PLOT_LEFT + (b / (BARS - 1)) * PLOT_WIDTH - barW / 2 + 2;
+          const grow = interpolate(frame, [CHART_START + b * 2.4, CHART_START + b * 2.4 + 40], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+          if (grow <= 0) return null;
+          const y = PLOT_BOTTOM - totalH * grow;
+          return (
+            <g key={b}>
+              <rect x={x} y={y} width={barW - 4} height={Math.max(1, totalH * grow)} fill="none" />
+              <rect x={x} y={PLOT_BOTTOM - totalH * grow} width={barW - 4} height={Math.max(1, intH * grow)} fill="url(#laInterest)" opacity={0.92} />
+              <rect x={x} y={PLOT_BOTTOM - totalH * grow + intH * grow} width={barW - 4} height={Math.max(1, prinH * grow)} fill="url(#laPrincipal)" opacity={0.92} />
+            </g>
+          );
+        })}
+
+        {/* balance curve */}
+        <path d={balanceArea} fill="url(#laBalance)" opacity={0.7} />
+        <path d={balancePath} fill="none" stroke={GREEN} strokeWidth={8} strokeLinecap="round" filter="url(#laGlow14)" />
+
+        {/* cursor */}
+        <g opacity={cursorT > 0 && cursorT < 1 ? 1 : 0}>
+          <line x1={cx} y1={PLOT_TOP - 30} x2={cx} y2={PLOT_BOTTOM} stroke={INK} strokeWidth={3} strokeDasharray="12 12" opacity={0.6} />
+          <circle cx={cx} cy={balAtCursor} r={16} fill="#fff" filter="url(#laGlow14)" />
+          <g transform={`translate(${Math.min(cx + 30, PLOT_RIGHT - 520)}, ${Math.max(balAtCursor - 210, PLOT_TOP - 20)})`}>
+            <rect x={0} y={0} width={490} height={190} rx={18} fill="rgba(10,21,38,0.92)" stroke={GOLD} strokeWidth={2} />
+            <text x={30} y={62} fill={MUTED} fontSize={30} fontFamily={MONO}>MONTH {Math.round(cursorMonth)}</text>
+            <text x={30} y={118} fill={INTEREST} fontSize={34} fontFamily={MONO} fontWeight={700}>
+              INTEREST {(intFrac * 100).toFixed(0)}%
+            </text>
+            <text x={30} y={162} fill={GOLD} fontSize={34} fontFamily={MONO} fontWeight={700}>
+              PRINCIPAL {(prinFrac * 100).toFixed(0)}%
+            </text>
+          </g>
+        </g>
       </svg>
+
+      {/* legend */}
+      <div style={{position: 'absolute', left: 220, top: 470, display: 'flex', gap: 60, opacity: Math.min(1, s)}}>
+        <div style={{display: 'flex', alignItems: 'center', gap: 18}}>
+          <span style={{width: 44, height: 22, borderRadius: 6, background: INTEREST}} />
+          <span style={{color: MUTED, fontFamily: MONO, fontSize: 30}}>INTEREST</span>
+        </div>
+        <div style={{display: 'flex', alignItems: 'center', gap: 18}}>
+          <span style={{width: 44, height: 22, borderRadius: 6, background: PRINCIPAL}} />
+          <span style={{color: MUTED, fontFamily: MONO, fontSize: 30}}>PRINCIPAL</span>
+        </div>
+        <div style={{display: 'flex', alignItems: 'center', gap: 18}}>
+          <span style={{width: 44, height: 10, borderRadius: 5, background: GREEN}} />
+          <span style={{color: MUTED, fontFamily: MONO, fontSize: 30}}>REMAINING BALANCE</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Right panel: balance counter, equity gauge, what-if payoff
+// ---------------------------------------------------------------------------
+const SidePanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - (GAUGE_START - 60), fps, config: {damping: 200, stiffness: 80}});
+  if (s <= 0.001) return null;
+
+  const cursorT = interpolate(frame, [CURSOR_START, CURSOR_END], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const row = SCHEDULE[Math.min(N - 1, Math.floor(1 + cursorT * (N - 1)))];
+  const balance = row.balance;
+  const equity = Math.min(1, (PRINCIPAL0 - balance) / PRINCIPAL0 + 0.2); // +20% down payment proxy
+  const whatIf = interpolate(frame, [WHATIF_START, WHATIF_START + 90], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+
+  const R = 190;
+  const CIRC = 2 * Math.PI * R;
+
+  return (
+    <div style={{
+      position: 'absolute', left: 2640, top: 560, width: 980,
+      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 60}px)`,
+    }}>
       <div style={{
-        position: 'absolute', left: 0, top: 1150, width: 3840, textAlign: 'center',
-        transform: `scale(${0.6 + 0.4 * Math.min(1, s)})`,
+        background: PANEL, borderRadius: 32, padding: '44px 50px',
+        border: `2px solid ${HAIRLINE}`, filter: 'url(#laShadow)', backdropFilter: 'blur(6px)',
+      }}>
+        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>REMAINING BALANCE</div>
+        <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 92, marginTop: 8, textShadow: '0 0 28px rgba(240,180,41,0.35)'}}>
+          {fmt(balance)}
+        </div>
+        <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, marginTop: 6}}>
+          MONTH {Math.min(N, Math.max(1, Math.round(1 + cursorT * (N - 1))))} OF 360
+        </div>
+
+        <div style={{marginTop: 36}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 12}}>
+            <span style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 2}}>HOME EQUITY</span>
+            <span style={{color: GREEN, fontFamily: MONO, fontWeight: 800, fontSize: 36}}>{Math.round(Math.min(1, equity) * 100)}%</span>
+          </div>
+          <div style={{height: 36, borderRadius: 18, background: 'rgba(234,240,251,0.08)', overflow: 'hidden', border: `2px solid ${HAIRLINE}`}}>
+            <div style={{height: '100%', width: `${Math.min(1, equity) * 100}%`, borderRadius: 18, background: 'linear-gradient(90deg,#1F8F66,#34D399)', boxShadow: '0 0 24px rgba(52,211,153,0.5)'}} />
+          </div>
+        </div>
+
+        <div style={{
+          marginTop: 36, borderRadius: 22, padding: '28px 32px',
+          border: `2px solid ${whatIf > 0.5 ? GREEN : HAIRLINE}`,
+          background: whatIf > 0.5 ? 'rgba(52,211,153,0.08)' : 'rgba(234,240,251,0.03)',
+          opacity: interpolate(frame, [WHATIF_START - 20, WHATIF_START + 30], [0.45, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
+        }}>
+          <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, letterSpacing: 2}}>WHAT IF: EXTRA $200/MO?</div>
+          <div style={{color: whatIf > 0.5 ? GREEN : MUTED, fontFamily: MONO, fontWeight: 800, fontSize: 40, marginTop: 10}}>
+            {whatIf > 0.5 ? 'SAVES $71,400 · 7 YEARS EARLIER' : 'calculating\u2026'}
+          </div>
+          <div style={{color: MUTED, fontFamily: FONT, fontSize: 26, marginTop: 8}}>
+            interest-first payments are why extra principal pays
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Resolve strip
+// ---------------------------------------------------------------------------
+const ResolveStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - RESOLVE_START, fps, config: {damping: 200, stiffness: 100}});
+  if (s <= 0.001) return null;
+  return (
+    <div style={{
+      position: 'absolute', bottom: 92, left: 0, width: 3840,
+      display: 'flex', justifyContent: 'center',
+      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 40}px)`,
+    }}>
+      <div style={{
+        background: 'rgba(240,180,41,0.08)', border: `2px solid ${GOLD}`,
+        borderRadius: 999, padding: '28px 90px',
+        display: 'flex', alignItems: 'center', gap: 44,
       }}>
         <span style={{
-          color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 120, letterSpacing: 6,
-          textShadow: '0 0 80px rgba(139,92,246,0.8)',
-        }}>
-          WELCOME IN
+          width: 58, height: 58, borderRadius: '50%', background: GOLD,
+          color: '#0A1526', fontSize: 36, fontWeight: 800,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>&#10003;</span>
+        <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 48, letterSpacing: 2}}>
+          EARLY PAYMENTS FEED THE BANK &middot; LATER PAYMENTS BUILD YOUR EQUITY
         </span>
       </div>
     </div>
@@ -414,51 +374,16 @@ const Welcome: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Resolve stats strip
-// ---------------------------------------------------------------------------
-const StatsStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - STATS_START, fps, config: {damping: 200, stiffness: 100}});
-  if (s <= 0.001) return null;
-  const items: [string, string][] = [
-    ['CHECKED IN', '1,248'],
-    ['ON-TIME RATE', '96%'],
-    ['AVG PER SCAN', '8 SEC'],
-  ];
-  return (
-    <div style={{
-      position: 'absolute', bottom: 110, left: 0, width: 3840,
-      display: 'flex', justifyContent: 'center',
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 40}px)`,
-    }}>
-      <div style={{display: 'flex', gap: 2, borderRadius: 26, overflow: 'hidden', border: `2px solid ${HAIRLINE}`, background: 'rgba(13,10,32,0.88)'}}>
-        {items.map(([k, v], i) => (
-          <div key={k} style={{
-            padding: '28px 90px', textAlign: 'center',
-            borderRight: i < items.length - 1 ? `2px solid ${HAIRLINE}` : 'none',
-          }}>
-            <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, letterSpacing: 3}}>{k}</div>
-            <div style={{color: i === 0 ? SUCCESS : INK, fontFamily: MONO, fontWeight: 800, fontSize: 58, marginTop: 8}}>{v}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Main composition
-// ---------------------------------------------------------------------------
-// Deterministic full-frame film grain — bitrate insurance for the >= 20 Mbps verify gate.
-// random() from 'remotion' is seeded; positions re-seed every frame. Subtle by design.
+// Film grain
 // ---------------------------------------------------------------------------
 const GRAIN_COUNT = 420;
 const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
-  const dots: JSX.Element[] = [];
+  const dots: React.ReactElement[] = [];
   for (let i = 0; i < GRAIN_COUNT; i++) {
-    const x = random(`grain-x-${frame}-${i}`) * 3840;
-    const y = random(`grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`grain-o-${frame}-${i}`) * 0.04;
-    const s = 2 + random(`grain-s-${frame}-${i}`) * 2.5;
+    const x = random(`la-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`la-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`la-grain-o-${frame}-${i}`) * 0.04;
+    const s = 2 + random(`la-grain-s-${frame}-${i}`) * 2.5;
     dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
   }
   return (
@@ -468,7 +393,10 @@ const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
   );
 };
 
-export const EventCheckinFlow: React.FC = () => {
+// ---------------------------------------------------------------------------
+// Main composition
+// ---------------------------------------------------------------------------
+export const LoanAmortizationChart: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
@@ -476,14 +404,12 @@ export const EventCheckinFlow: React.FC = () => {
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
       <TitleBar frame={frame} />
-      <Ticket frame={frame} fps={fps} />
-      <AttendeeBadge frame={frame} fps={fps} />
-      <EntryGate frame={frame} fps={fps} />
-      <Welcome frame={frame} fps={fps} />
-      <StatsStrip frame={frame} fps={fps} />
+      <AmortChart frame={frame} fps={fps} />
+      <SidePanel frame={frame} fps={fps} />
+      <ResolveStrip frame={frame} fps={fps} />
       <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
 };
 
-export default EventCheckinFlow;
+export default LoanAmortizationChart;
