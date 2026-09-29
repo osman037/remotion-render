@@ -1,16 +1,16 @@
 import React from "react";
 import { Composition } from "remotion";
-import { ProductReturnFlow } from "./composition";
+import { Particles } from "./composition";
 
 export const RemotionRoot: React.FC = () => (
   <>
     <Composition
-      id="ProductReturnFlow"
-      component={ProductReturnFlow}
-      width={3840}
-      height={2160}
+      id="Particles"
+      component={Particles}
+      width={1080}
+      height={1920}
       fps={60}
-      durationInFrames={900}
+      durationInFrames={540}
     />
   </>
 );
