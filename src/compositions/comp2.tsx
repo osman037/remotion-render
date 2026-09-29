@@ -1,14 +1,13 @@
 /**
- * ESignatureSigningFlow.tsx
+ * TaxFilingProcess.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * An electronic signature workflow on warm parchment: a contract descends,
- * "sign here" tabs pulse, an ink signature draws itself, fields check off,
- * the document folds into an envelope, a gold SIGNED seal slams down, an
- * audit trail writes out, and sealed copies land in both inboxes.
- * Intro -> build -> payoff -> resolve.
+ * A brand-neutral tax filing story on deep evergreen: documents check in one
+ * by one, income totals climb, deductions chip away at taxable income, the
+ * review pass stamps each line, the return e-files, and the refund gauge fills
+ * to a payoff stamp. Intro -> build -> payoff -> resolve.
  *
  * Register in Root.tsx:
- *   <Composition id="ESignatureSigningFlow" component={ESignatureSigningFlow}
+ *   <Composition id="TaxFilingProcess" component={TaxFilingProcess}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
@@ -23,17 +22,17 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (parchment + ink + gold seal)
+// Palette (deep evergreen + gold finance)
 // ---------------------------------------------------------------------------
-const BG = '#EFE6D2';
-const PAPER = '#FFFDF6';
-const INK = '#1C2B4A';
-const MUTED = 'rgba(28,43,74,0.58)';
-const FAINT = 'rgba(28,43,74,0.14)';
-const GOLD = '#C9A227';
-const GOLD_DEEP = '#9A7A14';
-const SUCCESS = '#1F9D6B';
-const SIGN_TAB = '#2B6CB0';
+const BG = '#07211B';
+const INK = '#EAF5EE';
+const MUTED = 'rgba(234,245,238,0.60)';
+const GOLD = '#F5C044';
+const GOLD_DEEP = '#B07E1E';
+const GREEN = '#34D399';
+const TEAL = '#2DD4BF';
+const PANEL = 'rgba(14,42,34,0.82)';
+const HAIRLINE = 'rgba(234,245,238,0.16)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
@@ -41,34 +40,34 @@ const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 // ---------------------------------------------------------------------------
 // Timeline
 // ---------------------------------------------------------------------------
-const DOC_DROP = 60;
-const TABS_START = 190;
-const SIGN_DRAW_START = 260;
-const SIGN_DRAW_END = 430;
-const FIELDS_START = 440;
-const STAMP_DATE = 520;
-const ENVELOPE_START = 580;
-const SEAL_START = 680;
-const AUDIT_START = 740;
-const INBOX_START = 780;
-const BANNER_START = 830;
+const DOC_START = 60;
+const INCOME_START = 210;
+const DEDUCT_START = 340;
+const REVIEW_START = 500;
+const EFILE_START = 620;
+const REFUND_START = 720;
+const RESOLVE_START = 830;
 
-const SIGN_PATH =
-  'M 120 210 C 170 120, 200 260, 250 170 S 330 90, 350 200 ' +
-  'S 430 250, 470 150 S 560 120, 590 190 ' +
-  'M 470 235 C 560 215, 640 235, 720 205';
+const STAGES = ['GATHER', 'INCOME', 'DEDUCTIONS', 'REVIEW', 'E-FILE', 'REFUND'];
+const STAGE_TIMES = [DOC_START, INCOME_START, DEDUCT_START, REVIEW_START, EFILE_START, REFUND_START];
 
-const FIELDS = [
-  {label: 'SIGNATURE', x: 120, w: 620},
-  {label: 'INITIALS', x: 120, w: 300},
-  {label: 'DATE', x: 120, w: 300},
+const DOCS = [
+  {name: 'W-2', sub: 'Wages · Acme Corp', amount: '$92,000'},
+  {name: '1099-NEC', sub: 'Freelance income', amount: '$6,400'},
+  {name: '1099-INT', sub: 'Bank interest', amount: '$1,240'},
+  {name: 'Receipts', sub: 'Charitable giving', amount: '$3,150'},
 ];
 
-const AUDIT = [
-  'identity verified',
-  'timestamp 09:41:22 PKT',
-  'tamper-evident seal',
-  'audit trail stored',
+const INCOME_LINES = [
+  {label: 'WAGES', value: 92000},
+  {label: 'FREELANCE', value: 6400},
+  {label: 'INTEREST', value: 1240},
+];
+
+const DEDUCTIONS = [
+  {label: 'STANDARD DEDUCTION', value: 15000},
+  {label: 'HSA CONTRIBUTION', value: 3850},
+  {label: 'CHARITABLE GIFT', value: 3150},
 ];
 
 // ---------------------------------------------------------------------------
@@ -76,50 +75,45 @@ const AUDIT = [
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="parchGlow" cx="50%" cy="36%" r="72%">
-      <stop offset="0%" stopColor="rgba(201,162,39,0.16)" />
-      <stop offset="55%" stopColor="rgba(201,162,39,0.05)" />
-      <stop offset="100%" stopColor="rgba(239,230,210,0)" />
+    <radialGradient id="tfGlow" cx="50%" cy="30%" r="72%">
+      <stop offset="0%" stopColor="rgba(245,192,68,0.12)" />
+      <stop offset="55%" stopColor="rgba(245,192,68,0.035)" />
+      <stop offset="100%" stopColor="rgba(7,33,27,0)" />
     </radialGradient>
-    <radialGradient id="parchVignette" cx="50%" cy="50%" r="76%">
-      <stop offset="62%" stopColor="rgba(120,90,40,0)" />
-      <stop offset="100%" stopColor="rgba(120,90,40,0.22)" />
+    <radialGradient id="tfVignette" cx="50%" cy="50%" r="76%">
+      <stop offset="60%" stopColor="rgba(3,12,9,0)" />
+      <stop offset="100%" stopColor="rgba(3,12,9,0.72)" />
     </radialGradient>
-    <linearGradient id="goldSeal" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stopColor={'#E8C95A'} />
-      <stop offset="55%" stopColor={GOLD} />
-      <stop offset="100%" stopColor={GOLD_DEEP} />
+    <linearGradient id="tfGoldBar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={GOLD_DEEP} />
+      <stop offset="100%" stopColor={GOLD} />
     </linearGradient>
-    <linearGradient id="docSheen" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor="rgba(255,255,255,0)" />
-      <stop offset="50%" stopColor="rgba(255,255,255,0.35)" />
-      <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-    </linearGradient>
-    <filter id="docShadow" x="-25%" y="-25%" width="150%" height="160%">
-      <feDropShadow dx="0" dy="26" stdDeviation="34" floodColor="#1C2B4A" floodOpacity="0.28" />
-    </filter>
-    <filter id="sealGlow" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="16" result="blur" />
+    <filter id="tfGlow14" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="14" result="blur" />
       <feMerge>
         <feMergeNode in="blur" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
+    <filter id="tfShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="22" stdDeviation="30" floodColor="#000000" floodOpacity="0.55" />
+    </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background
+// Background: glow + vignette + drifting dot texture + scan sweep
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  // Drifting dot grid — keeps large background regions from encoding too cleanly.
-  // Drift wraps by exactly one grid period (96px), so the motion loops seamlessly.
-  const drift = (frame * 0.6) % 96;
-  const bgDots: JSX.Element[] = [];
-  for (let gx = -1; gx <= 41; gx++) {
-    for (let gy = 0; gy < 23; gy++) {
-      bgDots.push(
-        <circle key={`${gx}-${gy}`} cx={48 + gx * 96 - drift} cy={48 + gy * 96} r={2.4} fill="rgba(28,43,74,0.06)" />
+  const driftX = (frame * 0.35) % 120;
+  const driftY = (frame * 0.22) % 120;
+  const scanY = ((frame / 900) * (2160 + 300)) % (2160 + 300) - 150;
+  const dots: React.ReactElement[] = [];
+  for (let gx = 0; gx <= 33; gx++) {
+    for (let gy = 0; gy <= 19; gy++) {
+      const shimmer = 0.05 + 0.05 * Math.sin(frame * 0.08 + gx * 0.7 + gy * 1.3);
+      dots.push(
+        <circle key={`${gx}-${gy}`} cx={gx * 120 - driftX} cy={gy * 120 - driftY} r={2.2} fill="#F5C044" opacity={shimmer} />
       );
     }
   }
@@ -128,9 +122,10 @@ const Background: React.FC<{frame: number}> = ({frame}) => {
       <AbsoluteFill style={{backgroundColor: BG}} />
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs />
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#parchGlow)" />
-        {bgDots}
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#parchVignette)" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#tfGlow)" />
+        {dots}
+        <rect x={0} y={scanY - 80} width={3840} height={160} fill="rgba(245,192,68,0.03)" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#tfVignette)" />
       </svg>
     </>
   );
@@ -145,303 +140,281 @@ const TitleBar: React.FC<{frame: number}> = ({frame}) => {
   return (
     <div style={{position: 'absolute', top: 80 + rise, left: 200, opacity: fade}}>
       <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 78, letterSpacing: -1.5}}>
-        Sign it. Seal it. <span style={{color: GOLD_DEEP}}>Done.</span>
+        From W-2 to <span style={{color: GREEN}}>refund</span>
       </div>
       <div style={{color: MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 3, marginTop: 12}}>
-        ELECTRONIC SIGNATURE WORKFLOW
+        TAX FILING &middot; STEP BY STEP
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// The contract document
+// Stage rail
 // ---------------------------------------------------------------------------
-const DOC_W = 1180;
-const DOC_H = 1380;
-const DOC_X = (3840 - DOC_W) / 2;
-const DOC_Y = 330;
-
-const Document: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const drop = spring({frame: frame - DOC_DROP, fps, config: {damping: 200, stiffness: 55}});
-  if (drop <= 0.001) return null;
-
-  const env = spring({frame: frame - ENVELOPE_START, fps, config: {damping: 200, stiffness: 80}});
-  const envT = Math.min(1, Math.max(0, env));
-  // document folds into envelope: shrinks toward center-bottom
-  const foldScale = 1 - envT * 0.62;
-  const foldY = envT * 300;
-
-  const signDraw = interpolate(frame, [SIGN_DRAW_START, SIGN_DRAW_END], [0, 1], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
-
-  return (
-    <div style={{
-      position: 'absolute', left: DOC_X, top: DOC_Y + (1 - drop) * -900 + foldY,
-      width: DOC_W, height: DOC_H,
-      opacity: Math.min(1, drop) * (1 - interpolate(frame, [ENVELOPE_START + 60, ENVELOPE_START + 130], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})),
-      transform: `scale(${foldScale})`,
-      transformOrigin: 'center bottom',
-    }}>
-      <div style={{
-        width: DOC_W, height: DOC_H, background: PAPER, borderRadius: 26,
-        border: `2px solid ${FAINT}`, filter: 'url(#docShadow)',
-        padding: '70px 80px', position: 'relative', overflow: 'hidden',
-      }}>
-        <rect width={DOC_W} height={DOC_H} fill="url(#docSheen)" style={{position: 'absolute', top: 0, left: 0}} />
-        <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 56}}>
-          Services Agreement
-        </div>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 2, marginTop: 10}}>
-          CONTRACT #SA-2026-0914 &middot; 4 PAGES
-        </div>
-        {/* body text lines */}
-        {Array.from({length: 9}).map((_, i) => {
-          const lw = spring({frame: frame - (DOC_DROP + 60 + i * 18), fps, config: {damping: 200, stiffness: 140}});
-          return (
-            <div key={i} style={{
-              height: 16, borderRadius: 8, background: FAINT, marginTop: 26,
-              width: `${88 - (i % 3) * 14}%`,
-              transform: `scaleX(${Math.min(1, Math.max(0, lw))})`,
-              transformOrigin: 'left center',
-            }} />
-          );
-        })}
-        {/* signature fields */}
-        <div style={{marginTop: 60}}>
-          {FIELDS.map((f, i) => {
-            const fs = spring({frame: frame - (FIELDS_START + i * 40), fps, config: {damping: 200, stiffness: 130}});
-            if (fs <= 0.001) return null;
-            const done = frame >= FIELDS_START + 120 + i * 40;
-            return (
-              <div key={f.label} style={{marginTop: 34, opacity: Math.min(1, fs)}}>
-                <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, letterSpacing: 3}}>{f.label}</div>
-                <div style={{
-                  marginTop: 10, height: 74, width: f.w, borderRadius: 12,
-                  border: `3px dashed ${done ? SUCCESS : SIGN_TAB}`,
-                  background: done ? 'rgba(31,157,107,0.08)' : 'rgba(43,108,176,0.08)',
-                  position: 'relative',
-                }}>
-                  {/* the drawn signature in the first field */}
-                  {i === 0 && signDraw > 0 && (
-                    <svg width={f.w} height={74} style={{position: 'absolute', top: -44, left: 0, overflow: 'visible'}}>
-                      <path
-                        d={SIGN_PATH}
-                        fill="none" stroke={INK} strokeWidth={7} strokeLinecap="round"
-                        pathLength={1} strokeDasharray={1} strokeDashoffset={1 - signDraw}
-                      />
-                    </svg>
-                  )}
-                  {i === 2 && frame >= STAMP_DATE && (
-                    <div style={{
-                      position: 'absolute', left: 20, top: 8,
-                      color: INK, fontFamily: MONO, fontWeight: 700, fontSize: 40,
-                      opacity: interpolate(frame, [STAMP_DATE, STAMP_DATE + 20], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
-                    }}>
-                      SEP 28, 2026
-                    </div>
-                  )}
-                  {done && (
-                    <div style={{
-                      position: 'absolute', right: -26, top: -26,
-                      width: 64, height: 64, borderRadius: '50%', background: SUCCESS,
-                      color: '#fff', fontSize: 38, fontWeight: 800,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>&#10003;</div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      {/* pulsing sign-here tabs (outside the clipped paper so they stick out fully) */}
-      {frame >= TABS_START && frame < ENVELOPE_START && (
-        <div style={{position: 'absolute', right: -70, top: 560}}>
-          {[0, 1, 2].map((i) => {
-            const tabOn = frame >= TABS_START + i * 60 && frame < FIELDS_START + 120 + i * 40;
-            if (!tabOn) return null;
-            const pulse = 1 + 0.08 * Math.sin(frame * 0.3);
-            return (
-              <div key={i} style={{
-                marginTop: i === 0 ? 0 : 120,
-                background: SIGN_TAB, color: '#fff',
-                fontFamily: MONO, fontWeight: 800, fontSize: 30, letterSpacing: 2,
-                padding: '18px 26px', borderRadius: '0 14px 14px 0',
-                transform: `scale(${pulse})`, transformOrigin: 'left center',
-                boxShadow: '0 0 30px rgba(43,108,176,0.6)',
-              }}>
-                SIGN HERE
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Envelope + gold SIGNED seal
-// ---------------------------------------------------------------------------
-const Envelope: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - (ENVELOPE_START + 40), fps, config: {damping: 200, stiffness: 80}});
+const StageRail: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - 25, fps, config: {damping: 200, stiffness: 80}});
   if (s <= 0.001) return null;
-  const seal = spring({frame: frame - SEAL_START, fps, config: {damping: 110, stiffness: 220}});
-  const sealScale = seal <= 0.001 ? 2.4 : 2.4 - 1.4 * Math.min(1, seal);
-  const impact = frame >= SEAL_START && frame < SEAL_START + 10;
-
-  const EW = 900; const EH = 620;
-  const EX = (3840 - EW) / 2; const EY = 830;
-
-  return (
-    <div style={{
-      position: 'absolute', left: EX, top: EY,
-      width: EW, height: EH,
-      opacity: Math.min(1, s),
-      transform: `translateY(${(1 - s) * 80}px) scale(${0.9 + 0.1 * s}) ${impact ? 'translateY(14px)' : ''}`,
-    }}>
-      <svg width={EW} height={EH} viewBox={`0 0 ${EW} ${EH}`}>
-        <rect x={8} y={8} width={EW - 16} height={EH - 16} rx={28} fill={PAPER} stroke={FAINT} strokeWidth={3} filter="url(#docShadow)" />
-        <path d={`M 8 36 L ${EW / 2} ${EH * 0.62} L ${EW - 8} 36`} fill="none" stroke={FAINT} strokeWidth={4} />
-        <path d={`M 8 ${EH - 36} L ${EW * 0.38} ${EH * 0.55} M ${EW - 8} ${EH - 36} L ${EW * 0.62} ${EH * 0.55}`} fill="none" stroke={FAINT} strokeWidth={4} />
-        {seal > 0.001 && (
-          <g transform={`translate(${EW / 2} ${EH * 0.58}) scale(${sealScale})`} opacity={Math.min(1, seal)} filter="url(#sealGlow)">
-            <circle r={104} fill="url(#goldSeal)" stroke={GOLD_DEEP} strokeWidth={6} />
-            <circle r={84} fill="none" stroke={PAPER} strokeWidth={4} opacity={0.8} />
-            <text y={-8} textAnchor="middle" fill={PAPER} fontSize={40} fontFamily={FONT} fontWeight={800} letterSpacing={3}>SIGNED</text>
-            <text y={34} textAnchor="middle" fill={PAPER} fontSize={24} fontFamily={MONO} letterSpacing={2}>09&middot;28&middot;2026</text>
-          </g>
-        )}
-      </svg>
-      {impact && (
-        <div style={{
-          position: 'absolute', left: EW / 2 - 260, top: EH * 0.58 - 12,
-          width: 520, height: 24, borderRadius: 12,
-          background: 'rgba(201,162,39,0.5)', filter: 'blur(10px)',
-        }} />
-      )}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Audit trail typing out
-// ---------------------------------------------------------------------------
-const AuditTrail: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - AUDIT_START, fps, config: {damping: 200, stiffness: 90}});
-  if (s <= 0.001) return null;
-  return (
-    <div style={{
-      position: 'absolute', left: 0, top: 1560, width: 3840,
-      display: 'flex', justifyContent: 'center', gap: 34,
-      opacity: Math.min(1, s),
-    }}>
-      {AUDIT.map((a, i) => {
-        const as = spring({frame: frame - (AUDIT_START + 20 + i * 44), fps, config: {damping: 200, stiffness: 140}});
-        if (as <= 0.001) return null;
-        return (
-          <div key={a} style={{
-            display: 'flex', alignItems: 'center', gap: 16,
-            background: PAPER, border: `2px solid ${FAINT}`, borderRadius: 999,
-            padding: '20px 38px',
-            opacity: Math.min(1, as),
-            transform: `translateY(${(1 - as) * 26}px)`,
-          }}>
-            <span style={{color: SUCCESS, fontSize: 32, fontWeight: 800}}>&#10003;</span>
-            <span style={{color: INK, fontFamily: MONO, fontSize: 30}}>{a}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Inbox copies: sealed doc flies to YOU and CLIENT
-// ---------------------------------------------------------------------------
-const Inboxes: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - INBOX_START, fps, config: {damping: 200, stiffness: 80}});
-  if (s <= 0.001) return null;
-  const sides = [
-    {label: 'YOUR INBOX', x: 300},
-    {label: 'CLIENT INBOX', x: 3840 - 300 - 560},
-  ];
+  const railX = 200; const railW = 3440; const railY = 340;
   return (
     <div style={{position: 'absolute', left: 0, top: 0, opacity: Math.min(1, s)}}>
-      {sides.map((sd, i) => {
-        const fly = spring({frame: frame - (INBOX_START + 40 + i * 60), fps, config: {damping: 200, stiffness: 70}});
-        if (fly <= 0.001) return null;
-        const fx = interpolate(fly, [0, 1], [1920, sd.x + 280]);
-        const fy = interpolate(fly, [0, 1], [1140, 420]);
-        return (
-          <div key={sd.label}>
-            {/* inbox tray */}
-            <div style={{
-              position: 'absolute', left: sd.x, top: 620, width: 560, height: 300,
-              background: PAPER, borderRadius: 28, border: `2px solid ${FAINT}`,
-              filter: 'url(#docShadow)', display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', gap: 14,
-            }}>
-              <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>{sd.label}</div>
-              <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 44}}>
-                Agreement.pdf
-              </div>
-              {fly > 0.85 && (
-                <div style={{
-                  width: 60, height: 60, borderRadius: '50%', background: SUCCESS,
-                  color: '#fff', fontSize: 36, fontWeight: 800,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  opacity: interpolate(fly, [0.85, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
-                }}>&#10003;</div>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <line x1={railX} y1={railY} x2={railX + railW} y2={railY} stroke={HAIRLINE} strokeWidth={8} strokeLinecap="round" />
+        {STAGES.map((st, i) => {
+          const active = frame >= STAGE_TIMES[i];
+          const done = i < STAGES.length - 1 ? frame >= STAGE_TIMES[i + 1] : frame >= RESOLVE_START;
+          const x = railX + (i / (STAGES.length - 1)) * railW;
+          return (
+            <g key={st}>
+              {i < STAGES.length - 1 && (() => {
+                const nx = railX + ((i + 1) / (STAGES.length - 1)) * railW;
+                const cf = interpolate(frame, [STAGE_TIMES[i], STAGE_TIMES[i + 1]], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+                return (
+                  <line x1={x} y1={railY} x2={x + (nx - x) * cf} y2={railY}
+                    stroke={done ? GREEN : GOLD} strokeWidth={8} strokeLinecap="round" filter="url(#tfGlow14)" />
+                );
+              })()}
+              <circle cx={x} cy={railY} r={active ? 34 : 24}
+                fill={done ? GREEN : active ? GOLD : BG}
+                stroke={done ? GREEN : active ? GOLD : HAIRLINE} strokeWidth={6} />
+              {done && (
+                <text x={x} y={railY + 12} textAnchor="middle" fill="#07211B" fontSize={34} fontWeight={800}>&#10003;</text>
               )}
-            </div>
-            {/* flying sealed copy */}
-            {fly < 1 && (
-              <div style={{
-                position: 'absolute', left: fx - 90, top: fy - 60,
-                width: 180, height: 120, background: PAPER,
-                border: `2px solid ${GOLD}`, borderRadius: 12,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 0 40px rgba(201,162,39,0.5)',
-                opacity: 1 - interpolate(fly, [0.8, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
-              }}>
-                <span style={{color: GOLD_DEEP, fontFamily: FONT, fontWeight: 800, fontSize: 30}}>SIGNED</span>
-              </div>
-            )}
-          </div>
-        );
-      })}
+              <text x={x} y={railY + 84} textAnchor="middle"
+                fill={active ? INK : MUTED} fontSize={30} fontFamily={MONO}
+                fontWeight={active ? 800 : 500} letterSpacing={2}>{st}</text>
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Resolve banner
+// Left column: documents checking in
 // ---------------------------------------------------------------------------
-const ResolveBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - BANNER_START, fps, config: {damping: 200, stiffness: 100}});
+const DocList: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - (DOC_START - 30), fps, config: {damping: 200, stiffness: 80}});
   if (s <= 0.001) return null;
   return (
     <div style={{
-      position: 'absolute', bottom: 110, left: 0, width: 3840,
-      display: 'flex', justifyContent: 'center',
-      opacity: Math.min(1, s),
-      transform: `translateY(${(1 - s) * 40}px)`,
+      position: 'absolute', left: 200, top: 560, width: 1020,
+      opacity: Math.min(1, s), transform: `translateX(${(1 - s) * -80}px)`,
+    }}>
+      <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3, marginBottom: 26}}>
+        DOCUMENTS GATHERED
+      </div>
+      {DOCS.map((d, i) => {
+        const ds = spring({frame: frame - (DOC_START + i * 42), fps, config: {damping: 200, stiffness: 130}});
+        if (ds <= 0.001) return null;
+        return (
+          <div key={d.name} style={{
+            display: 'flex', alignItems: 'center', gap: 26, marginTop: 18,
+            background: PANEL, border: `2px solid ${HAIRLINE}`, borderRadius: 20,
+            padding: '26px 32px',
+            opacity: Math.min(1, ds), transform: `translateX(${(1 - Math.min(1, ds)) * -50}px)`,
+          }}>
+            <span style={{
+              width: 56, height: 56, borderRadius: '50%', background: GREEN,
+              color: '#07211B', fontSize: 32, fontWeight: 800,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>&#10003;</span>
+            <div style={{flex: 1}}>
+              <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 40}}>{d.name}</div>
+              <div style={{color: MUTED, fontFamily: FONT, fontSize: 30, marginTop: 4}}>{d.sub}</div>
+            </div>
+            <div style={{color: GOLD, fontFamily: MONO, fontWeight: 800, fontSize: 38}}>{d.amount}</div>
+          </div>
+        );
+      })}
+      <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, marginTop: 22, letterSpacing: 1}}>
+        {Math.min(DOCS.length, Math.max(0, Math.floor((frame - DOC_START) / 42) + 1))} of {DOCS.length} forms imported
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Center column: the return computation
+// ---------------------------------------------------------------------------
+const fmt = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+
+const Computation: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - (INCOME_START - 40), fps, config: {damping: 200, stiffness: 80}});
+  if (s <= 0.001) return null;
+
+  const AGI = 99640;
+  const agi = interpolate(frame, [INCOME_START, INCOME_START + 110], [0, AGI], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const dedTotal = DEDUCTIONS.reduce((a, d) => a + d.value, 0);
+  const ded = interpolate(frame, [DEDUCT_START, DEDUCT_START + 110], [0, dedTotal], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const taxable = Math.max(0, agi - ded);
+  const taxOwed = interpolate(frame, [REVIEW_START, REVIEW_START + 90], [0, 13328], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const reviewed = frame >= REVIEW_START;
+
+  return (
+    <div style={{
+      position: 'absolute', left: 1380, top: 560, width: 1080,
+      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 60}px)`,
     }}>
       <div style={{
-        background: INK, borderRadius: 999, padding: '30px 90px',
-        display: 'flex', alignItems: 'center', gap: 30,
-        boxShadow: '0 18px 60px rgba(28,43,74,0.35)',
+        background: PANEL, borderRadius: 32, padding: '46px 52px',
+        border: `2px solid ${reviewed ? GREEN : HAIRLINE}`,
+        filter: 'url(#tfShadow)', backdropFilter: 'blur(6px)',
+        boxShadow: reviewed ? '0 0 60px rgba(52,211,153,0.22)' : 'none',
+      }}>
+        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>YOUR 1040, SIMPLIFIED</div>
+        <div style={{marginTop: 24}}>
+          {INCOME_LINES.map((l, i) => {
+            const show = frame >= INCOME_START + 20 + i * 34;
+            const v = interpolate(frame, [INCOME_START + 20 + i * 34, INCOME_START + 70 + i * 34], [0, l.value], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+            return (
+              <div key={l.label} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 14, opacity: show ? 1 : 0.25}}>
+                <span style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 2}}>{l.label}</span>
+                <span style={{color: INK, fontFamily: MONO, fontWeight: 700, fontSize: 42}}>{fmt(v)}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 20, borderTop: `2px solid ${HAIRLINE}`, paddingTop: 20}}>
+          <span style={{color: GOLD, fontFamily: MONO, fontWeight: 800, fontSize: 32, letterSpacing: 2}}>ADJUSTED GROSS INCOME</span>
+          <span style={{color: GOLD, fontFamily: MONO, fontWeight: 800, fontSize: 52}}>{fmt(agi)}</span>
+        </div>
+        <div style={{marginTop: 26}}>
+          <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, letterSpacing: 2, marginBottom: 10}}>DEDUCTIONS &amp; CREDITS</div>
+          {DEDUCTIONS.map((d, i) => {
+            const show = frame >= DEDUCT_START + i * 30;
+            return (
+              <div key={d.label} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 10, opacity: show ? 1 : 0.25}}>
+                <span style={{color: MUTED, fontFamily: MONO, fontSize: 28}}>
+                  <span style={{color: show ? GREEN : MUTED, fontWeight: 800, marginRight: 14}}>{show ? '\u2212' : '\u00B7'}</span>{d.label}
+                </span>
+                <span style={{color: show ? GREEN : MUTED, fontFamily: MONO, fontWeight: 700, fontSize: 38}}>
+                  {show ? `(${fmt(d.value)})` : fmt(d.value)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 26, borderTop: `2px solid ${HAIRLINE}`, paddingTop: 22}}>
+          <span style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 2}}>TAXABLE INCOME</span>
+          <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 52}}>{fmt(taxable)}</span>
+        </div>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 14}}>
+          <span style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 2}}>FEDERAL TAX OWED</span>
+          <span style={{color: taxOwed > 0 ? INK : MUTED, fontFamily: MONO, fontWeight: 800, fontSize: 52}}>{fmt(taxOwed)}</span>
+        </div>
+        {reviewed && (
+          <div style={{
+            marginTop: 24, textAlign: 'center',
+            opacity: interpolate(frame, [REVIEW_START + 20, REVIEW_START + 60], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
+          }}>
+            <span style={{
+              display: 'inline-block', border: '3px solid rgba(52,211,153,0.75)', color: GREEN,
+              fontFamily: MONO, fontWeight: 800, fontSize: 34, letterSpacing: 4,
+              padding: '12px 44px', borderRadius: 14, transform: 'rotate(-4deg)',
+            }}>
+              REVIEWED &#10003;
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Right column: refund gauge + e-file status
+// ---------------------------------------------------------------------------
+const RefundPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - (EFILE_START - 60), fps, config: {damping: 200, stiffness: 80}});
+  if (s <= 0.001) return null;
+
+  const REFUND = 4872;
+  const refund = interpolate(frame, [REFUND_START, REFUND_START + 120], [0, REFUND], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const accepted = frame >= EFILE_START + 60;
+  const R = 230;
+  const CX = 520; const CY = 420;
+  const CIRC = 2 * Math.PI * R;
+  const ringFrac = Math.min(1, refund / REFUND);
+
+  return (
+    <div style={{
+      position: 'absolute', left: 2620, top: 560, width: 1020,
+      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 60}px)`,
+    }}>
+      <div style={{
+        background: PANEL, borderRadius: 32, padding: '40px 52px',
+        border: `2px solid ${HAIRLINE}`, filter: 'url(#tfShadow)', backdropFilter: 'blur(6px)',
+      }}>
+        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3, textAlign: 'center'}}>YOUR REFUND</div>
+        <svg width={1040} height={560} viewBox="0 0 1040 560" style={{display: 'block', margin: '10px auto 0'}}>
+          <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(234,245,238,0.10)" strokeWidth={34} />
+          <circle cx={CX} cy={CY} r={R} fill="none" stroke="url(#tfGoldBar)" strokeWidth={34}
+            strokeLinecap="round" pathLength={1} strokeDasharray={1}
+            strokeDashoffset={1 - ringFrac} transform={`rotate(-90 ${CX} ${CY})`}
+            filter="url(#tfGlow14)" />
+          <text x={CX} y={CY - 30} textAnchor="middle" fill={INK} fontSize={92} fontFamily={MONO} fontWeight={800}>
+            {fmt(refund)}
+          </text>
+          <text x={CX} y={CY + 50} textAnchor="middle" fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={2}>
+            ESTIMATED REFUND
+          </text>
+        </svg>
+        <div style={{display: 'flex', justifyContent: 'space-between', marginTop: 8}}>
+          <span style={{color: MUTED, fontFamily: MONO, fontSize: 28}}>WITHHELD {fmt(18200)}</span>
+          <span style={{color: MUTED, fontFamily: MONO, fontSize: 28}}>OWED {fmt(13328)}</span>
+        </div>
+        <div style={{
+          marginTop: 26, borderRadius: 20, padding: '22px 28px',
+          background: accepted ? 'rgba(52,211,153,0.10)' : 'rgba(234,245,238,0.04)',
+          border: `2px solid ${accepted ? GREEN : HAIRLINE}`,
+          display: 'flex', alignItems: 'center', gap: 22,
+        }}>
+          <span style={{
+            width: 52, height: 52, borderRadius: '50%',
+            background: accepted ? GREEN : 'rgba(234,245,238,0.15)',
+            color: '#07211B', fontSize: 30, fontWeight: 800,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>{accepted ? '\u2713' : '\u22EF'}</span>
+          <div>
+            <div style={{color: accepted ? GREEN : MUTED, fontFamily: MONO, fontWeight: 800, fontSize: 34, letterSpacing: 2}}>
+              {accepted ? 'E-FILED · ACCEPTED' : 'PREPARING E-FILE'}
+            </div>
+            <div style={{color: MUTED, fontFamily: FONT, fontSize: 26, marginTop: 4}}>
+              {accepted ? 'IRS confirmation TC-2026-8841' : 'transmitting return package'}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Resolve strip
+// ---------------------------------------------------------------------------
+const ResolveStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - RESOLVE_START, fps, config: {damping: 200, stiffness: 100}});
+  if (s <= 0.001) return null;
+  return (
+    <div style={{
+      position: 'absolute', bottom: 92, left: 0, width: 3840,
+      display: 'flex', justifyContent: 'center',
+      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 40}px)`,
+    }}>
+      <div style={{
+        background: 'rgba(52,211,153,0.10)', border: `2px solid ${GREEN}`,
+        borderRadius: 999, padding: '28px 90px',
+        display: 'flex', alignItems: 'center', gap: 44,
       }}>
         <span style={{
-          width: 56, height: 56, borderRadius: '50%', background: SUCCESS,
-          color: '#fff', fontSize: 34, fontWeight: 800,
+          width: 58, height: 58, borderRadius: '50%', background: GREEN,
+          color: '#07211B', fontSize: 36, fontWeight: 800,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>&#10003;</span>
-        <span style={{color: '#fff', fontFamily: FONT, fontWeight: 800, fontSize: 52, letterSpacing: 1}}>
-          Legally binding &mdash; complete
+        <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 48, letterSpacing: 2}}>
+          E-FILED IN 22 MINUTES &middot; REFUND $4,872 ON THE WAY
         </span>
       </div>
     </div>
@@ -449,19 +422,16 @@ const ResolveBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => 
 };
 
 // ---------------------------------------------------------------------------
-// Main composition
-// ---------------------------------------------------------------------------
-// Deterministic full-frame film grain — bitrate insurance for the >= 20 Mbps verify gate.
-// random() from 'remotion' is seeded; positions re-seed every frame. Subtle by design.
+// Film grain — deterministic, SVG-only, bitrate insurance (>= 20 Mbps gate)
 // ---------------------------------------------------------------------------
 const GRAIN_COUNT = 420;
 const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
-  const dots: JSX.Element[] = [];
+  const dots: React.ReactElement[] = [];
   for (let i = 0; i < GRAIN_COUNT; i++) {
-    const x = random(`grain-x-${frame}-${i}`) * 3840;
-    const y = random(`grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`grain-o-${frame}-${i}`) * 0.04;
-    const s = 2 + random(`grain-s-${frame}-${i}`) * 2.5;
+    const x = random(`tf-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`tf-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`tf-grain-o-${frame}-${i}`) * 0.04;
+    const s = 2 + random(`tf-grain-s-${frame}-${i}`) * 2.5;
     dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
   }
   return (
@@ -471,7 +441,10 @@ const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
   );
 };
 
-export const ESignatureSigningFlow: React.FC = () => {
+// ---------------------------------------------------------------------------
+// Main composition
+// ---------------------------------------------------------------------------
+export const TaxFilingProcess: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
@@ -479,14 +452,14 @@ export const ESignatureSigningFlow: React.FC = () => {
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
       <TitleBar frame={frame} />
-      <Document frame={frame} fps={fps} />
-      <Envelope frame={frame} fps={fps} />
-      <AuditTrail frame={frame} fps={fps} />
-      <Inboxes frame={frame} fps={fps} />
-      <ResolveBanner frame={frame} fps={fps} />
+      <StageRail frame={frame} fps={fps} />
+      <DocList frame={frame} fps={fps} />
+      <Computation frame={frame} fps={fps} />
+      <RefundPanel frame={frame} fps={fps} />
+      <ResolveStrip frame={frame} fps={fps} />
       <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
 };
 
-export default ESignatureSigningFlow;
+export default TaxFilingProcess;
