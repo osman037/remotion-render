@@ -11,6 +11,13 @@ name: 🎬 Remotion Universal Renderer
 #
 #     To use this as the main workflow, save it as .github/workflows/render.yml
 #     (replacing the old 4K-locked pipeline, or keep both files side by side).
+#
+#     FRAME RANGES ARE NEVER GUESSED FROM SOURCE FILES. Unless you set `frames`
+#     or `duration_seconds`, no --frames flag is passed at all, so Remotion
+#     renders the composition's own full duration. When you do ask for a range,
+#     the real duration is resolved with `npx remotion compositions` and the
+#     range is clamped to it — so the error
+#     'frame range 0-899 is not inbetween 0-719' cannot come back.
 # ─────────────────────────────────────────────────────────────────────────────
 on:
   workflow_dispatch:
@@ -35,15 +42,15 @@ on:
         required: false
         default: ''
       fps:
-        description: 'FPS — default auto from TSX'
+        description: 'FPS override — honored only by Remotion >= 4.0.424 (older versions ignore it). Also used to convert duration_seconds. Blank = composition fps'
         required: false
         default: ''
       duration_seconds:
-        description: 'Duration seconds — default auto from TSX. Ignored if TSX sets durationInFrames'
+        description: 'Partial render: first N seconds only (clamped to the composition length). Blank = render the whole composition (recommended)'
         required: false
         default: ''
       frames:
-        description: 'Render frame range e.g. 0-299, or a single frame e.g. 150 (stills). Default: all frames'
+        description: 'Explicit frame range e.g. 0-299, or a single frame e.g. 150. Blank = render the whole composition (no --frames flag)'
         required: false
         default: ''
       scale:
@@ -147,9 +154,8 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     outputs:
-      matrix:     ${{ steps.set.outputs.matrix }}
-      last_frame: ${{ steps.calc.outputs.last_frame }}
-      ext:        ${{ steps.ext.outputs.ext }}
+      matrix: ${{ steps.set.outputs.matrix }}
+      ext:    ${{ steps.ext.outputs.ext }}
     steps:
       - uses: actions/checkout@v4
 
@@ -171,28 +177,6 @@ jobs:
             ID=$(grep -hoP 'export\s+const\s+\K\w+(?=\s*:\s*React\.FC)' src/composition.tsx src/compositions/*.tsx 2>/dev/null | head -1 || true)
             ID=${ID:-Composition}
             echo "matrix={\"include\":[{\"id\":\"$ID\"}]}" >> "$GITHUB_OUTPUT"
-          fi
-          cat "$GITHUB_OUTPUT"
-
-      - id: calc
-        name: Calculate frame range
-        run: |
-          FRAMES='${{ github.event.inputs.frames }}'
-          FPS='${{ github.event.inputs.fps }}'
-          SECS='${{ github.event.inputs.duration_seconds }}'
-          if [ -n "$FRAMES" ]; then
-            echo "last_frame=$FRAMES" >> "$GITHUB_OUTPUT"
-          else
-            # Auto-detect durationInFrames from TSX (falls back to fps x seconds)
-            TSX_FRAMES=$(grep -hoP 'durationInFrames[=\s]*\{?\K[0-9]+' src/composition.tsx src/compositions/*.tsx 2>/dev/null | head -1 || true)
-            if [ -n "$TSX_FRAMES" ]; then
-              echo "last_frame=0-$(( TSX_FRAMES - 1 ))" >> "$GITHUB_OUTPUT"
-              echo "Auto-detected durationInFrames=$TSX_FRAMES from TSX"
-            else
-              FPS=${FPS:-30}
-              SECS=${SECS:-15}
-              echo "last_frame=0-$(( FPS * SECS - 1 ))" >> "$GITHUB_OUTPUT"
-            fi
           fi
           cat "$GITHUB_OUTPUT"
 
@@ -264,6 +248,113 @@ jobs:
             fi
           done
 
+      - name: 🎯 Resolve frame range
+        id: range
+        run: |
+          FRAMES_IN="${{ github.event.inputs.frames }}"
+          SECS="${{ github.event.inputs.duration_seconds }}"
+          FPS_IN="${{ github.event.inputs.fps }}"
+          PROPS='${{ github.event.inputs.props }}'
+          ID="${{ matrix.id }}"
+
+          # ── 1. Can the installed Remotion honor an fps override? ─────────────
+          #      (the --fps flag only exists from Remotion 4.0.424 on)
+          REMOTION_VERSION=""
+          FPS_SUPPORTED="no"
+          if [ -n "$FPS_IN" ]; then
+            REMOTION_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('node_modules/remotion/package.json','utf8')).version)" 2>/dev/null || true)
+            FPS_SUPPORTED=$(node -e "const v='$REMOTION_VERSION'.split('.').map(Number);console.log(v[0]>4||(v[0]===4&&(v[1]>0||v[2]>=424))?'yes':'no')" 2>/dev/null || echo no)
+            echo "Remotion ${REMOTION_VERSION:-unknown} — fps override supported: $FPS_SUPPORTED"
+          fi
+          echo "REMOTION_VERSION=$REMOTION_VERSION" >> "$GITHUB_ENV"
+          echo "FPS_SUPPORTED=$FPS_SUPPORTED" >> "$GITHUB_ENV"
+
+          # ── 2. Ask Remotion for the composition's real length ────────────────
+          DURATION=""
+          COMP_FPS=""
+          RANGE=""
+          if [ -n "$FRAMES_IN" ] || [ -n "$SECS" ]; then
+            ENTRY=$(node -e "try{const j=JSON.parse(require('fs').readFileSync('package.json','utf8'));console.log((j.remotion&&j.remotion.entryPoint)||'src/index.ts')}catch(e){console.log('src/index.ts')}")
+            PROPS_ARG=""
+            if [ -n "$PROPS" ] && [ "$PROPS" != "{}" ]; then
+              echo "$PROPS" > /tmp/props.json
+              PROPS_ARG="--props=/tmp/props.json"
+            fi
+            echo "Resolving: npx remotion compositions $ENTRY $PROPS_ARG"
+            npx remotion compositions "$ENTRY" $PROPS_ARG > /tmp/compositions.txt 2>&1 || true
+            LINE=$(awk -v id="$ID" '$1 == id {print; exit}' /tmp/compositions.txt || true)
+            if [ -n "$LINE" ]; then
+              COMP_FPS=$(echo "$LINE" | awk '{print $2}')
+              DURATION=$(echo "$LINE" | awk '{print $4}')
+              case "$DURATION" in
+                ''|*[!0-9]*)
+                  DURATION=""
+                  ;;
+              esac
+              echo "Composition '$ID': fps=${COMP_FPS:-?} durationInFrames=${DURATION:-?}"
+            fi
+            if [ -z "$DURATION" ]; then
+              echo "⚠ Could not resolve the length of '$ID' — the requested range is used as-is"
+              echo "----- last 30 lines of the compositions output -----"
+              tail -30 /tmp/compositions.txt || true
+              echo "----------------------------------------------------"
+            fi
+          fi
+
+          # ── 3. Build the range that was asked for ────────────────────────────
+          if [ -n "$FRAMES_IN" ]; then
+            RANGE="$FRAMES_IN"
+          elif [ -n "$SECS" ]; then
+            case "$SECS" in
+              ''|*[!0-9]*)
+                echo "❌ duration_seconds must be a whole number of seconds, got '$SECS'"
+                exit 1
+                ;;
+            esac
+            FPS_USE="$COMP_FPS"
+            case "$FPS_USE" in
+              ''|*[!0-9]*)
+                FPS_USE="$FPS_IN"
+                ;;
+            esac
+            case "$FPS_USE" in
+              ''|*[!0-9]*)
+                FPS_USE=30
+                ;;
+            esac
+            RANGE="0-$(( SECS * FPS_USE - 1 ))"
+            echo "Partial render: first ${SECS}s at ${FPS_USE} fps → frames $RANGE"
+          fi
+
+          # ── 4. Clamp it to the composition's real length ─────────────────────
+          #      Without this, Remotion aborts with
+          #      'frame range 0-899 is not inbetween 0-719'
+          if [ -n "$RANGE" ] && [ -n "$DURATION" ]; then
+            MAX=$(( DURATION - 1 ))
+            if echo "$RANGE" | grep -qE '^[0-9]+-[0-9]+$'; then
+              FIRST="${RANGE%%-*}"
+              LAST="${RANGE##*-}"
+              if [ "$LAST" -gt "$MAX" ]; then
+                echo "⚠ Requested frames $RANGE exceed the composition ($DURATION frames) — clamping to $FIRST-$MAX"
+                RANGE="$FIRST-$MAX"
+              fi
+            elif echo "$RANGE" | grep -qE '^[0-9]+$'; then
+              if [ "$RANGE" -gt "$MAX" ]; then
+                echo "⚠ Requested frame $RANGE exceeds the composition ($DURATION frames) — clamping to $MAX"
+                RANGE="$MAX"
+              fi
+            else
+              echo "ℹ '$RANGE' is not a plain range — passing it to Remotion unchanged"
+            fi
+          fi
+
+          echo "frames=$RANGE" >> "$GITHUB_OUTPUT"
+          if [ -n "$RANGE" ]; then
+            echo "Rendering frames: $RANGE"
+          else
+            echo "Rendering the full composition (no --frames flag)"
+          fi
+
       - name: 🎬 Render ${{ matrix.id }}
         run: |
           mkdir -p out
@@ -271,7 +362,7 @@ jobs:
           CODEC="${{ github.event.inputs.codec || 'h264' }}"
           EXT="${{ needs.prepare.outputs.ext }}"
           OUTPUT="out/${{ matrix.id }}.$EXT"
-          FRAMES="${{ needs.prepare.outputs.last_frame }}"
+          FRAMES="${{ steps.range.outputs.frames }}"
           SCALE="${{ github.event.inputs.scale || '1' }}"
           CONCURRENCY="${{ github.event.inputs.concurrency || '2' }}"
           AUDIO_MODE="${{ github.event.inputs.audio_track || 'include' }}"
@@ -310,7 +401,16 @@ jobs:
           # Only pass dimensions / timing when explicitly provided
           [ -n "$W" ] && CMD="$CMD --width=$W"
           [ -n "$H" ] && CMD="$CMD --height=$H"
-          [ -n "$FPS" ] && CMD="$CMD --fps=$FPS"
+
+          if [ -n "$FPS" ]; then
+            if [ "$FPS_SUPPORTED" = "yes" ]; then
+              CMD="$CMD --fps=$FPS"
+            else
+              echo "ℹ fps input ignored — the --fps override needs Remotion >= 4.0.424 (installed: ${REMOTION_VERSION:-unknown}); the composition fps is used instead"
+            fi
+          fi
+
+          # No --frames flag at all => Remotion renders the composition's full duration
           [ -n "$FRAMES" ] && CMD="$CMD --frames=$FRAMES"
 
           # CRF or video bitrate (mutually exclusive — bitrate wins if both are set)
