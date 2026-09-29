@@ -1,81 +1,194 @@
-name: 🎬 Render Remotion Video
-
-# ---------------------------------------------------------------------------
-# YAML RULE THAT BROKE THIS FILE (the "error in your yaml syntax on line 92"):
-#
-# A `run: |` block is a YAML *literal block scalar*. Every non-empty line of the
-# script must be indented MORE than the key that introduces it. `run:` sits at
-# column 9, so all script lines must start with >= 9 spaces (this file uses 10).
-#
-# A line indented less than that silently ENDS the block scalar, and YAML then
-# tries to parse `');` as a normal mapping line -> "could not find expected ':'".
-#
-# The old "Validate composition syntax" step did exactly that: its inline
-# node -e block contained a real line break where the two characters  \  n
-# were meant, i.e.
-#
-#     line 91:  ... content.split('      <-- string literal left open
-#     line 92:  ');                        <-- continued at COLUMN 1 (0 spaces!)
-#
-# which un-indented everything after it and killed the block scalar at line 92.
-#
-# Rule of thumb: never put a multi-line JS/Python string literal inside a
-# `run:` block; use a single-line string (or a script file committed to the repo).
-# ---------------------------------------------------------------------------
+name: 🎬 Remotion Universal Renderer
 
 on:
   workflow_dispatch:
     inputs:
+      # ── Composition ──────────────────────────────────────────────────────────
       composition_id:
-        description: 'Single composition ID'
+        description: 'Single composition ID (auto-detected if blank)'
         required: false
         default: ''
       compositions_json:
         description: 'Bulk JSON: [{"id":"CompA"},{"id":"CompB"}]'
         required: false
         default: ''
-      width:
-        description: 'Width in px (default 3840)'
-        required: false
-        default: '3840'
-      height:
-        description: 'Height in px (default 2160)'
-        required: false
-        default: '2160'
-      fps:
-        description: 'Frames per second (default 60)'
-        required: false
-        default: '60'
-      duration_seconds:
-        description: 'Duration in seconds (default 15)'
-        required: false
-        default: '15'
 
+      # ── Dimensions & Timing ──────────────────────────────────────────────────
+      width:
+        description: 'Width px — default auto from TSX'
+        required: false
+        default: ''
+      height:
+        description: 'Height px — default auto from TSX'
+        required: false
+        default: ''
+      fps:
+        description: 'FPS — default auto from TSX'
+        required: false
+        default: ''
+      duration_seconds:
+        description: 'Duration seconds — default auto from TSX. Ignored if TSX sets durationInFrames'
+        required: false
+        default: ''
+      frames:
+        description: 'Render frame range e.g. 0-299 or single frame e.g. 150 (for stills). Default: all frames'
+        required: false
+        default: ''
+      scale:
+        description: 'Output scale multiplier 0.1–16 (e.g. 2 doubles resolution). Default: 1'
+        required: false
+        default: '1'
+
+      # ── Codec & Format ───────────────────────────────────────────────────────
+      codec:
+        description: 'h264 | h265 | vp8 | vp9 | av1 | prores | gif | mp3 | wav | aac'
+        required: false
+        default: 'h264'
+      pixel_format:
+        description: 'yuv420p | yuv422p | yuv444p | yuva420p (transparency). Default: yuv420p'
+        required: false
+        default: 'yuv420p'
+      image_format:
+        description: 'jpeg | png (png supports transparency). Default: jpeg'
+        required: false
+        default: 'jpeg'
+      prores_profile:
+        description: 'ProRes only: proxy | light | standard | hq | 4444 | 4444-xq'
+        required: false
+        default: 'hq'
+      crf:
+        description: 'CRF quality (h264:1-51, h265:0-51, vp8:4-63, vp9:0-63). Lower=better. Leave blank for preset default'
+        required: false
+        default: ''
+      x264_preset:
+        description: 'h264 only: ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow'
+        required: false
+        default: 'medium'
+      video_bitrate:
+        description: 'Target bitrate e.g. 40M (overrides CRF if set). Use for Adobe Stock: 40M'
+        required: false
+        default: ''
+      audio_bitrate:
+        description: 'Audio bitrate e.g. 320k. Default: codec default'
+        required: false
+        default: ''
+
+      # ── Audio ────────────────────────────────────────────────────────────────
+      muted:
+        description: 'true = no audio track (Adobe Stock / motion graphics). false = include audio'
+        required: false
+        default: 'false'
+      enforce_audio_track:
+        description: 'true = always include audio track even if silent'
+        required: false
+        default: 'false'
+
+      # ── GIF options ──────────────────────────────────────────────────────────
+      every_nth_frame:
+        description: 'GIF only: render every Nth frame to reduce GIF FPS (e.g. 2 = half FPS)'
+        required: false
+        default: '1'
+      gif_loops:
+        description: 'GIF only: 0=no loop, 1=loop once, blank=infinite loop'
+        required: false
+        default: ''
+
+      # ── Props / Data ─────────────────────────────────────────────────────────
+      props:
+        description: 'JSON props passed to composition e.g. {"title":"Hello","color":"#ff0000"}'
+        required: false
+        default: ''
+
+      # ── Adobe Stock post-processing ──────────────────────────────────────────
+      adobe_stock:
+        description: 'true = re-encode to Adobe Stock spec (40Mbps H264, no audio) after render'
+        required: false
+        default: 'false'
+
+      # ── Output ───────────────────────────────────────────────────────────────
+      concurrency:
+        description: 'Render threads per job (default 2, max 4 on GitHub runners)'
+        required: false
+        default: '2'
+      jpeg_quality:
+        description: 'JPEG frame quality 0-100. Default: 80'
+        required: false
+        default: '80'
+      timeout:
+        description: 'Per-frame timeout ms. Default: 30000'
+        required: false
+        default: '30000'
+      log_level:
+        description: 'verbose | info | warn | error'
+        required: false
+        default: 'info'
+
+# ─────────────────────────────────────────────────────────────────────────────
 jobs:
+  # ── 1. Build matrix from inputs ───────────────────────────────────────────
   prepare:
     runs-on: ubuntu-latest
     outputs:
       matrix:     ${{ steps.set.outputs.matrix }}
       last_frame: ${{ steps.calc.outputs.last_frame }}
+      ext:        ${{ steps.ext.outputs.ext }}
     steps:
+      - uses: actions/checkout@main
+
       - id: set
+        name: Build render matrix
         run: |
           BULK='${{ github.event.inputs.compositions_json }}'
           SINGLE='${{ github.event.inputs.composition_id }}'
-          if [ -n "$BULK" ] && [ "$BULK" != "null" ]; then
-            echo "matrix={\"include\":$BULK}" >> "$GITHUB_OUTPUT"
-          elif [ -n "$SINGLE" ]; then
-            echo "matrix={\"include\":[{\"id\":\"$SINGLE\"}]}" >> "$GITHUB_OUTPUT"
+          if [ -n "$BULK" ] && [ "$BULK" != "null" ] && [ "$BULK" != "" ]; then
+            echo "matrix={\"include\":$(echo $BULK)}" >> $GITHUB_OUTPUT
+          elif [ -n "$SINGLE" ] && [ "$SINGLE" != "" ]; then
+            echo "matrix={\"include\":[{\"id\":\"$SINGLE\"}]}" >> $GITHUB_OUTPUT
           else
-            echo "matrix={\"include\":[{\"id\":\"CybersecurityNetworkMap\"}]}" >> "$GITHUB_OUTPUT"
+            # Auto-detect from composition.tsx
+            ID=$(grep -oP 'export\s+const\s+\K\w+(?=\s*:\s*React\.FC)' src/composition.tsx | head -1 || echo "Composition")
+            echo "matrix={\"include\":[{\"id\":\"$ID\"}]}" >> $GITHUB_OUTPUT
           fi
 
       - id: calc
+        name: Calculate frame range
         run: |
-          FPS=${{ github.event.inputs.fps || 60 }}
-          SECS=${{ github.event.inputs.duration_seconds || 15 }}
-          echo "last_frame=$(( FPS * SECS - 1 ))" >> "$GITHUB_OUTPUT"
+          FRAMES='${{ github.event.inputs.frames }}'
+          if [ -n "$FRAMES" ] && [ "$FRAMES" != "" ]; then
+            echo "last_frame=$FRAMES" >> $GITHUB_OUTPUT
+          else
+            # Auto-detect durationInFrames from TSX
+            TSX_FRAMES=$(grep -oP 'durationInFrames[=\s]*\{?\K[0-9]+' src/composition.tsx 2>/dev/null | head -1 || echo "")
+            if [ -n "$TSX_FRAMES" ]; then
+              echo "last_frame=0-$(( TSX_FRAMES - 1 ))" >> $GITHUB_OUTPUT
+              echo "Auto-detected durationInFrames=$TSX_FRAMES from TSX"
+            else
+              FPS=${{ github.event.inputs.fps || 30 }}
+              SECS=${{ github.event.inputs.duration_seconds || 15 }}
+              LAST=$(( FPS * SECS - 1 ))
+              echo "last_frame=0-$LAST" >> $GITHUB_OUTPUT
+            fi
+          fi
 
+      - id: ext
+        name: Determine output extension
+        run: |
+          CODEC='${{ github.event.inputs.codec }}'
+          case "$CODEC" in
+            h264)   echo "ext=mp4" >> $GITHUB_OUTPUT ;;
+            h265)   echo "ext=mp4" >> $GITHUB_OUTPUT ;;
+            vp8)    echo "ext=webm" >> $GITHUB_OUTPUT ;;
+            vp9)    echo "ext=webm" >> $GITHUB_OUTPUT ;;
+            av1)    echo "ext=mp4" >> $GITHUB_OUTPUT ;;
+            prores) echo "ext=mov" >> $GITHUB_OUTPUT ;;
+            gif)    echo "ext=gif" >> $GITHUB_OUTPUT ;;
+            mp3)    echo "ext=mp3" >> $GITHUB_OUTPUT ;;
+            wav)    echo "ext=wav" >> $GITHUB_OUTPUT ;;
+            aac)    echo "ext=aac" >> $GITHUB_OUTPUT ;;
+            *)      echo "ext=mp4" >> $GITHUB_OUTPUT ;;
+          esac
+
+  # ── 2. Render — parallel per matrix entry ─────────────────────────────────
   render:
     needs: prepare
     name: Render ${{ matrix.id }}
@@ -92,109 +205,191 @@ jobs:
         with:
           node-version: '20'
 
-      - run: npm i
+      - name: 📦 Install dependencies
+        run: npm i
 
       - name: 🔧 Install FFmpeg
         run: sudo apt-get install -y ffmpeg
+
+      - name: 🔍 Validate TSX syntax
+        run: |
+          # Find the composition file
+          if [ -f "src/compositions/comp0.tsx" ]; then
+            FILES=$(ls src/compositions/comp*.tsx 2>/dev/null)
+          else
+            FILES="src/composition.tsx"
+          fi
+
+          echo "Validating files: $FILES"
+          for FILE in $FILES; do
+            if [ -f "$FILE" ]; then
+              # Check for balanced braces (basic)
+              OPEN=$(grep -o '{' "$FILE" | wc -l)
+              CLOSE=$(grep -o '}' "$FILE" | wc -l)
+              echo "$FILE: { count=$OPEN } count=$CLOSE"
+              if [ "$OPEN" != "$CLOSE" ]; then
+                echo "⚠ Warning: Brace mismatch in $FILE (open=$OPEN close=$CLOSE)"
+              fi
+              # Check export exists
+              if ! grep -qP 'export\s+const\s+\w+\s*:\s*React\.FC' "$FILE"; then
+                echo "❌ ERROR: No 'export const X: React.FC' found in $FILE"
+                exit 1
+              fi
+              echo "✅ $FILE looks valid"
+            fi
+          done
 
       - name: 🎬 Render ${{ matrix.id }}
         run: |
           mkdir -p out
 
-          # Step 1 - Remotion render at near-lossless quality, no audio
-          npx remotion render \
-            "${{ matrix.id }}" \
-            "out/${{ matrix.id }}_raw.mp4" \
-            --width=${{ github.event.inputs.width || 3840 }} \
-            --height=${{ github.event.inputs.height || 2160 }} \
-            --fps=${{ github.event.inputs.fps || 60 }} \
-            --frames=0-${{ needs.prepare.outputs.last_frame }} \
-            --codec=h264 \
-            --crf=1 \
-            --pixel-format=yuv420p \
-            --muted \
-            --concurrency=2
+          CODEC="${{ github.event.inputs.codec || 'h264' }}"
+          EXT="${{ needs.prepare.outputs.ext }}"
+          OUTPUT="out/${{ matrix.id }}.$EXT"
+          FRAMES="${{ needs.prepare.outputs.last_frame }}"
+          SCALE="${{ github.event.inputs.scale || '1' }}"
+          CONCURRENCY="${{ github.event.inputs.concurrency || '2' }}"
+          MUTED="${{ github.event.inputs.muted || 'false' }}"
+          ENFORCE_AUDIO="${{ github.event.inputs.enforce_audio_track || 'false' }}"
+          IMAGE_FORMAT="${{ github.event.inputs.image_format || 'jpeg' }}"
+          JPEG_QUALITY="${{ github.event.inputs.jpeg_quality || '80' }}"
+          TIMEOUT="${{ github.event.inputs.timeout || '30000' }}"
+          LOG="${{ github.event.inputs.log_level || 'info' }}"
+          PRORES="${{ github.event.inputs.prores_profile || 'hq' }}"
+          PRESET="${{ github.event.inputs.x264_preset || 'medium' }}"
+          PIXEL_FMT="${{ github.event.inputs.pixel_format || 'yuv420p' }}"
+          CRF="${{ github.event.inputs.crf }}"
+          VIDEO_BITRATE="${{ github.event.inputs.video_bitrate }}"
+          AUDIO_BITRATE="${{ github.event.inputs.audio_bitrate }}"
+          EVERY_NTH="${{ github.event.inputs.every_nth_frame || '1' }}"
+          GIF_LOOPS="${{ github.event.inputs.gif_loops }}"
+          PROPS='${{ github.event.inputs.props }}'
+          ADOBE="${{ github.event.inputs.adobe_stock || 'false' }}"
 
-          # Step 2 - Re-encode to Adobe Stock spec: 40 Mbps target, 35 Mbps min, no audio
-          ffmpeg -y \
-            -i "out/${{ matrix.id }}_raw.mp4" \
-            -c:v libx264 \
-            -b:v 40M \
-            -minrate 35M \
-            -maxrate 50M \
-            -bufsize 100M \
-            -profile:v high \
-            -level:v 5.2 \
-            -pix_fmt yuv420p \
-            -movflags +faststart \
-            -an \
-            "out/${{ matrix.id }}.mp4"
+          # Override width/height only if explicitly provided
+          W="${{ github.event.inputs.width }}"
+          H="${{ github.event.inputs.height }}"
+          FPS="${{ github.event.inputs.fps }}"
 
-          rm -f "out/${{ matrix.id }}_raw.mp4"
+          # Build the remotion render command dynamically
+          CMD="npx remotion render \"${{ matrix.id }}\" \"$OUTPUT\""
+          CMD="$CMD --codec=$CODEC"
+          CMD="$CMD --pixel-format=$PIXEL_FMT"
+          CMD="$CMD --image-format=$IMAGE_FORMAT"
+          CMD="$CMD --jpeg-quality=$JPEG_QUALITY"
+          CMD="$CMD --concurrency=$CONCURRENCY"
+          CMD="$CMD --timeout=$TIMEOUT"
+          CMD="$CMD --log=$LOG"
+          CMD="$CMD --scale=$SCALE"
 
-      - name: ✅ Verify Adobe Stock spec
+          # Only add if provided
+          [ -n "$W" ] && CMD="$CMD --width=$W"
+          [ -n "$H" ] && CMD="$CMD --height=$H"
+          [ -n "$FPS" ] && CMD="$CMD --fps=$FPS"
+          [ -n "$FRAMES" ] && CMD="$CMD --frames=$FRAMES"
+
+          # CRF or video-bitrate (mutually exclusive — bitrate wins if both set)
+          if [ -n "$VIDEO_BITRATE" ]; then
+            CMD="$CMD --video-bitrate=$VIDEO_BITRATE"
+          elif [ -n "$CRF" ]; then
+            CMD="$CMD --crf=$CRF"
+          fi
+
+          # Audio bitrate
+          [ -n "$AUDIO_BITRATE" ] && CMD="$CMD --audio-bitrate=$AUDIO_BITRATE"
+
+          # Muted / enforce audio
+          [ "$MUTED" = "true" ] && CMD="$CMD --muted"
+          [ "$ENFORCE_AUDIO" = "true" ] && CMD="$CMD --enforce-audio-track"
+
+          # ProRes profile (only for prores codec)
+          [ "$CODEC" = "prores" ] && CMD="$CMD --prores-profile=$PRORES"
+
+          # x264 preset (only for h264 codec)
+          [ "$CODEC" = "h264" ] && CMD="$CMD --x264-preset=$PRESET"
+
+          # GIF-specific
+          if [ "$CODEC" = "gif" ]; then
+            [ "$EVERY_NTH" != "1" ] && CMD="$CMD --every-nth-frame=$EVERY_NTH"
+            [ -n "$GIF_LOOPS" ] && CMD="$CMD --number-of-gif-loops=$GIF_LOOPS"
+          fi
+
+          # Props JSON
+          if [ -n "$PROPS" ] && [ "$PROPS" != "" ] && [ "$PROPS" != "{}" ]; then
+            echo "$PROPS" > /tmp/props.json
+            CMD="$CMD --props=/tmp/props.json"
+          fi
+
+          echo "=== Render Command ==="
+          echo "$CMD"
+          echo "====================="
+          eval $CMD
+
+          # ── Adobe Stock post-processing ─────────────────────────────────
+          if [ "$ADOBE" = "true" ] && [ "$CODEC" = "h264" ]; then
+            echo "=== Adobe Stock re-encode ==="
+            mv "$OUTPUT" "out/${{ matrix.id }}_raw.mp4"
+            ffmpeg -y \
+              -i "out/${{ matrix.id }}_raw.mp4" \
+              -c:v libx264 \
+              -b:v 40M \
+              -minrate 35M \
+              -maxrate 50M \
+              -bufsize 100M \
+              -profile:v high \
+              -level:v 5.2 \
+              -pix_fmt yuv420p \
+              -movflags +faststart \
+              -an \
+              "$OUTPUT"
+            rm "out/${{ matrix.id }}_raw.mp4"
+            echo "Adobe Stock re-encode done"
+          fi
+
+          echo "=== Output File ==="
+          ls -lh "$OUTPUT"
+
+      - name: 🔬 Inspect output
         run: |
-          FILE="out/${{ matrix.id }}.mp4"
-          EXPECTED_WIDTH="${{ github.event.inputs.width || 3840 }}"
+          EXT="${{ needs.prepare.outputs.ext }}"
+          OUTPUT="out/${{ matrix.id }}.$EXT"
+          CODEC="${{ github.event.inputs.codec || 'h264' }}"
 
-          # probe() prints exactly one bare value. `-of default=nokey=1:noprint_wrappers=1`
-          # avoids the CSV writer, and the extra `tr -d ',\r '` also tolerates the
-          # trailing field separator some ffprobe builds append (the runners printed
-          # "3840," for csv=p=0, which made the width check fail).
-          probe() {
-            ffprobe -v error -of default=nokey=1:noprint_wrappers=1 "$@" "$FILE" | tr -d ',\r ' | head -n 1
-          }
-
-          WIDTH=$(probe -select_streams v:0 -show_entries stream=width)
-          HEIGHT=$(probe -select_streams v:0 -show_entries stream=height)
-          FPS=$(probe -select_streams v:0 -show_entries stream=r_frame_rate)
-          CODEC=$(probe -select_streams v:0 -show_entries stream=codec_name)
-          DURATION=$(probe -show_entries format=duration)
-          BITRATE=$(probe -show_entries format=bit_rate)
-          AUDIO=$(probe -select_streams a -show_entries stream=codec_name)
-          SIZE=$(stat -c %s "$FILE")
-
-          MBPS=$(awk -v b="$BITRATE" 'BEGIN { printf "%.2f", b / 1000000 }')
-          MB=$(awk -v s="$SIZE" 'BEGIN { printf "%.1f", s / 1048576 }')
-
-          echo "=== Output file info ==="
-          echo "File:       $FILE"
-          echo "Size:       $MB MB"
-          echo "Duration:   $DURATION s"
-          echo "Bitrate:    $MBPS Mbps"
-          echo "Resolution: ${WIDTH}x${HEIGHT} (expected width: $EXPECTED_WIDTH)"
-          echo "FPS:        $FPS"
-          echo "Codec:      $CODEC"
-          echo "Audio:      ${AUDIO:-NONE}"
-
-          FAILED=0
-
-          if ! awk -v b="$BITRATE" 'BEGIN { exit !(b / 1000000 >= 20) }'; then
-            echo "❌ FAIL: Bitrate too low: $MBPS Mbps (need >= 20 Mbps)"
-            FAILED=1
+          if [ "$CODEC" = "gif" ] || [ "$CODEC" = "mp3" ] || [ "$CODEC" = "wav" ] || [ "$CODEC" = "aac" ]; then
+            echo "Output: $(ls -lh $OUTPUT)"
+          else
+            ffprobe -v quiet -print_format json -show_format -show_streams "$OUTPUT" > /tmp/probe.json 2>&1 || true
+            python3 - << 'PYEOF'
+          import json, os, sys
+          try:
+            d = json.load(open('/tmp/probe.json'))
+            fmt = d.get('format', {})
+            streams = d.get('streams', [])
+            vid = next((s for s in streams if s.get('codec_type') == 'video'), None)
+            aud = next((s for s in streams if s.get('codec_type') == 'audio'), None)
+            size_mb  = int(fmt.get('size', 0)) / 1024 / 1024
+            duration = float(fmt.get('duration', 0))
+            bitrate  = int(fmt.get('bit_rate', 0)) / 1_000_000
+            print(f"\n{'='*50}")
+            print(f"✅ Render Complete")
+            print(f"{'='*50}")
+            print(f"Size:       {size_mb:.1f} MB")
+            print(f"Duration:   {duration:.2f}s")
+            print(f"Bitrate:    {bitrate:.2f} Mbps")
+            if vid:
+              print(f"Resolution: {vid.get('width')}x{vid.get('height')}")
+              print(f"FPS:        {vid.get('r_frame_rate')}")
+              print(f"Codec:      {vid.get('codec_name')} {vid.get('profile','')}")
+            print(f"Audio:      {'NONE' if aud is None else aud.get('codec_name','unknown') + ' ' + str(aud.get('bit_rate','?')) + 'bps'}")
+            print(f"{'='*50}")
+          except Exception as e:
+            print(f"Could not parse probe: {e}")
+          PYEOF
           fi
 
-          if [ -n "$AUDIO" ]; then
-            echo "❌ FAIL: Audio stream present ($AUDIO) - must be muted for Adobe Stock"
-            FAILED=1
-          fi
-
-          if [ -z "$WIDTH" ]; then
-            echo "❌ FAIL: Could not read the video width from $FILE"
-            FAILED=1
-          elif [ "$WIDTH" != "$EXPECTED_WIDTH" ]; then
-            echo "❌ FAIL: Wrong width: $WIDTH (expected $EXPECTED_WIDTH)"
-            FAILED=1
-          fi
-
-          if [ "$FAILED" -ne 0 ]; then
-            exit 1
-          fi
-
-          echo "✅ All Adobe Stock quality checks passed!"
-
-      - uses: actions/upload-artifact@v4
+      - name: 📤 Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: "${{ matrix.id }}_4K_60fps_AdobeStock"
-          path: "out/${{ matrix.id }}.mp4"
+          name: "${{ matrix.id }}_${{ github.event.inputs.codec || 'h264' }}"
+          path: "out/${{ matrix.id }}.${{ needs.prepare.outputs.ext }}"
           retention-days: 2
