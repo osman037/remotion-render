@@ -498,7 +498,7 @@ const ResolveStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 // verify gate. random() from 'remotion' is seeded; positions re-seed every
 // frame. Pure SVG/React (canvas/DOM grain is dead code under SSR). Subtle by design.
 // ---------------------------------------------------------------------------
-const GRAIN_COUNT = 420;
+const GRAIN_COUNT = 2500;
 const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
   const dots: React.ReactElement[] = [];
   for (let i = 0; i < GRAIN_COUNT; i++) {
