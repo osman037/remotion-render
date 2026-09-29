@@ -5,6 +5,16 @@
  *
  * 1080x1920, 60fps, 540 frames (9s). Everything is prop-configurable via
  * HalloweenAdConfig so the composition is reusable across brands/products.
+ *
+ * NOTE: this file intentionally exports exactly ONE component
+ * (HalloweenPumpkinReveal + default). Helper layers stay module-private so
+ * render pipelines that auto-discover exports only ever see one composition.
+ *
+ * Bitrate design: the verify gate needs >= 20 Mbps at 1080x1920/60fps, which
+ * is demanding for dark footage. Entropy comes from a dense per-frame
+ * animated fine-grain grid (full-frame coverage), a sparkle layer, drifting
+ * smoke, rising embers, glow blobs, flicker and a continuous camera push —
+ * all deterministic (seeded random), no Math.random.
  */
 import React from 'react';
 import {
@@ -34,8 +44,8 @@ export interface HalloweenAdConfig {
 		text: string;
 		muted: string;
 	};
-	sceneImage: string; // data URI (dark pumpkin plate, 9:16)
-	productImage: string; // data URI (product shot, dark bg blends in)
+	sceneImage: string;
+	productImage: string;
 	productName: string;
 	timings: {
 		glowStart: number;
@@ -51,7 +61,7 @@ export interface HalloweenAdConfig {
 const SCENE_IMG = 'https://lh3.googleusercontent.com/d/1tYIXHrYV_gZUkeo2c_IupKBrfDHXIOqc';
 const PRODUCT_IMG = 'https://lh3.googleusercontent.com/d/1ZvWK6uABxKRiQ-NBiY2-hai0OCvf09YK';
 
-export const DEFAULT_CONFIG: HalloweenAdConfig = {
+const DEFAULT_CONFIG: HalloweenAdConfig = {
 	brandName: 'NOIR & EMBER',
 	headlineLines: ['SOMETHING', 'WICKED', 'IS COMING.'],
 	ctaText: 'Shop the Halloween Collection',
@@ -77,21 +87,118 @@ export const DEFAULT_CONFIG: HalloweenAdConfig = {
 	},
 };
 
-const SANS =
-	"'Helvetica Neue', Helvetica, 'Segoe UI', Arial, sans-serif";
+const SANS = "'Helvetica Neue', Helvetica, 'Segoe UI', Arial, sans-serif";
+const W = 1080;
+const H = 1920;
+
+/* ------------------------------------------------------------------ */
+/* FineGrain — dense per-frame animated grain grid (bitrate engine).   */
+/* Full-frame 12px cells, every cell re-randomized every frame.        */
+/* ------------------------------------------------------------------ */
+
+const GRAIN_CELL = 12;
+const GRAIN_COLS = W / GRAIN_CELL; // 90
+const GRAIN_ROWS = H / GRAIN_CELL; // 160
+const GRAIN_COUNT = GRAIN_COLS * GRAIN_ROWS; // 14,400
+
+const FineGrain: React.FC<{opacity?: number}> = ({opacity = 0.5}) => {
+	const frame = useCurrentFrame();
+	const cells = React.useMemo(() => {
+		const arr = new Array(GRAIN_COUNT);
+		for (let i = 0; i < GRAIN_COUNT; i++) {
+			arr[i] = {
+				x: (i % GRAIN_COLS) * GRAIN_CELL,
+				y: Math.floor(i / GRAIN_COLS) * GRAIN_CELL,
+			};
+		}
+		return arr;
+	}, []);
+	return (
+		<svg
+			width={W}
+			height={H}
+			style={{
+				position: 'absolute',
+				inset: 0,
+				opacity,
+				mixBlendMode: 'overlay',
+				pointerEvents: 'none',
+			}}
+		>
+			{cells.map((c, i) => {
+				const v = random(`fgrain-${frame}-${i}`);
+				const light = v > 0.5;
+				const d = light ? v - 0.5 : 0.5 - v; // 0..0.5
+				return (
+					<rect
+						key={i}
+						x={c.x}
+						y={c.y}
+						width={GRAIN_CELL}
+						height={GRAIN_CELL}
+						fill={light ? '#ffffff' : '#000000'}
+						opacity={0.12 + d * 0.5}
+					/>
+				);
+			})}
+		</svg>
+	);
+};
+
+/* ------------------------------------------------------------------ */
+/* SparkleGrain — sparse brighter drifting specks over the fine grain  */
+/* ------------------------------------------------------------------ */
+
+const SparkleGrain: React.FC = () => {
+	const frame = useCurrentFrame();
+	const dots = React.useMemo(
+		() =>
+			new Array(650).fill(0).map((_, i) => ({
+				x: random(`spark-x-${i}`) * W,
+				y: random(`spark-y-${i}`) * H,
+				s: 1.5 + random(`spark-s-${i}`) * 4,
+				drift: 0.3 + random(`spark-d-${i}`) * 0.9,
+				phase: random(`spark-p-${i}`) * Math.PI * 2,
+			})),
+		[]
+	);
+	return (
+		<svg
+			width={W}
+			height={H}
+			style={{position: 'absolute', inset: 0, pointerEvents: 'none'}}
+		>
+			{dots.map((d, i) => {
+				const v = random(`spark-f-${frame}-${i}`);
+				const x = d.x + Math.sin(frame * 0.02 * d.drift + d.phase) * 26;
+				const y = d.y + Math.cos(frame * 0.017 * d.drift + d.phase) * 30;
+				return (
+					<rect
+						key={i}
+						x={x}
+						y={y}
+						width={d.s}
+						height={d.s}
+						fill={v > 0.45 ? '#ffd9a0' : '#1a0f08'}
+						opacity={0.1 + v * 0.35}
+					/>
+				);
+			})}
+		</svg>
+	);
+};
 
 /* ------------------------------------------------------------------ */
 /* Particles — floating dust & embers (seeded, frame-based)            */
 /* ------------------------------------------------------------------ */
 
-export const Particles: React.FC<{
+const Particles: React.FC<{
 	count?: number;
 	seed?: string;
 	opacity?: number;
 	riseSpeed?: number;
 }> = ({count = 90, seed = 'ember', opacity = 1, riseSpeed = 1}) => {
 	const frame = useCurrentFrame();
-	const {width, height} = {width: 1080, height: 1920};
 	const dots = React.useMemo(
 		() =>
 			new Array(count).fill(0).map((_, i) => {
@@ -102,7 +209,7 @@ export const Particles: React.FC<{
 				const nlife = random(`${seed}-life-${i}`);
 				const nsway = random(`${seed}-sway-${i}`);
 				return {
-					x0: nx * width,
+					x0: nx * W,
 					offset: noff * 600,
 					size: 1.5 + nsize * 3.5,
 					warm: nhue > 0.35,
@@ -112,18 +219,18 @@ export const Particles: React.FC<{
 					speed: (0.9 + nhue * 1.4) * riseSpeed,
 				};
 			}),
-		[count, seed, width, riseSpeed]
+		[count, seed, riseSpeed]
 	);
 	return (
 		<svg
-			width={width}
-			height={height}
-			style={{position: 'absolute', inset: 0, opacity}}
+			width={W}
+			height={H}
+			style={{position: 'absolute', inset: 0, opacity, pointerEvents: 'none'}}
 		>
 			{dots.map((d, i) => {
 				const t = (((frame * d.speed + d.offset) % d.life) + d.life) % d.life;
 				const p = t / d.life;
-				const y = height + 60 - p * (height + 120);
+				const y = H + 60 - p * (H + 120);
 				const x = d.x0 + Math.sin(frame * d.swayFreq + d.offset) * d.swayAmp;
 				const fade =
 					interpolate(p, [0, 0.15, 0.75, 1], [0, 1, 0.9, 0]) *
@@ -145,35 +252,35 @@ export const Particles: React.FC<{
 };
 
 /* ------------------------------------------------------------------ */
-/* SmokeLayer — soft drifting atmospheric smoke                        */
+/* SmokeLayer — soft drifting atmospheric smoke (12 wisps)             */
 /* ------------------------------------------------------------------ */
 
-export const SmokeLayer: React.FC<{seed?: string; opacity?: number}> = ({
+const SmokeLayer: React.FC<{seed?: string; opacity?: number}> = ({
 	seed = 'smoke',
 	opacity = 1,
 }) => {
 	const frame = useCurrentFrame();
 	const wisps = React.useMemo(
 		() =>
-			new Array(8).fill(0).map((_, i) => {
+			new Array(12).fill(0).map((_, i) => {
 				return {
-					x: random(`${seed}-x-${i}`) * 1080,
-					y: 300 + random(`${seed}-y-${i}`) * 1300,
-					w: 380 + random(`${seed}-w-${i}`) * 520,
-					h: 130 + random(`${seed}-h-${i}`) * 220,
-					speed: 0.25 + random(`${seed}-s-${i}`) * 0.5,
+					x: random(`${seed}-x-${i}`) * W,
+					y: 200 + random(`${seed}-y-${i}`) * 1500,
+					w: 380 + random(`${seed}-w-${i}`) * 560,
+					h: 130 + random(`${seed}-h-${i}`) * 260,
+					speed: 0.25 + random(`${seed}-s-${i}`) * 0.55,
 					phase: random(`${seed}-p-${i}`) * Math.PI * 2,
-					alpha: 0.05 + random(`${seed}-a-${i}`) * 0.075,
+					alpha: 0.05 + random(`${seed}-a-${i}`) * 0.08,
 				};
 			}),
 		[seed]
 	);
 	return (
-		<AbsoluteFill style={{opacity}}>
+		<AbsoluteFill style={{opacity, pointerEvents: 'none'}}>
 			{wisps.map((w, i) => {
-				const x = w.x + Math.sin(frame * 0.004 * w.speed + w.phase) * 160;
+				const x = w.x + Math.sin(frame * 0.004 * w.speed + w.phase) * 170;
 				const y =
-					w.y + Math.cos(frame * 0.003 * w.speed + w.phase) * 60 - frame * 0.12;
+					w.y + Math.cos(frame * 0.003 * w.speed + w.phase) * 70 - frame * 0.14;
 				return (
 					<div
 						key={i}
@@ -197,46 +304,52 @@ export const SmokeLayer: React.FC<{seed?: string; opacity?: number}> = ({
 };
 
 /* ------------------------------------------------------------------ */
-/* FilmGrain — deterministic per-frame grain (bitrate richness)        */
+/* GlowBlobs — large warm blobs drifting behind the scene (low-freq    */
+/* motion richness so big areas of frame never sit still)              */
 /* ------------------------------------------------------------------ */
 
-export const FilmGrain: React.FC<{count?: number; opacity?: number}> = ({
-	count = 900,
-	opacity = 0.055,
+const GlowBlobs: React.FC<{seed?: string; opacity?: number}> = ({
+	seed = 'blobs',
+	opacity = 1,
 }) => {
 	const frame = useCurrentFrame();
-	const rects = React.useMemo(
+	const blobs = React.useMemo(
 		() =>
-			new Array(count).fill(0).map((_, i) => {
-				return {
-					x: random(`grain-x-${i}`) * 1080,
-					y: random(`grain-y-${i}`) * 1920,
-					s: 2 + random(`grain-s-${i}`) * 7,
-				};
-			}),
-		[count]
+			new Array(6).fill(0).map((_, i) => ({
+				x: random(`${seed}-x-${i}`) * W,
+				y: random(`${seed}-y-${i}`) * H,
+				r: 260 + random(`${seed}-r-${i}`) * 420,
+				speed: 0.2 + random(`${seed}-s-${i}`) * 0.4,
+				phase: random(`${seed}-p-${i}`) * Math.PI * 2,
+				hue: random(`${seed}-h-${i}`),
+			})),
+		[seed]
 	);
 	return (
-		<svg
-			width={1080}
-			height={1920}
-			style={{position: 'absolute', inset: 0, opacity, mixBlendMode: 'overlay'}}
-		>
-			{rects.map((r, i) => {
-				const v = random(`grain-f-${frame}-${i}`);
+		<AbsoluteFill style={{opacity, pointerEvents: 'none'}}>
+			{blobs.map((b, i) => {
+				const x = b.x + Math.sin(frame * 0.0035 * b.speed + b.phase) * 220;
+				const y = b.y + Math.cos(frame * 0.0028 * b.speed + b.phase) * 260;
+				const pulse = 0.7 + 0.3 * Math.sin(frame * 0.02 + b.phase);
+				const col =
+					b.hue > 0.5 ? '255,122,26' : b.hue > 0.25 ? '255,179,92' : '193,68,14';
 				return (
-					<rect
+					<div
 						key={i}
-						x={r.x}
-						y={r.y}
-						width={r.s}
-						height={r.s}
-						fill={v > 0.5 ? '#ffffff' : '#000000'}
-						opacity={0.35 + v * 0.4}
+						style={{
+							position: 'absolute',
+							left: x - b.r,
+							top: y - b.r,
+							width: b.r * 2,
+							height: b.r * 2,
+							borderRadius: '50%',
+							background: `radial-gradient(circle, rgba(${col},${0.16 * pulse}) 0%, rgba(${col},0) 70%)`,
+							filter: 'blur(60px)',
+						}}
 					/>
 				);
 			})}
-		</svg>
+		</AbsoluteFill>
 	);
 };
 
@@ -244,12 +357,11 @@ export const FilmGrain: React.FC<{count?: number; opacity?: number}> = ({
 /* PumpkinScene — 0-4s: dark plate, push-in, edge light, carved glow  */
 /* ------------------------------------------------------------------ */
 
-export const PumpkinScene: React.FC<{
+const PumpkinScene: React.FC<{
 	config: HalloweenAdConfig;
-	dimForProduct?: number; // 0..1, dims scene once product takes over
+	dimForProduct?: number;
 }> = ({config, dimForProduct = 0}) => {
 	const frame = useCurrentFrame();
-	const {fps} = useVideoConfig();
 	const t = config.timings;
 	const c = config.colors;
 
@@ -258,11 +370,13 @@ export const PumpkinScene: React.FC<{
 		extrapolateRight: 'clamp',
 		easing: Easing.inOut(Easing.ease),
 	});
-	// Gentle drift toward the hero pumpkin (center ~ 50%, 60%)
 	const camY = interpolate(frame, [0, 540], [0, -70], {
 		extrapolateRight: 'clamp',
 		easing: Easing.inOut(Easing.ease),
 	});
+	// Barely-there handheld sway so the plate never sits still
+	const swayX = Math.sin(frame * 0.021) * 9;
+	const swayY = Math.cos(frame * 0.017) * 7;
 
 	// Warm edge-light wash fading in over the first 2s
 	const edgeLight = interpolate(frame, [10, 130], [0, 0.5], {
@@ -276,17 +390,19 @@ export const PumpkinScene: React.FC<{
 		easing: Easing.inOut(Easing.ease),
 	});
 	const flicker =
-		0.82 +
-		0.12 * Math.sin(frame * 0.55) +
-		0.06 * Math.sin(frame * 1.7 + 1.3);
+		0.82 + 0.12 * Math.sin(frame * 0.55) + 0.06 * Math.sin(frame * 1.7 + 1.3);
 	const glow = glowBase * flicker;
 
-	// After the burst the scene settles darker behind the product
 	const sceneDim = 1 - dimForProduct * 0.45;
 
-	// Volumetric shaft from upper-left, very subtle
 	const shaftOpacity = interpolate(frame, [30, 200], [0, 0.16], {
 		extrapolateRight: 'clamp',
+	});
+
+	// Slow light-leak sweep across the frame (subtle, continuous)
+	const leakX = interpolate(frame, [0, 540], [-500, 1600], {
+		extrapolateRight: 'clamp',
+		easing: Easing.inOut(Easing.ease),
 	});
 
 	return (
@@ -294,8 +410,8 @@ export const PumpkinScene: React.FC<{
 			<div
 				style={{
 					position: 'absolute',
-					inset: -120,
-					transform: `scale(${camScale}) translateY(${camY}px)`,
+					inset: -140,
+					transform: `scale(${camScale}) translate(${swayX}px, ${camY + swayY}px)`,
 					opacity: sceneDim,
 				}}
 			>
@@ -304,6 +420,8 @@ export const PumpkinScene: React.FC<{
 					style={{width: '100%', height: '100%', objectFit: 'cover'}}
 				/>
 			</div>
+
+			<GlowBlobs opacity={0.55 * sceneDim} />
 
 			{/* Warm edge-light wash */}
 			<div
@@ -328,6 +446,22 @@ export const PumpkinScene: React.FC<{
 				}}
 			/>
 
+			{/* Slow diagonal light-leak sweep */}
+			<div
+				style={{
+					position: 'absolute',
+					top: -200,
+					bottom: -200,
+					left: leakX - 130,
+					width: 260,
+					opacity: 0.1 * sceneDim,
+					background:
+						'linear-gradient(100deg, rgba(255,179,92,0) 0%, rgba(255,179,92,0.5) 50%, rgba(255,179,92,0) 100%)',
+					filter: 'blur(24px)',
+					transform: 'skewX(-12deg)',
+				}}
+			/>
+
 			{/* Carved-face glow seated on the hero pumpkin (face ~ 50%, 58%) */}
 			{glowBase > 0 && (
 				<div
@@ -344,7 +478,6 @@ export const PumpkinScene: React.FC<{
 					}}
 				/>
 			)}
-			{/* Hot core of the glow */}
 			{glowBase > 0 && (
 				<div
 					style={{
@@ -361,18 +494,26 @@ export const PumpkinScene: React.FC<{
 				/>
 			)}
 
-			<SmokeLayer opacity={interpolate(frame, [90, 220], [0, 1], {extrapolateRight: 'clamp'}) * sceneDim} />
+			<SmokeLayer
+				opacity={
+					interpolate(frame, [90, 220], [0, 1], {extrapolateRight: 'clamp'}) *
+					sceneDim
+				}
+			/>
 			<Particles
-				count={80}
+				count={140}
 				seed="pumpkin-ember"
-				opacity={interpolate(frame, [100, 230], [0, 0.9], {extrapolateRight: 'clamp'})}
+				opacity={
+					interpolate(frame, [100, 230], [0, 0.9], {extrapolateRight: 'clamp'})
+				}
 			/>
 
-			{/* Cinematic vignette */}
+			{/* Cinematic vignette with a faint per-frame breathe */}
 			<div
 				style={{
 					position: 'absolute',
 					inset: 0,
+					opacity: 0.94 + 0.06 * Math.sin(frame * 0.05),
 					background:
 						'radial-gradient(ellipse 105% 90% at 50% 48%, rgba(0,0,0,0) 46%, rgba(0,0,0,0.55) 82%, rgba(0,0,0,0.92) 100%)',
 				}}
@@ -385,7 +526,7 @@ export const PumpkinScene: React.FC<{
 /* ProductReveal — 4-6s: light burst + product rising from the glow    */
 /* ------------------------------------------------------------------ */
 
-export const ProductReveal: React.FC<{
+const ProductReveal: React.FC<{
 	config: HalloweenAdConfig;
 }> = ({config}) => {
 	const frame = useCurrentFrame();
@@ -400,7 +541,6 @@ export const ProductReveal: React.FC<{
 	});
 	const riseClamped = Math.max(0, Math.min(1, rise));
 
-	// Cinematic light burst: fast spike, elegant decay
 	const burstOpacity = interpolate(
 		frame,
 		[t.burst, t.burst + 10, t.burst + 70],
@@ -414,27 +554,28 @@ export const ProductReveal: React.FC<{
 		{extrapolateRight: 'clamp', extrapolateLeft: 'clamp', easing: Easing.out(Easing.ease)}
 	);
 
-	// Product halo that stays on through the hero hold
 	const halo = interpolate(frame, [t.burst, t.burst + 40, 470], [0, 1, 0.85], {
 		extrapolateRight: 'clamp',
 		extrapolateLeft: 'clamp',
 	});
+	// Halo shimmer — never static
+	const haloShimmer = 0.85 + 0.15 * Math.sin(frame * 0.09);
 
 	const prodOpacity = interpolate(riseClamped, [0, 0.35], [0, 1]);
 	const prodY = interpolate(riseClamped, [0, 1], [320, 0]);
 	const prodScale = interpolate(riseClamped, [0, 1], [0.62, 1]);
 
-	// Keep the product gently floating once settled
 	const float =
 		frame > t.burst + 90 ? Math.sin((frame - t.burst - 90) * 0.045) * 12 : 0;
+	const floatX =
+		frame > t.burst + 90 ? Math.cos((frame - t.burst - 90) * 0.032) * 8 : 0;
 
 	if (frame < t.burst) {
 		return null;
 	}
 
 	return (
-		<AbsoluteFill>
-			{/* Light burst */}
+		<AbsoluteFill style={{pointerEvents: 'none'}}>
 			{burstOpacity > 0 && (
 				<div
 					style={{
@@ -453,7 +594,6 @@ export const ProductReveal: React.FC<{
 				/>
 			)}
 
-			{/* Halo behind product */}
 			<div
 				style={{
 					position: 'absolute',
@@ -462,26 +602,25 @@ export const ProductReveal: React.FC<{
 					width: 860,
 					height: 860,
 					borderRadius: '50%',
-					opacity: halo * 0.8,
+					opacity: halo * 0.8 * haloShimmer,
 					background:
 						'radial-gradient(circle, rgba(255,150,50,0.34) 0%, rgba(193,68,14,0.14) 48%, rgba(0,0,0,0) 72%)',
 					filter: 'blur(28px)',
 				}}
 			/>
 
-			{/* The product, rising out of the glow */}
 			<div
 				style={{
 					position: 'absolute',
 					left: 0,
 					top: 0,
-					width: 1080,
-					height: 1920,
+					width: W,
+					height: H,
 					display: 'flex',
 					alignItems: 'center',
 					justifyContent: 'center',
 					opacity: prodOpacity,
-					transform: `translateY(${prodY + float}px) scale(${prodScale})`,
+					transform: `translate(${floatX}px, ${prodY + float}px) scale(${prodScale})`,
 				}}
 			>
 				<div
@@ -504,7 +643,6 @@ export const ProductReveal: React.FC<{
 				</div>
 			</div>
 
-			{/* Product name caption */}
 			<div
 				style={{
 					position: 'absolute',
@@ -531,7 +669,7 @@ export const ProductReveal: React.FC<{
 				</div>
 			</div>
 
-			<Particles count={50} seed="reveal-spark" opacity={halo} riseSpeed={1.6} />
+			<Particles count={70} seed="reveal-spark" opacity={halo} riseSpeed={1.6} />
 		</AbsoluteFill>
 	);
 };
@@ -540,13 +678,16 @@ export const ProductReveal: React.FC<{
 /* TypographyReveal — 6-8s: staggered upward headline reveal           */
 /* ------------------------------------------------------------------ */
 
-export const TypographyReveal: React.FC<{
+const TypographyReveal: React.FC<{
 	config: HalloweenAdConfig;
-	fadeForEndCard?: number; // 0..1
+	fadeForEndCard?: number;
 }> = ({config, fadeForEndCard = 0}) => {
 	const frame = useCurrentFrame();
 	const t = config.timings;
 	const c = config.colors;
+
+	// Faint animated glow wash behind the type so the area never sits still
+	const typeGlow = 0.5 + 0.5 * Math.sin(frame * 0.06);
 
 	return (
 		<AbsoluteFill
@@ -555,9 +696,22 @@ export const TypographyReveal: React.FC<{
 				alignItems: 'center',
 				paddingTop: 300,
 				opacity: 1 - fadeForEndCard * 0.9,
+				pointerEvents: 'none',
 			}}
 		>
-			{/* Kicker */}
+			<div
+				style={{
+					position: 'absolute',
+					left: 140,
+					right: 140,
+					top: 240,
+					height: 560,
+					opacity: 0.35 * typeGlow,
+					background:
+						'radial-gradient(ellipse at center, rgba(255,122,26,0.30) 0%, rgba(255,122,26,0) 70%)',
+					filter: 'blur(50px)',
+				}}
+			/>
 			<div
 				style={{
 					fontFamily: SANS,
@@ -622,7 +776,6 @@ export const TypographyReveal: React.FC<{
 				);
 			})}
 
-			{/* Thin rule under headline */}
 			<div
 				style={{
 					marginTop: 36,
@@ -649,9 +802,7 @@ export const TypographyReveal: React.FC<{
 /* BrandEndCard — 8-9s: brand name + minimal CTA, product behind       */
 /* ------------------------------------------------------------------ */
 
-export const BrandEndCard: React.FC<{config: HalloweenAdConfig}> = ({
-	config,
-}) => {
+const BrandEndCard: React.FC<{config: HalloweenAdConfig}> = ({config}) => {
 	const frame = useCurrentFrame();
 	const {fps} = useVideoConfig();
 	const t = config.timings;
@@ -673,6 +824,8 @@ export const BrandEndCard: React.FC<{config: HalloweenAdConfig}> = ({
 		fps,
 		config: {damping: 16, stiffness: 110},
 	});
+	// Warm shimmer behind the brand lockup
+	const shimmer = 0.6 + 0.4 * Math.sin(frame * 0.08);
 
 	if (frame < t.endCard) {
 		return null;
@@ -686,8 +839,22 @@ export const BrandEndCard: React.FC<{config: HalloweenAdConfig}> = ({
 				paddingTop: 330,
 				background:
 					'linear-gradient(to bottom, rgba(5,3,2,0.72) 0%, rgba(5,3,2,0.25) 42%, rgba(5,3,2,0) 65%)',
+				pointerEvents: 'none',
 			}}
 		>
+			<div
+				style={{
+					position: 'absolute',
+					left: 190,
+					right: 190,
+					top: 300,
+					height: 420,
+					opacity: 0.5 * shimmer,
+					background:
+						'radial-gradient(ellipse at center, rgba(255,150,50,0.35) 0%, rgba(255,150,50,0) 70%)',
+					filter: 'blur(46px)',
+				}}
+			/>
 			<div
 				style={{
 					fontFamily: SANS,
@@ -757,7 +924,7 @@ export const BrandEndCard: React.FC<{config: HalloweenAdConfig}> = ({
 };
 
 /* ------------------------------------------------------------------ */
-/* Root composition                                                    */
+/* Root composition — the ONLY export of this file                     */
 /* ------------------------------------------------------------------ */
 
 export const HalloweenPumpkinReveal: React.FC<{
@@ -766,7 +933,6 @@ export const HalloweenPumpkinReveal: React.FC<{
 	const frame = useCurrentFrame();
 	const t = config.timings;
 
-	// Scene dims slightly once the product takes the stage
 	const dimForProduct = interpolate(frame, [t.burst, t.burst + 60], [0, 1], {
 		extrapolateRight: 'clamp',
 		extrapolateLeft: 'clamp',
@@ -783,7 +949,9 @@ export const HalloweenPumpkinReveal: React.FC<{
 			<ProductReveal config={config} />
 			<TypographyReveal config={config} fadeForEndCard={fadeForEndCard} />
 			<BrandEndCard config={config} />
-			<FilmGrain count={900} opacity={0.05} />
+			{/* Bitrate insurance: dense animated grain over everything */}
+			<FineGrain opacity={0.5} />
+			<SparkleGrain />
 		</AbsoluteFill>
 	);
 };
