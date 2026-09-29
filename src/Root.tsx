@@ -1,12 +1,12 @@
 import React from "react";
 import { Composition } from "remotion";
-import { Particles } from "./composition";
+import { HalloweenPumpkinReveal } from "./composition";
 
 export const RemotionRoot: React.FC = () => (
   <>
     <Composition
-      id="Particles"
-      component={Particles}
+      id="HalloweenPumpkinReveal"
+      component={HalloweenPumpkinReveal}
       width={1080}
       height={1920}
       fps={60}
