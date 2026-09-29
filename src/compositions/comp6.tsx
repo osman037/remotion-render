@@ -1,19 +1,17 @@
 /**
- * SavingsGoalTracker.tsx
+ * ProductReturnFlow.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * A savings goal tracker on deep navy: an empty progress ring ($0 of $5,000)
- * fills as coins drop in rhythm, milestone badges pop at 25/50/75%, the ring
- * completes with a counting total, a goal shield materializes, a GOAL
- * REACHED banner lands, and a recurring-deposit calendar strip shows the
- * habit behind the number. Ring + milestones arc - not a piggy-bank fill.
- * Intro -> build -> payoff -> resolve.
+ * A reverse-logistics story on deep slate teal: the delivered box starts its
+ * journey home — QR return label generates, drop-off scans ping, the route
+ * rewinds to the warehouse, inspection branches to refund or restock, and the
+ * refund counter pays off. Intro -> build -> payoff -> resolve.
  *
  * Register in Root.tsx:
- *   <Composition id="SavingsGoalTracker" component={SavingsGoalTracker}
+ *   <Composition id="ProductReturnFlow" component={ProductReturnFlow}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
-import React, {useMemo} from 'react';
+import React from 'react';
 import {
   AbsoluteFill,
   interpolate,
@@ -23,84 +21,77 @@ import {
   useVideoConfig,
 } from 'remotion';
 
-const rand = (seed: number): number => {
-  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
-};
-
 // ---------------------------------------------------------------------------
-// Palette (deep navy + mint)
+// Palette (deep slate teal + return amber)
 // ---------------------------------------------------------------------------
-const BG = '#0A1730';
-const INK = '#EAF0FA';
-const MUTED = 'rgba(234,240,250,0.60)';
-const MINT = '#00E6A8';
-const MINT_DEEP = '#009E73';
-const GOLD = '#F5C044';
-const GOLD_DEEP = '#B97F1B';
-const PANEL = 'rgba(16,30,58,0.78)';
-const HAIRLINE = 'rgba(234,240,250,0.16)';
+const BG = '#0B1E22';
+const INK = '#EBF5F5';
+const MUTED = 'rgba(235,245,245,0.60)';
+const TEAL = '#2DD4BF';
+const TEAL_DEEP = '#0E7C6F';
+const AMBER = '#FBBF24';
+const GREEN = '#34D399';
+const RED = '#FF6B6B';
+const PANEL = 'rgba(15,40,46,0.82)';
+const HAIRLINE = 'rgba(235,245,245,0.16)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
-// Goal math
-// ---------------------------------------------------------------------------
-const GOAL = 5000;
-const MILESTONES = [
-  {pct: 0.25, label: 'QUARTER WAY', amount: 1250},
-  {pct: 0.5, label: 'HALFWAY THERE', amount: 2500},
-  {pct: 0.75, label: 'ALMOST THERE', amount: 3750},
-];
-
-// ---------------------------------------------------------------------------
 // Timeline
 // ---------------------------------------------------------------------------
-const RING_START = 60;
-const FILL_START = 150;
-const FILL_END = 620;
-const TOTAL_START = 620;
-const SHIELD_START = 660;
-const BANNER_START = 720;
-const CAL_START = 200;
-const CAL_FILL_END = 700;
-const RESOLVE_START = 800;
+const LABEL_START = 60;
+const ROUTE_START = 180;
+const SCAN_START = 330;
+const INSPECT_START = 500;
+const REFUND_START = 640;
+const RESOLVE_START = 810;
 
-const fmt$ = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
+const STAGES = ['RETURN REQUEST', 'QR LABEL', 'DROP-OFF', 'IN TRANSIT', 'INSPECT', 'REFUND'];
+const STAGE_TIMES = [LABEL_START - 20, LABEL_START, SCAN_START, ROUTE_START + 40, INSPECT_START, REFUND_START];
+
+// ---------------------------------------------------------------------------
+// Route geometry (doorstep -> warehouse, reverse of the sale)
+// ---------------------------------------------------------------------------
+const P_DOOR = {x: 3100, y: 1080};
+const P_HUB = {x: 2050, y: 700};
+const P_WARE = {x: 900, y: 1080};
+
+const routePoint = (t: number) => {
+  // quadratic-ish path through hub
+  const x = (1 - t) * (1 - t) * P_DOOR.x + 2 * (1 - t) * t * P_HUB.x + t * t * P_WARE.x;
+  const y = (1 - t) * (1 - t) * P_DOOR.y + 2 * (1 - t) * t * P_HUB.y + t * t * P_WARE.y;
+  return {x, y};
+};
 
 // ---------------------------------------------------------------------------
 // SVG defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="navyGlow" cx="42%" cy="36%" r="72%">
-      <stop offset="0%" stopColor="rgba(0,230,168,0.12)" />
-      <stop offset="55%" stopColor="rgba(0,230,168,0.04)" />
-      <stop offset="100%" stopColor="rgba(10,23,48,0)" />
+    <radialGradient id="prGlow" cx="50%" cy="30%" r="72%">
+      <stop offset="0%" stopColor="rgba(45,212,191,0.12)" />
+      <stop offset="55%" stopColor="rgba(45,212,191,0.035)" />
+      <stop offset="100%" stopColor="rgba(11,30,34,0)" />
     </radialGradient>
-    <radialGradient id="navyVignette" cx="50%" cy="50%" r="76%">
-      <stop offset="60%" stopColor="rgba(3,8,20,0)" />
-      <stop offset="100%" stopColor="rgba(3,8,20,0.72)" />
+    <radialGradient id="prVignette" cx="50%" cy="50%" r="76%">
+      <stop offset="60%" stopColor="rgba(4,13,15,0)" />
+      <stop offset="100%" stopColor="rgba(4,13,15,0.72)" />
     </radialGradient>
-    <linearGradient id="mintRing" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stopColor={MINT_DEEP} />
-      <stop offset="100%" stopColor={MINT} />
+    <linearGradient id="prRoute" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={TEAL_DEEP} />
+      <stop offset="100%" stopColor={TEAL} />
     </linearGradient>
-    <linearGradient id="coinGold" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stopColor={'#FFE9A8'} />
-      <stop offset="55%" stopColor={GOLD} />
-      <stop offset="100%" stopColor={GOLD_DEEP} />
-    </linearGradient>
-    <filter id="mintGlow2" x="-80%" y="-80%" width="260%" height="260%">
+    <filter id="prGlow14" x="-80%" y="-80%" width="260%" height="260%">
       <feGaussianBlur stdDeviation="14" result="blur" />
       <feMerge>
         <feMergeNode in="blur" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
-    <filter id="panelShadow5" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="22" stdDeviation="30" floodColor="#000000" floodOpacity="0.5" />
+    <filter id="prShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="22" stdDeviation="30" floodColor="#000000" floodOpacity="0.55" />
     </filter>
   </defs>
 );
@@ -109,14 +100,15 @@ const Defs: React.FC = () => (
 // Background
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  // Drifting dot grid — keeps large background regions from encoding too cleanly.
-  // Drift wraps by exactly one grid period (96px), so the motion loops seamlessly.
-  const drift = (frame * 0.6) % 96;
-  const bgDots: JSX.Element[] = [];
-  for (let gx = -1; gx <= 41; gx++) {
-    for (let gy = 0; gy < 23; gy++) {
-      bgDots.push(
-        <circle key={`${gx}-${gy}`} cx={48 + gx * 96 - drift} cy={48 + gy * 96} r={2.4} fill="rgba(255,255,255,0.05)" />
+  const driftX = (frame * 0.3) % 120;
+  const driftY = (frame * 0.2) % 120;
+  const scanY = ((frame / 900) * (2160 + 300)) % (2160 + 300) - 150;
+  const dots: React.ReactElement[] = [];
+  for (let gx = 0; gx <= 33; gx++) {
+    for (let gy = 0; gy <= 19; gy++) {
+      const shimmer = 0.05 + 0.05 * Math.sin(frame * 0.075 + gx * 1.2 + gy * 0.8);
+      dots.push(
+        <circle key={`${gx}-${gy}`} cx={gx * 120 - driftX} cy={gy * 120 - driftY} r={2.2} fill="#2DD4BF" opacity={shimmer} />
       );
     }
   }
@@ -125,9 +117,10 @@ const Background: React.FC<{frame: number}> = ({frame}) => {
       <AbsoluteFill style={{backgroundColor: BG}} />
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs />
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#navyGlow)" />
-        {bgDots}
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#navyVignette)" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#prGlow)" />
+        {dots}
+        <rect x={0} y={scanY - 80} width={3840} height={160} fill="rgba(45,212,191,0.03)" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#prVignette)" />
       </svg>
     </>
   );
@@ -142,251 +135,219 @@ const TitleBar: React.FC<{frame: number}> = ({frame}) => {
   return (
     <div style={{position: 'absolute', top: 80 + rise, left: 200, opacity: fade}}>
       <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 78, letterSpacing: -1.5}}>
-        Watch your <span style={{color: MINT}}>savings grow</span>
+        The <span style={{color: TEAL}}>return journey</span>, in reverse
       </div>
       <div style={{color: MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 3, marginTop: 12}}>
-        GOAL TRACKER &middot; EMERGENCY FUND
+        REVERSE LOGISTICS &middot; ORDER #8841-2290
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// The big progress ring with falling coins + milestone badges
+// Stage rail
 // ---------------------------------------------------------------------------
-const RING_CX = 1050;
-const RING_CY = 1180;
-const RING_R = 400;
+const StageRail: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - 25, fps, config: {damping: 200, stiffness: 80}});
+  if (s <= 0.001) return null;
+  const railX = 200; const railW = 3440; const railY = 340;
+  return (
+    <div style={{position: 'absolute', left: 0, top: 0, opacity: Math.min(1, s)}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <line x1={railX} y1={railY} x2={railX + railW} y2={railY} stroke={HAIRLINE} strokeWidth={8} strokeLinecap="round" />
+        {STAGES.map((st, i) => {
+          const active = frame >= STAGE_TIMES[i];
+          const done = i < STAGES.length - 1 ? frame >= STAGE_TIMES[i + 1] : frame >= RESOLVE_START;
+          const x = railX + (i / (STAGES.length - 1)) * railW;
+          return (
+            <g key={st}>
+              {i < STAGES.length - 1 && (() => {
+                const nx = railX + ((i + 1) / (STAGES.length - 1)) * railW;
+                const cf = interpolate(frame, [STAGE_TIMES[i], STAGE_TIMES[i + 1]], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+                return (
+                  <line x1={x} y1={railY} x2={x + (nx - x) * cf} y2={railY}
+                    stroke={done ? GREEN : TEAL} strokeWidth={8} strokeLinecap="round" filter="url(#prGlow14)" />
+                );
+              })()}
+              <circle cx={x} cy={railY} r={active ? 34 : 24}
+                fill={done ? GREEN : active ? TEAL : BG}
+                stroke={done ? GREEN : active ? TEAL : HAIRLINE} strokeWidth={6} />
+              {done && (
+                <text x={x} y={railY + 12} textAnchor="middle" fill="#0B1E22" fontSize={34} fontWeight={800}>&#10003;</text>
+              )}
+              <text x={x} y={railY + 84} textAnchor="middle"
+                fill={active ? INK : MUTED} fontSize={28} fontFamily={MONO}
+                fontWeight={active ? 800 : 500} letterSpacing={2}>{st}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+};
 
-const ProgressRing: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - RING_START, fps, config: {damping: 200, stiffness: 70}});
+// ---------------------------------------------------------------------------
+// QR label card (left) + map with traveling box (center) + inspection (right)
+// ---------------------------------------------------------------------------
+const QRCode: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - LABEL_START, fps, config: {damping: 200, stiffness: 90}});
+  if (s <= 0.001) return null;
+  // deterministic faux-QR blocks
+  const cells: React.ReactElement[] = [];
+  for (let cx = 0; cx < 12; cx++) {
+    for (let cy = 0; cy < 12; cy++) {
+      if (random(`qr-${cx}-${cy}`) > 0.52) {
+        cells.push(<rect key={`${cx}-${cy}`} x={cx * 22} y={cy * 22} width={19} height={19} fill={INK} />);
+      }
+    }
+  }
+  return (
+    <div style={{
+      position: 'absolute', left: 200, top: 600, width: 560,
+      opacity: Math.min(1, s), transform: `scale(${0.8 + 0.2 * Math.min(1, s)})`,
+    }}>
+      <div style={{
+        background: PANEL, borderRadius: 28, padding: '44px',
+        border: `3px solid ${TEAL}`, filter: 'url(#prShadow)',
+        boxShadow: '0 0 50px rgba(45,212,191,0.3)', textAlign: 'center',
+      }}>
+        <div style={{color: TEAL, fontFamily: MONO, fontWeight: 800, fontSize: 32, letterSpacing: 3}}>
+          RETURN LABEL
+        </div>
+        <svg width={264} height={264} viewBox="0 0 264 264" style={{margin: '24px auto 0', display: 'block'}}>
+          <rect x={0} y={0} width={264} height={264} fill="#0B1E22" rx={12} />
+          <g transform="translate(6,6)">{cells}</g>
+          <rect x={6} y={6} width={62} height={62} fill="none" stroke={TEAL} strokeWidth={8} />
+          <rect x={196} y={6} width={62} height={62} fill="none" stroke={TEAL} strokeWidth={8} />
+          <rect x={6} y={196} width={62} height={62} fill="none" stroke={TEAL} strokeWidth={8} />
+        </svg>
+        <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, marginTop: 20}}>
+          RMA-8841-2290 &middot; prepaid postage
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RouteMap: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - (ROUTE_START - 40), fps, config: {damping: 200, stiffness: 80}});
   if (s <= 0.001) return null;
 
-  const fill = interpolate(frame, [FILL_START, FILL_END], [0, 1], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
-  const saved = fill * GOAL;
+  const t = interpolate(frame, [ROUTE_START, ROUTE_START + 300], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const pos = routePoint(t);
+  const pathD = `M ${P_DOOR.x} ${P_DOOR.y} Q ${P_HUB.x + 320} ${P_HUB.y - 120} ${P_WARE.x} ${P_WARE.y}`;
 
-  const coins = useMemo(() => {
-    const out: {seed: number; x: number; delay: number}[] = [];
-    for (let i = 0; i < 46; i++) {
-      out.push({seed: i * 2.3, x: RING_CX - 260 + rand(i * 5.1) * 520, delay: i * 10});
-    }
-    return out;
-  }, []);
-
-  const C = 2 * Math.PI * RING_R;
+  const scanned = Math.floor(interpolate(frame, [SCAN_START, SCAN_START + 200], [0, 3], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
+  const scanPts = [
+    {x: 2680, y: 940, label: 'PICKUP'},
+    {x: 2050, y: 700, label: 'HUB SORT'},
+    {x: 1340, y: 920, label: 'REGIONAL'},
+  ];
 
   return (
     <div style={{position: 'absolute', left: 0, top: 0, opacity: Math.min(1, s)}}>
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        {/* falling coins */}
-        {frame >= FILL_START && frame <= FILL_END + 40 && coins.map((c, i) => {
-          const local = frame - (FILL_START + c.delay);
-          if (local < 0) return null;
-          const t = (local % 70) / 70;
-          const y = 240 + t * 760;
-          const fadeCoin = t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1;
+        <path d={pathD} fill="none" stroke="rgba(235,245,245,0.14)" strokeWidth={6} strokeDasharray="18 20" />
+        <path d={pathD} fill="none" stroke="url(#prRoute)" strokeWidth={6} strokeLinecap="round"
+          pathLength={1} strokeDasharray={1} strokeDashoffset={1 - t} filter="url(#prGlow14)" />
+        {/* warehouse pin */}
+        <g transform={`translate(${P_WARE.x}, ${P_WARE.y})`}>
+          <circle r={46} fill={TEAL} opacity={0.25} />
+          <rect x={-40} y={-40} width={80} height={80} rx={14} fill={TEAL} />
+          <text x={0} y={16} textAnchor="middle" fontSize={44} fill="#0B1E22" fontWeight={800}>&#8962;</text>
+          <text x={0} y={110} textAnchor="middle" fill={MUTED} fontSize={30} fontFamily={MONO}>WAREHOUSE</text>
+        </g>
+        {/* doorstep pin */}
+        <g transform={`translate(${P_DOOR.x}, ${P_DOOR.y})`}>
+          <circle r={36} fill={AMBER} opacity={0.25} />
+          <circle r={26} fill={AMBER} />
+          <text x={0} y={92} textAnchor="middle" fill={MUTED} fontSize={30} fontFamily={MONO}>CUSTOMER</text>
+        </g>
+        {/* scan pings */}
+        {scanPts.map((p, i) => {
+          if (i >= scanned) return null;
+          const pulse = 0.5 + 0.5 * Math.sin(frame * 0.2 + i);
           return (
-            <g key={i} opacity={0.9 * fadeCoin}>
-              <circle cx={c.x} cy={y} r={30} fill="url(#coinGold)" filter="url(#mintGlow2)" opacity={0.5} />
-              <circle cx={c.x} cy={y} r={24} fill="url(#coinGold)" stroke={GOLD_DEEP} strokeWidth={4} />
-              <text x={c.x} y={y + 12} textAnchor="middle" fill={GOLD_DEEP} fontSize={34} fontFamily={MONO} fontWeight={800}>$</text>
+            <g key={p.label} transform={`translate(${p.x}, ${p.y})`}>
+              <circle r={20 + pulse * 16} fill="none" stroke={TEAL} strokeWidth={4} opacity={0.8 - pulse * 0.3} />
+              <circle r={10} fill={TEAL} />
+              <text x={0} y={-46} textAnchor="middle" fill={TEAL} fontSize={28} fontFamily={MONO} fontWeight={800}>
+                {p.label} &#10003;
+              </text>
             </g>
           );
         })}
-        {/* track */}
-        <circle cx={RING_CX} cy={RING_CY} r={RING_R} fill="none" stroke={HAIRLINE} strokeWidth={64} />
-        {/* progress */}
-        {fill > 0.005 && (
-          <circle cx={RING_CX} cy={RING_CY} r={RING_R} fill="none"
-            stroke="url(#mintRing)" strokeWidth={64} strokeLinecap="round"
-            pathLength={1} strokeDasharray={1} strokeDashoffset={1 - fill}
-            transform={`rotate(-90 ${RING_CX} ${RING_CY})`}
-            filter="url(#mintGlow2)" />
-        )}
-        {/* tick marks */}
-        {Array.from({length: 40}).map((_, i) => {
-          const a = (i / 40) * Math.PI * 2 - Math.PI / 2;
-          const on = i / 40 <= fill;
-          return (
-            <line key={i}
-              x1={RING_CX + (RING_R - 52) * Math.cos(a)} y1={RING_CY + (RING_R - 52) * Math.sin(a)}
-              x2={RING_CX + (RING_R - 78) * Math.cos(a)} y2={RING_CY + (RING_R - 78) * Math.sin(a)}
-              stroke={on ? MINT : 'rgba(234,240,250,0.18)'} strokeWidth={7} strokeLinecap="round" />
-          );
-        })}
+        {/* the box traveling home */}
+        <g transform={`translate(${pos.x - 60}, ${pos.y - 46})`} opacity={t >= 1 ? 0 : 1}>
+          <rect x={0} y={0} width={120} height={92} rx={10} fill="#C98A3B" stroke="#8A5A22" strokeWidth={5} />
+          <line x1={60} y1={0} x2={60} y2={92} stroke="#8A5A22" strokeWidth={5} />
+          <rect x={38} y={30} width={44} height={32} fill="#0B1E22" opacity={0.85} rx={4} />
+        </g>
       </svg>
-      {/* center readout */}
-      <div style={{
-        position: 'absolute', left: RING_CX - 330, top: RING_CY - 190, width: 660, textAlign: 'center',
-      }}>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 4}}>SAVED SO FAR</div>
-        <div style={{
-          color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 130, marginTop: 6,
-          textShadow: '0 0 44px rgba(0,230,168,0.4)',
-        }}>
-          {fmt$(saved)}
+      <div style={{position: 'absolute', left: 1380, top: 1320, width: 1080, textAlign: 'center'}}>
+        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>MILES TO WAREHOUSE</div>
+        <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 92, marginTop: 8}}>
+          {Math.round(842 * (1 - t))}
         </div>
-        <div style={{color: MUTED, fontFamily: FONT, fontSize: 36, marginTop: 6}}>
-          of {fmt$(GOAL)} goal
-        </div>
-        <div style={{color: MINT, fontFamily: MONO, fontWeight: 800, fontSize: 52, marginTop: 14}}>
-          {Math.round(fill * 100)}%
+        <div style={{color: TEAL, fontFamily: MONO, fontSize: 32, marginTop: 4}}>
+          ETA {Math.max(0, Math.round(4 * (1 - t)))} DAYS
         </div>
       </div>
-      {/* milestone badges */}
-      {MILESTONES.map((m, i) => {
-        const hit = fill >= m.pct;
-        const bs = spring({frame: frame - (FILL_START + m.pct * (FILL_END - FILL_START)), fps, config: {damping: 150, stiffness: 170}});
-        if (!hit || bs <= 0.001) return null;
-        const a = -Math.PI / 2 + m.pct * Math.PI * 2;
-        const bx = RING_CX + (RING_R + 150) * Math.cos(a);
-        const by = RING_CY + (RING_R + 150) * Math.sin(a);
-        return (
-          <div key={m.label} style={{
-            position: 'absolute', left: bx - 190, top: by - 70, width: 380,
-            opacity: Math.min(1, bs),
-            transform: `scale(${0.5 + 0.5 * Math.min(1, bs)})`,
-          }}>
-            <div style={{
-              background: 'rgba(10,23,48,0.92)', border: `3px solid ${GOLD}`,
-              borderRadius: 20, padding: '16px 20px', textAlign: 'center',
-              boxShadow: '0 0 44px rgba(245,192,68,0.4)',
-            }}>
-              <div style={{color: GOLD, fontFamily: FONT, fontWeight: 800, fontSize: 34}}>{m.label}</div>
-              <div style={{color: INK, fontFamily: MONO, fontWeight: 700, fontSize: 40, marginTop: 4}}>{fmt$(m.amount)}</div>
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Goal shield + GOAL REACHED banner
-// ---------------------------------------------------------------------------
-const GoalPayoff: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const total = interpolate(frame, [TOTAL_START, TOTAL_START + 90], [0, GOAL], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
-  const shield = spring({frame: frame - SHIELD_START, fps, config: {damping: 140, stiffness: 150}});
-  const banner = spring({frame: frame - BANNER_START, fps, config: {damping: 200, stiffness: 110}});
-  if (frame < TOTAL_START) return null;
-
-  return (
-    <div style={{position: 'absolute', left: 0, top: 0}}>
-      {/* counting total above ring */}
-      <div style={{
-        position: 'absolute', left: RING_CX - 400, top: 300, width: 800, textAlign: 'center',
-        opacity: interpolate(frame, [TOTAL_START, TOTAL_START + 30], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
-      }}>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 4}}>FINAL TOTAL</div>
-        <div style={{
-          color: MINT, fontFamily: MONO, fontWeight: 800, fontSize: 110,
-          textShadow: '0 0 60px rgba(0,230,168,0.65)',
-        }}>
-          {fmt$(total)}
-        </div>
-      </div>
-      {/* shield */}
-      {shield > 0.001 && (
-        <div style={{
-          position: 'absolute', left: RING_CX - 130, top: RING_CY - 640,
-          transform: `scale(${0.4 + 0.6 * Math.min(1, shield)})`,
-          opacity: Math.min(1, shield),
-        }}>
-          <svg width={260} height={300} viewBox="0 0 260 300">
-            <path d="M130 12 L238 56 V158 C238 226 190 262 130 288 C70 262 22 226 22 158 V56 Z"
-              fill="rgba(0,230,168,0.14)" stroke={MINT} strokeWidth={10} filter="url(#mintGlow2)" />
-            <path d="M92 148 L120 178 L172 116" fill="none" stroke={MINT} strokeWidth={20} strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-      )}
-      {/* banner */}
-      {banner > 0.001 && (
-        <div style={{
-          position: 'absolute', left: 0, top: 1780, width: 3840,
-          display: 'flex', justifyContent: 'center',
-          opacity: Math.min(1, banner),
-          transform: `translateY(${(1 - Math.min(1, banner)) * 60}px)`,
-        }}>
-          <div style={{
-            background: 'linear-gradient(135deg, #009E73, #00E6A8)', borderRadius: 999, padding: '30px 110px',
-            boxShadow: '0 0 90px rgba(0,230,168,0.55)',
-          }}>
-            <span style={{color: '#06231D', fontFamily: FONT, fontWeight: 800, fontSize: 64, letterSpacing: 3}}>
-              GOAL REACHED
-            </span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Recurring deposit calendar strip (the habit)
-// ---------------------------------------------------------------------------
-const DepositCalendar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - CAL_START, fps, config: {damping: 200, stiffness: 80}});
+const Inspection: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - INSPECT_START, fps, config: {damping: 200, stiffness: 80}});
   if (s <= 0.001) return null;
-  const WEEKS = 12;
-  const filled = Math.min(WEEKS, Math.max(0, Math.floor((frame - CAL_START - 60) / ((CAL_FILL_END - CAL_START) / WEEKS))));
+
+  const verdict = interpolate(frame, [INSPECT_START + 60, INSPECT_START + 110], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const refund = interpolate(frame, [REFUND_START, REFUND_START + 120], [0, 189.99], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
 
   return (
     <div style={{
-      position: 'absolute', right: 200, top: 380, width: 1240,
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 50}px)`,
+      position: 'absolute', left: 200, top: 1330, width: 980,
+      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 60}px)`,
     }}>
       <div style={{
-        background: PANEL, borderRadius: 32, padding: '46px 52px',
-        border: `2px solid ${HAIRLINE}`, filter: 'url(#panelShadow5)', backdropFilter: 'blur(6px)',
+        background: PANEL, borderRadius: 28, padding: '40px 48px',
+        border: `2px solid ${verdict > 0.5 ? GREEN : HAIRLINE}`,
+        filter: 'url(#prShadow)', backdropFilter: 'blur(6px)',
+        boxShadow: verdict > 0.5 ? '0 0 50px rgba(52,211,153,0.25)' : 'none',
       }}>
-        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-          <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 52}}>
-            The habit behind it
-          </div>
-          <div style={{color: MINT, fontFamily: MONO, fontWeight: 700, fontSize: 34}}>
-            AUTO-DEPOSIT
-          </div>
-        </div>
-        <div style={{color: MUTED, fontFamily: FONT, fontSize: 32, marginTop: 10}}>
-          $200 every Friday &middot; 12 weeks straight
-        </div>
-        <div style={{display: 'flex', gap: 14, marginTop: 34}}>
-          {Array.from({length: WEEKS}).map((_, i) => {
-            const on = i < filled;
-            const cs = spring({frame: frame - (CAL_START + 60 + i * ((CAL_FILL_END - CAL_START) / WEEKS)), fps, config: {damping: 200, stiffness: 170}});
+        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>WAREHOUSE INSPECTION</div>
+        <div style={{display: 'flex', gap: 24, marginTop: 24}}>
+          {['ITEM INTACT', 'TAGS ATTACHED', 'RESALABLE'].map((c, i) => {
+            const on = frame >= INSPECT_START + 20 + i * 34;
             return (
-              <div key={i} style={{
-                flex: 1, height: 120, borderRadius: 16,
-                background: on ? 'url(#mintRing)' : 'rgba(234,240,250,0.07)',
-                border: `2px solid ${on ? MINT : HAIRLINE}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transform: `scale(${on ? 0.7 + 0.3 * Math.min(1, cs) : 1})`,
-                boxShadow: on ? '0 0 26px rgba(0,230,168,0.4)' : 'none',
+              <div key={c} style={{
+                flex: 1, borderRadius: 16, padding: '18px 10px', textAlign: 'center',
+                background: on ? 'rgba(52,211,153,0.10)' : 'rgba(235,245,245,0.04)',
+                border: `2px solid ${on ? GREEN : HAIRLINE}`,
               }}>
-                {on && cs > 0.6 && (
-                  <span style={{color: '#06231D', fontSize: 40, fontWeight: 800}}>&#10003;</span>
-                )}
+                <div style={{color: on ? GREEN : MUTED, fontFamily: MONO, fontWeight: 800, fontSize: 28}}>
+                  {on ? '\u2713' : '\u00B7'}
+                </div>
+                <div style={{color: on ? INK : MUTED, fontFamily: MONO, fontSize: 22, marginTop: 6}}>
+                  {c}
+                </div>
               </div>
             );
           })}
         </div>
-        <div style={{display: 'flex', justifyContent: 'space-between', marginTop: 20}}>
-          <span style={{color: MUTED, fontFamily: MONO, fontSize: 26}}>WEEK 1</span>
-          <span style={{color: MUTED, fontFamily: MONO, fontSize: 26}}>WEEK 12</span>
-        </div>
-        <div style={{marginTop: 30, padding: '24px 30px', borderRadius: 20, background: 'rgba(0,230,168,0.08)', border: `2px solid rgba(0,230,168,0.3)`}}>
-          <div style={{color: INK, fontFamily: FONT, fontSize: 32}}>
-            <span style={{fontWeight: 800, color: MINT}}>$2,400</span> saved on autopilot this quarter
+        {verdict > 0.5 && (
+          <div style={{
+            marginTop: 26, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            opacity: interpolate(frame, [INSPECT_START + 60, INSPECT_START + 110], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
+          }}>
+            <span style={{color: GREEN, fontFamily: MONO, fontWeight: 800, fontSize: 36, letterSpacing: 2}}>
+              PASSED &middot; REFUND APPROVED
+            </span>
+            <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 72}}>
+              ${refund.toFixed(2)}
+            </span>
           </div>
-          <div style={{color: MUTED, fontFamily: FONT, fontSize: 28, marginTop: 6}}>
-            small, automatic, unstoppable
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -400,36 +361,39 @@ const ResolveStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
   if (s <= 0.001) return null;
   return (
     <div style={{
-      position: 'absolute', bottom: 96, right: 200,
+      position: 'absolute', bottom: 92, left: 0, width: 3840,
+      display: 'flex', justifyContent: 'center',
       opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 40}px)`,
     }}>
-      <div style={{textAlign: 'right'}}>
-        <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 52}}>
-          12 WEEKS OF CONSISTENCY
-        </div>
-        <div style={{color: MUTED, fontFamily: FONT, fontSize: 32, marginTop: 8}}>
-          Emergency fund complete &middot; next goal: travel fund
-        </div>
+      <div style={{
+        background: 'rgba(52,211,153,0.10)', border: `2px solid ${GREEN}`,
+        borderRadius: 999, padding: '28px 90px',
+        display: 'flex', alignItems: 'center', gap: 44,
+      }}>
+        <span style={{
+          width: 58, height: 58, borderRadius: '50%', background: GREEN,
+          color: '#0B1E22', fontSize: 36, fontWeight: 800,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>&#10003;</span>
+        <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 48, letterSpacing: 2}}>
+          EASY RETURNS KEEP CUSTOMERS &middot; REFUND IN 3&ndash;5 DAYS
+        </span>
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Main composition
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// Deterministic full-frame film grain — bitrate insurance for the >= 20 Mbps verify gate.
-// random() from 'remotion' is seeded; positions re-seed every frame. Subtle by design.
+// Film grain
 // ---------------------------------------------------------------------------
 const GRAIN_COUNT = 420;
 const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
-  const dots: JSX.Element[] = [];
+  const dots: React.ReactElement[] = [];
   for (let i = 0; i < GRAIN_COUNT; i++) {
-    const x = random(`grain-x-${frame}-${i}`) * 3840;
-    const y = random(`grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`grain-o-${frame}-${i}`) * 0.04;
-    const s = 2 + random(`grain-s-${frame}-${i}`) * 2.5;
+    const x = random(`pr-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`pr-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`pr-grain-o-${frame}-${i}`) * 0.04;
+    const s = 2 + random(`pr-grain-s-${frame}-${i}`) * 2.5;
     dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
   }
   return (
@@ -439,7 +403,10 @@ const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
   );
 };
 
-export const SavingsGoalTracker: React.FC = () => {
+// ---------------------------------------------------------------------------
+// Main composition
+// ---------------------------------------------------------------------------
+export const ProductReturnFlow: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
@@ -447,13 +414,14 @@ export const SavingsGoalTracker: React.FC = () => {
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
       <TitleBar frame={frame} />
-      <ProgressRing frame={frame} fps={fps} />
-      <DepositCalendar frame={frame} fps={fps} />
-      <GoalPayoff frame={frame} fps={fps} />
+      <StageRail frame={frame} fps={fps} />
+      <RouteMap frame={frame} fps={fps} />
+      <QRCode frame={frame} fps={fps} />
+      <Inspection frame={frame} fps={fps} />
       <ResolveStrip frame={frame} fps={fps} />
       <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
 };
 
-export default SavingsGoalTracker;
+export default ProductReturnFlow;
