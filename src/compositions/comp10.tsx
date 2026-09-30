@@ -1,191 +1,181 @@
 /**
- * MLTrainingDashboard.tsx
+ * SupportTicketTriage.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * An ML training dashboard: descending train/val loss curves, a live epoch
- * counter, a climbing accuracy gauge, batch-size / learning-rate readouts,
- * and a streaming training log.
+ * A brand-neutral helpdesk TRIAGE visual for CX trainers, SaaS marketers and
+ * support-leadership decks: tickets stream into a live queue, an auto-triage
+ * sweep tags each ticket P1-P4, SLA countdown bars drain, tickets are dealt
+ * to agent pods with workload meters, and a resolution sweep stamps the queue
+ * clear with an SLA attainment payoff. Deterministic seeded randomness only.
  *
  * Register in Root.tsx:
- *   <Composition id="MLTrainingDashboard" component={MLTrainingDashboard}
+ *   <Composition id="SupportTicketTriage" component={SupportTicketTriage}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
-import React, {useMemo} from 'react';
+import React from 'react';
 import {
   AbsoluteFill,
-  Easing,
   interpolate,
+  random,
   spring,
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette
+// Palette (dark ops console, indigo/violet accent)
 // ---------------------------------------------------------------------------
-const BG = '#05070E';
-const PANEL = 'rgba(10, 15, 28, 0.92)';
-const HAIRLINE = 'rgba(148, 163, 184, 0.22)';
-const INK = '#EAF0FA';
-const MUTED = 'rgba(190, 203, 224, 0.68)';
-const FAINT = 'rgba(148, 163, 184, 0.40)';
+const BG = '#070A14';
+const INK = '#EDEFF7';
+const MUTED = 'rgba(237,239,247,0.58)';
+const INDIGO = '#818CF8';
 const VIOLET = '#A78BFA';
-const CYAN = '#22D3EE';
-const EMERALD = '#34D399';
-const AMBER = '#FBBF24';
+const CYAN = '#67E8F9';
+const P1 = '#F87171';
+const P2 = '#FBBF24';
+const P3 = '#60A5FA';
+const P4 = '#34D399';
+const GREEN = '#34D399';
+const PANEL = 'rgba(11,16,30,0.88)';
+const HAIRLINE = 'rgba(237,239,247,0.14)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
-// Data — synthetic training curves, 40 points over 100 epochs
+// Timeline (frames at 60 fps) -> 900 frames = 15 s
 // ---------------------------------------------------------------------------
-const N = 40;
-const noise = (i: number, s: number) => (Math.sin(i * 127.1 + s) * 0.5 + 0.5 - 0.5) * 0.05;
-const TRAIN_LOSS = Array.from({length: N}, (_, i) => 0.16 + 2.2 * Math.exp(-i / 7) + noise(i, 1.7) * (1 - i / N));
-const VAL_LOSS = Array.from({length: N}, (_, i) => 0.28 + 2.2 * Math.exp(-i / 9) + noise(i, 4.2) * (1 - i / N) + 0.02 * Math.sin(i / 3));
-const ACC = Array.from({length: N}, (_, i) => 94.2 - 33 * Math.exp(-i / 10) + noise(i, 8.8) * 30 * (1 - i / N));
-const LOGS = [
-  '[EPOCH  61/100] loss: 0.2418 - acc: 0.9031 - val_loss: 0.3122 - 41s',
-  '[EPOCH  62/100] loss: 0.2389 - acc: 0.9044 - val_loss: 0.3098 - 41s',
-  '[EPOCH  63/100] loss: 0.2355 - acc: 0.9057 - val_loss: 0.3071 - 42s',
-  '[EPOCH  64/100] loss: 0.2321 - acc: 0.9072 - val_loss: 0.3049 - 41s',
-  '[EPOCH  65/100] loss: 0.2294 - acc: 0.9081 - val_loss: 0.3026 - 41s',
-  '[EPOCH  66/100] loss: 0.2260 - acc: 0.9095 - val_loss: 0.3004 - 42s',
-  '[EPOCH  67/100] loss: 0.2233 - acc: 0.9106 - val_loss: 0.2987 - 41s',
-  'lr_schedule: cosine decay 3.0e-04 -> 1.2e-05 | grad_norm: 1.84 OK',
+const ROW_START = 30;
+const ROW_GAP = 16;
+const TRIAGE_START = 200;   // priority tagging sweep begins
+const TRIAGE_STEP = 52;     // frames per ticket verdict
+const DEAL_START = 560;     // deal to agent pods
+const RESOLVE_START = 700;  // resolution sweep stamps
+const PAYOFF_START = 800;   // final SLA banner
+
+// ---------------------------------------------------------------------------
+// Data: 8 tickets
+// ---------------------------------------------------------------------------
+type Priority = 'P1' | 'P2' | 'P3' | 'P4';
+interface Ticket {
+  id: string;
+  subject: string;
+  channel: string;
+  priority: Priority;
+  slaMin: number;
+  agent: string;
+}
+const TICKETS: Ticket[] = [
+  {id: 'T-80421', subject: 'Checkout fails on 3-D Secure redirect', channel: 'CHAT', priority: 'P1', slaMin: 28, agent: 'AMARA'},
+  {id: 'T-80417', subject: 'SSO login loop for Okta users', channel: 'EMAIL', priority: 'P1', slaMin: 34, agent: 'DEV'},
+  {id: 'T-80432', subject: 'Invoice PDF shows wrong tax rate', channel: 'PORTAL', priority: 'P2', slaMin: 62, agent: 'LENA'},
+  {id: 'T-80409', subject: 'Export CSV times out over 50k rows', channel: 'EMAIL', priority: 'P2', slaMin: 71, agent: 'RICO'},
+  {id: 'T-80440', subject: 'How to invite a guest workspace', channel: 'CHAT', priority: 'P3', slaMin: 128, agent: 'AMARA'},
+  {id: 'T-80436', subject: 'Avatar image not updating', channel: 'PORTAL', priority: 'P3', slaMin: 142, agent: 'LENA'},
+  {id: 'T-80445', subject: 'Dark mode toggle request', channel: 'EMAIL', priority: 'P4', slaMin: 240, agent: 'RICO'},
+  {id: 'T-80451', subject: 'Typo in onboarding email #3', channel: 'CHAT', priority: 'P4', slaMin: 255, agent: 'DEV'},
 ];
 
-// Loss chart geometry
-const CX = 240;
-const CW = 2000;
-const CY = 430;
-const CH = 900;
-const LX = (i: number) => CX + 90 + (i / (N - 1)) * (CW - 180);
-const LY = (v: number) => CY + CH - 90 - (v / 2.6) * (CH - 180);
+const PRIORITY_COLOR: Record<Priority, string> = {P1: P1, P2: P2, P3: P3, P4: P4};
+
+const AGENTS = [
+  {name: 'AMARA', load: 0.82, color: INDIGO},
+  {name: 'DEV', load: 0.64, color: CYAN},
+  {name: 'LENA', load: 0.71, color: VIOLET},
+  {name: 'RICO', load: 0.55, color: GREEN},
+];
+
+const ROW_H = 148;
+const QUEUE_TOP = 470;
 
 // ---------------------------------------------------------------------------
-// Helpers
+// SVG defs
 // ---------------------------------------------------------------------------
-const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-const prog = (frame: number, start: number, end: number) =>
-  clamp01((frame - start) / (end - start));
-const entr = (frame: number, delay: number, fps: number) =>
-  spring({
-    frame: Math.max(0, frame - delay),
-    fps,
-    config: {damping: 19, stiffness: 130},
-  });
-const rand = (seed: number) => {
-  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
-};
+const Defs: React.FC = () => (
+  <defs>
+    <radialGradient id="stGlow" cx="38%" cy="26%" r="78%">
+      <stop offset="0%" stopColor="rgba(129,140,248,0.14)" />
+      <stop offset="55%" stopColor="rgba(129,140,248,0.04)" />
+      <stop offset="100%" stopColor="rgba(7,10,20,0)" />
+    </radialGradient>
+    <radialGradient id="stVignette" cx="50%" cy="50%" r="76%">
+      <stop offset="60%" stopColor="rgba(3,5,11,0)" />
+      <stop offset="100%" stopColor="rgba(2,4,9,0.76)" />
+    </radialGradient>
+    <linearGradient id="stScan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="rgba(129,140,248,0)" />
+      <stop offset="50%" stopColor="rgba(129,140,248,0.16)" />
+      <stop offset="100%" stopColor="rgba(129,140,248,0)" />
+    </linearGradient>
+    <linearGradient id="stBar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={INDIGO} />
+      <stop offset="100%" stopColor={VIOLET} />
+    </linearGradient>
+    <filter id="stBlur70" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="70" />
+    </filter>
+  </defs>
+);
 
 // ---------------------------------------------------------------------------
-// Background
+// Background: layered, drifting, never flat
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const sweepX = interpolate(frame, [0, 900], [-1400, 5200], {
-    easing: Easing.linear,
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  const drift1 = Math.sin((frame / 900) * Math.PI * 2) * 90;
+  const drift2 = Math.cos((frame / 900) * Math.PI * 2) * 70;
+  const scanY = (frame / 900) * 2400 - 240;
+  const orbs: React.ReactElement[] = [];
+  for (let i = 0; i < 5; i++) {
+    const ox = random(`st-orb-x-${i}`) * 3840;
+    const oy = random(`st-orb-y-${i}`) * 2160;
+    const r = 260 + random(`st-orb-r-${i}`) * 320;
+    const hue = i % 2 === 0 ? 'rgba(129,140,248,0.10)' : 'rgba(103,232,249,0.07)';
+    const mx = Math.sin((frame / 900) * Math.PI * 2 + i * 1.7) * 120;
+    const my = Math.cos((frame / 900) * Math.PI * 2 + i * 2.3) * 90;
+    orbs.push(<circle key={i} cx={ox + mx} cy={oy + my} r={r} fill={hue} filter="url(#stBlur70)" />);
+  }
+  const gridLines: React.ReactElement[] = [];
+  for (let gx = 0; gx <= 3840; gx += 240) {
+    gridLines.push(<line key={`v${gx}`} x1={gx} y1={0} x2={gx} y2={2160} stroke="rgba(237,239,247,0.045)" strokeWidth={1} />);
+  }
+  for (let gy = 0; gy <= 2160; gy += 240) {
+    gridLines.push(<line key={`h${gy}`} x1={0} y1={gy} x2={3840} y2={gy} stroke="rgba(237,239,247,0.045)" strokeWidth={1} />);
+  }
   return (
-    <AbsoluteFill>
-      <svg width={3840} height={2160}>
-        <defs>
-          <radialGradient id="bgGlowA" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#A78BFA" stopOpacity="0.16" />
-            <stop offset="100%" stopColor="#A78BFA" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="vignette" cx="50%" cy="46%" r="75%">
-            <stop offset="55%" stopColor="#000000" stopOpacity="0" />
-            <stop offset="100%" stopColor="#000000" stopOpacity="0.62" />
-          </radialGradient>
-          <filter id="softBlur" x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation="150" />
-          </filter>
-          <linearGradient id="sweepGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#A78BFA" stopOpacity="0" />
-            <stop offset="50%" stopColor="#A78BFA" stopOpacity="0.08" />
-            <stop offset="100%" stopColor="#A78BFA" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <ellipse cx={1300} cy={950} rx={1100} ry={700} fill="url(#bgGlowA)" filter="url(#softBlur)" />
-        {Array.from({length: 13}, (_, i) => (
-          <line key={'v' + i} x1={i * 320} y1={0} x2={i * 320} y2={2160} stroke={HAIRLINE} strokeWidth={1} />
-        ))}
-        {Array.from({length: 8}, (_, i) => (
-          <line key={'h' + i} x1={0} y1={i * 320} x2={3840} y2={i * 320} stroke={HAIRLINE} strokeWidth={1} />
-        ))}
-        <rect x={sweepX - 420} y={0} width={840} height={2160} fill="url(#sweepGrad)" />
-        <rect width={3840} height={2160} fill="url(#vignette)" />
+    <div style={{position: 'absolute', inset: 0, backgroundColor: BG}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <rect width={3840} height={2160} fill="url(#stGlow)" transform={`translate(${drift1},${drift2})`} />
+        {orbs}
+        {gridLines}
+        <rect x={0} y={scanY} width={3840} height={340} fill="url(#stScan)" />
+        <rect width={3840} height={2160} fill="url(#stVignette)" />
       </svg>
-    </AbsoluteFill>
+    </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Header
+// Title bar
 // ---------------------------------------------------------------------------
-const Header: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 20, fps);
-  const pulse = 0.5 + 0.5 * Math.sin(frame * 0.15);
+const TitleBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const rise = spring({frame, fps, config: {damping: 200, stiffness: 90, mass: 1}});
+  const y = interpolate(rise, [0, 1], [60, 0]);
+  const opacity = interpolate(rise, [0, 1], [0, 1]);
+  const pulse = 0.72 + 0.28 * Math.sin((frame / 60) * Math.PI * 2);
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 100,
-        left: 240,
-        right: 240,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        opacity: e,
-        transform: `translateY(${(1 - e) * 40}px)`,
-      }}
-    >
-      <div>
-        <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 8, color: VIOLET, marginBottom: 14}}>
-          MACHINE LEARNING
-        </div>
-        <div
-          style={{
-            fontFamily: FONT,
-            fontSize: 88,
-            fontWeight: 700,
-            color: INK,
-            letterSpacing: -1,
-            textShadow: '0 4px 40px rgba(167,139,250,0.30)',
-          }}
-        >
-          Training Run
-        </div>
+    <div style={{position: 'absolute', top: 120, left: 220, right: 220, opacity, transform: `translateY(${y}px)`}}>
+      <div style={{fontFamily: MONO, fontSize: 44, letterSpacing: 14, color: INDIGO}}>
+        SUPPORT OPS &nbsp;·&nbsp; LIVE TRIAGE QUEUE
       </div>
-      <div style={{display: 'flex', alignItems: 'center', gap: 26}}>
-        <div
-          style={{
-            width: 24,
-            height: 24,
-            borderRadius: 12,
-            background: EMERALD,
-            opacity: pulse,
-            boxShadow: '0 0 28px rgba(52,211,153,0.9)',
-          }}
-        />
-        <div
-          style={{
-            fontFamily: MONO,
-            fontSize: 32,
-            letterSpacing: 3,
-            color: INK,
-            background: 'rgba(167,139,250,0.12)',
-            border: '1px solid rgba(167,139,250,0.45)',
-            borderRadius: 18,
-            padding: '22px 36px',
-          }}
-        >
-          RUN A-1147 · RESNET-152
+      <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 150, color: INK, marginTop: 18, letterSpacing: -2}}>
+        Ticket Triage
+      </div>
+      <div style={{display: 'flex', alignItems: 'center', marginTop: 26, gap: 28}}>
+        <div style={{width: 22, height: 22, borderRadius: 11, backgroundColor: P1, opacity: pulse, boxShadow: `0 0 30px ${P1}`}} />
+        <div style={{fontFamily: MONO, fontSize: 40, color: MUTED}}>8 OPEN &nbsp;·&nbsp; AUTO-ROUTING ACTIVE</div>
+        <div style={{marginLeft: 'auto', fontFamily: MONO, fontSize: 40, color: CYAN, border: `2px solid ${CYAN}`, borderRadius: 12, padding: '10px 26px'}}>
+          SLA 98.4%
         </div>
       </div>
     </div>
@@ -193,353 +183,199 @@ const Header: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Loss chart
+// Ticket rows
 // ---------------------------------------------------------------------------
-const LossChart: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 60, fps);
-  const draw = prog(frame, 140, 700);
-  const trainLine = useMemo(
-    () => TRAIN_LOSS.map((v, i) => `${i === 0 ? 'M' : 'L'}${LX(i).toFixed(0)},${LY(v).toFixed(0)}`).join(' '),
-    [],
-  );
-  const valLine = useMemo(
-    () => VAL_LOSS.map((v, i) => `${i === 0 ? 'M' : 'L'}${LX(i).toFixed(0)},${LY(v).toFixed(0)}`).join(' '),
-    [],
-  );
+const clamp01 = {extrapolateLeft: 'clamp' as const, extrapolateRight: 'clamp' as const};
+
+const TicketRows: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: CX,
-        top: CY,
-        width: CW,
-        height: CH,
-        background: PANEL,
-        border: `1px solid ${HAIRLINE}`,
-        borderRadius: 28,
-        opacity: e,
-        transform: `translateY(${(1 - e) * 60}px)`,
-        boxShadow: '0 30px 90px rgba(0,0,0,0.45)',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '40px 60px 0 60px',
-        }}
-      >
-        <div style={{fontFamily: MONO, fontSize: 28, letterSpacing: 6, color: MUTED}}>LOSS · 100 EPOCHS</div>
-        <div style={{display: 'flex', gap: 40, fontFamily: MONO, fontSize: 26, letterSpacing: 2}}>
-          <span style={{color: CYAN}}>— TRAIN</span>
-          <span style={{color: VIOLET}}>— VALIDATION</span>
-        </div>
-      </div>
-      <svg width={CW} height={CH - 110}>
-        <defs>
-          <filter id="lossGlow" x="-20%" y="-60%" width="140%" height="220%">
-            <feGaussianBlur stdDeviation="12" />
-          </filter>
-        </defs>
-        {[0.5, 1.0, 1.5, 2.0, 2.5].map((v) => (
-          <g key={v}>
-            <line x1={90} y1={LY(v)} x2={CW - 90} y2={LY(v)} stroke={HAIRLINE} strokeWidth={1} strokeDasharray="8 10" />
-            <text x={62} y={LY(v) + 9} textAnchor="end" fontFamily={MONO} fontSize={25} fill={FAINT}>
-              {v.toFixed(1)}
-            </text>
-          </g>
-        ))}
-        <path d={valLine} fill="none" stroke={VIOLET} strokeWidth={7} strokeLinecap="round" opacity={0.85 * draw} strokeDasharray={6000} strokeDashoffset={6000 * (1 - draw)} />
-        <path d={trainLine} fill="none" stroke={CYAN} strokeWidth={9} strokeLinecap="round" filter="url(#lossGlow)" strokeDasharray={6000} strokeDashoffset={6000 * (1 - draw)} />
-      </svg>
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 36,
-          left: 60,
-          right: 60,
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontFamily: MONO,
-          fontSize: 26,
-          color: FAINT,
-        }}
-      >
-        <span>EPOCH 0</span>
-        <span style={{color: MUTED}}>CONVERGING · NO OVERFIT</span>
-        <span>EPOCH 100</span>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Right column
-// ---------------------------------------------------------------------------
-const RightColumn: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 180, fps);
-  const epoch = Math.min(100, 1 + Math.floor(prog(frame, 100, 820) * 100));
-  const accT = prog(frame, 200, 780);
-  const acc = 61 + (94.2 - 61) * Easing.out(Easing.cubic)(accT);
-  const gauge = prog(frame, 260, 760);
-  const gAng = Math.PI + Easing.out(Easing.cubic)(gauge) * Math.PI;
-
-  const params = [
-    {k: 'BATCH SIZE', v: '256'},
-    {k: 'LEARNING RATE', v: '3.0e-04'},
-    {k: 'OPTIMIZER', v: 'ADAMW'},
-    {k: 'GPUS', v: 'A100 × 4'},
-    {k: 'GPU UTIL', v: '97%'},
-    {k: 'ETA', v: '14 MIN'},
-  ];
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: 2360,
-        top: 430,
-        width: 1240,
-        opacity: e,
-        transform: `translateY(${(1 - e) * 60}px)`,
-      }}
-    >
-      {/* epoch counter */}
-      <div
-        style={{
-          background: PANEL,
-          border: `1px solid ${HAIRLINE}`,
-          borderRadius: 28,
-          padding: '32px 48px',
-          marginBottom: 24,
-          boxShadow: '0 30px 90px rgba(0,0,0,0.45)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 48,
-        }}
-      >
-        <div>
-          <div style={{fontFamily: MONO, fontSize: 26, letterSpacing: 6, color: MUTED, marginBottom: 8}}>
-            EPOCH
-          </div>
-          <div style={{fontFamily: MONO, fontSize: 100, fontWeight: 700, color: INK, lineHeight: 1}}>
-            {epoch}
-            <span style={{fontSize: 48, color: FAINT}}>/100</span>
-          </div>
-        </div>
-        <div style={{flex: 1}}>
-          <div style={{fontFamily: MONO, fontSize: 24, letterSpacing: 4, color: FAINT, marginBottom: 14}}>
-            TRAINING PROGRESS
-          </div>
-          <div style={{height: 22, borderRadius: 11, background: 'rgba(148,163,184,0.15)', overflow: 'hidden'}}>
-            <div
-              style={{
-                width: `${(epoch / 100) * 100}%`,
-                height: '100%',
-                borderRadius: 11,
-                background: 'linear-gradient(90deg,#22D3EE,#A78BFA)',
-                boxShadow: '0 0 24px rgba(34,211,238,0.6)',
-              }}
-            />
-          </div>
-        </div>
-      </div>
-      {/* accuracy gauge */}
-      <div
-        style={{
-          background: PANEL,
-          border: `1px solid ${HAIRLINE}`,
-          borderRadius: 28,
-          padding: '32px 48px',
-          marginBottom: 24,
-        }}
-      >
-        <div style={{fontFamily: MONO, fontSize: 26, letterSpacing: 6, color: MUTED, marginBottom: 8}}>
-          VALIDATION ACCURACY
-        </div>
-        <div style={{display: 'flex', alignItems: 'center', gap: 24}}>
-          <svg width={560} height={280}>
-            <defs>
-              <linearGradient id="accGrad" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#22D3EE" />
-                <stop offset="100%" stopColor="#34D399" />
-              </linearGradient>
-            </defs>
-            <path
-              d={`M ${252 - 165} ${230} A ${165} ${165} 0 0 1 ${252 + 165} ${230}`}
-              fill="none"
-              stroke="rgba(148,163,184,0.15)"
-              strokeWidth={40}
-              strokeLinecap="round"
-            />
-            <path
-              d={`M ${252 - 165} ${230} A ${165} ${165} 0 0 1 ${252 + 165} ${230}`}
-              fill="none"
-              stroke="url(#accGrad)"
-              strokeWidth={40}
-              strokeLinecap="round"
-              strokeDasharray={Math.PI * 165}
-              strokeDashoffset={Math.PI * 165 * (1 - Easing.out(Easing.cubic)(gauge))}
-            />
-            <line
-              x1={252}
-              y1={230}
-              x2={252 + Math.cos(gAng) * 115}
-              y2={230 + Math.sin(gAng) * 115}
-              stroke={INK}
-              strokeWidth={10}
-              strokeLinecap="round"
-            />
-            <circle cx={252} cy={230} r={22} fill="#0B1220" stroke={INK} strokeWidth={5} />
-          </svg>
-          <div>
-            <div style={{fontFamily: MONO, fontSize: 80, fontWeight: 700, color: EMERALD}}>
-              {acc.toFixed(1)}%
-            </div>
-            <div style={{fontFamily: MONO, fontSize: 26, color: MUTED, letterSpacing: 2, marginTop: 8}}>
-              ▲ +33.2 SINCE EPOCH 1
-            </div>
-          </div>
-        </div>
-      </div>
-      {/* hyperparams */}
-      <div
-        style={{
-          background: PANEL,
-          border: `1px solid ${HAIRLINE}`,
-          borderRadius: 28,
-          padding: '32px 48px',
-        }}
-      >
-        <div style={{fontFamily: MONO, fontSize: 26, letterSpacing: 6, color: MUTED, marginBottom: 22}}>
-          HYPERPARAMETERS
-        </div>
-        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20}}>
-          {params.map((p, i) => (
-            <div
-              key={p.k}
-              style={{
-                border: `1px solid ${HAIRLINE}`,
-                borderRadius: 14,
-                padding: '18px 24px',
-                opacity: entr(frame, 320 + i * 60, fps),
-              }}
-            >
-              <div style={{fontFamily: MONO, fontSize: 21, letterSpacing: 3, color: FAINT, marginBottom: 8}}>
-                {p.k}
-              </div>
-              <div style={{fontFamily: MONO, fontSize: 34, fontWeight: 700, color: INK}}>{p.v}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Training log console
-// ---------------------------------------------------------------------------
-const LogConsole: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 300, fps);
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: 240,
-        right: 240,
-        top: 1390,
-        height: 440,
-        background: 'rgba(3, 6, 12, 0.95)',
-        border: `1px solid ${HAIRLINE}`,
-        borderRadius: 24,
-        padding: '36px 52px',
-        opacity: e,
-        transform: `translateY(${(1 - e) * 50}px)`,
-        overflow: 'hidden',
-      }}
-    >
-      <div style={{fontFamily: MONO, fontSize: 26, letterSpacing: 5, color: FAINT, marginBottom: 22}}>
-        TRAINING LOG
-      </div>
-      {LOGS.map((l, i) => {
-        const le = entr(frame, 360 + i * 55, fps);
-        const highlight = l.startsWith('lr_schedule');
+    <div style={{position: 'absolute', top: QUEUE_TOP, left: 220, width: 2360}}>
+      {TICKETS.map((t, i) => {
+        const enterStart = ROW_START + i * ROW_GAP;
+        const enter = spring({frame: frame - enterStart, fps, config: {damping: 200, stiffness: 110}});
+        const triaged = frame >= TRIAGE_START + i * TRIAGE_STEP;
+        const dealT = interpolate(frame, [DEAL_START + i * 14, DEAL_START + i * 14 + 60], [0, 1], clamp01);
+        const resolved = frame >= RESOLVE_START + i * 24;
+        const y = interpolate(enter, [0, 1], [70, 0]);
+        const opacity = interpolate(enter, [0, 1], [0, 1]);
+        const dealX = interpolate(dealT, [0, 1], [0, 900]);
+        const slaFrac = interpolate(frame, [TRIAGE_START, 860], [1, 0.06], clamp01);
+        const slaColor = slaFrac > 0.5 ? CYAN : slaFrac > 0.22 ? P2 : P1;
+        const rowY = i * ROW_H;
         return (
           <div
-            key={i}
+            key={t.id}
             style={{
-              fontFamily: MONO,
-              fontSize: 29,
-              color: highlight ? AMBER : i === LOGS.length - 2 ? EMERALD : MUTED,
-              marginBottom: 14,
-              opacity: le,
-              whiteSpace: 'nowrap',
+              position: 'absolute',
+              top: rowY,
+              left: 0,
+              width: 2360,
+              height: ROW_H - 18,
+              opacity,
+              transform: `translateY(${y}px) translateX(${dealX}px)`,
+              backgroundColor: PANEL,
+              border: `1px solid ${HAIRLINE}`,
+              borderLeft: `10px solid ${triaged ? PRIORITY_COLOR[t.priority] : 'rgba(237,239,247,0.25)'}`,
+              borderRadius: 18,
+              display: 'flex',
+              alignItems: 'center',
+              padding: '0 44px',
+              gap: 40,
             }}
           >
-            {l}
+            <div style={{fontFamily: MONO, fontSize: 40, color: MUTED, width: 240}}>{t.id}</div>
+            <div style={{flex: 1}}>
+              <div style={{fontFamily: FONT, fontWeight: 650, fontSize: 52, color: INK}}>{t.subject}</div>
+              <div style={{display: 'flex', alignItems: 'center', gap: 26, marginTop: 10}}>
+                <div style={{fontFamily: MONO, fontSize: 34, color: MUTED, border: `1px solid ${HAIRLINE}`, borderRadius: 8, padding: '4px 16px'}}>
+                  {t.channel}
+                </div>
+                <div style={{flex: 1, height: 14, backgroundColor: 'rgba(237,239,247,0.10)', borderRadius: 7, overflow: 'hidden'}}>
+                  <div style={{width: `${slaFrac * 100}%`, height: '100%', backgroundColor: triaged ? slaColor : 'rgba(237,239,247,0.25)', borderRadius: 7}} />
+                </div>
+                <div style={{fontFamily: MONO, fontSize: 34, color: MUTED}}>SLA {Math.round(t.slaMin * slaFrac)}m</div>
+              </div>
+            </div>
+            <div
+              style={{
+                fontFamily: MONO,
+                fontWeight: 700,
+                fontSize: 44,
+                color: triaged ? '#070A14' : MUTED,
+                backgroundColor: triaged ? PRIORITY_COLOR[t.priority] : 'rgba(237,239,247,0.08)',
+                borderRadius: 12,
+                padding: '14px 34px',
+                transform: triaged ? 'scale(1)' : 'scale(0.92)',
+                boxShadow: triaged ? `0 0 34px ${PRIORITY_COLOR[t.priority]}66` : 'none',
+              }}
+            >
+              {t.priority}
+            </div>
+            <div style={{fontFamily: MONO, fontSize: 38, color: triaged ? CYAN : MUTED, width: 190, textAlign: 'right'}}>
+              {triaged ? `→ ${t.agent}` : 'QUEUED'}
+            </div>
+            {resolved && (
+              <div
+                style={{
+                  position: 'absolute',
+                  right: -30,
+                  top: -30,
+                  width: 96,
+                  height: 96,
+                  borderRadius: 48,
+                  backgroundColor: GREEN,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontFamily: FONT,
+                  fontWeight: 800,
+                  fontSize: 52,
+                  color: '#06281C',
+                  boxShadow: `0 0 44px ${GREEN}`,
+                }}
+              >
+                ✓
+              </div>
+            )}
           </div>
         );
       })}
-      <div
-        style={{
-          fontFamily: MONO,
-          fontSize: 29,
-          color: INK,
-          opacity: 0.4 + 0.6 * Math.abs(Math.sin(frame * 0.1)),
-        }}
-      >
-        ▊
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Agent pods (right side)
+// ---------------------------------------------------------------------------
+const AgentPods: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - DEAL_START + 40, fps, config: {damping: 200, stiffness: 80}});
+  const opacity = interpolate(enter, [0, 1], [0, 1]);
+  const x = interpolate(enter, [0, 1], [120, 0]);
+  const resolvedCount = TICKETS.filter((_, i) => frame >= RESOLVE_START + i * 24).length;
+  return (
+    <div style={{position: 'absolute', top: QUEUE_TOP - 40, right: 220, width: 830, opacity, transform: `translateX(${x}px)`}}>
+      <div style={{fontFamily: MONO, fontSize: 40, letterSpacing: 10, color: INDIGO, marginBottom: 30}}>AGENT PODS</div>
+      {AGENTS.map((a, i) => {
+        const loadW = interpolate(frame, [DEAL_START + 60, DEAL_START + 300], [0.25, a.load], clamp01);
+        const myTickets = TICKETS.filter((t) => t.agent === a.name && frame >= TRIAGE_START + TICKETS.indexOf(t) * TRIAGE_STEP).length;
+        return (
+          <div key={a.name} style={{backgroundColor: PANEL, border: `1px solid ${HAIRLINE}`, borderRadius: 18, padding: '30px 40px', marginBottom: 26}}>
+            <div style={{display: 'flex', alignItems: 'center'}}>
+              <div style={{width: 30, height: 30, borderRadius: 15, backgroundColor: a.color, boxShadow: `0 0 24px ${a.color}`, marginRight: 26}} />
+              <div style={{fontFamily: FONT, fontWeight: 750, fontSize: 54, color: INK}}>{a.name}</div>
+              <div style={{marginLeft: 'auto', fontFamily: MONO, fontSize: 42, color: CYAN}}>{myTickets} TICKETS</div>
+            </div>
+            <div style={{height: 22, backgroundColor: 'rgba(237,239,247,0.10)', borderRadius: 11, marginTop: 22, overflow: 'hidden'}}>
+              <div style={{width: `${loadW * 100}%`, height: '100%', background: 'linear-gradient(90deg,#818CF8,#A78BFA)', borderRadius: 11}} />
+            </div>
+            <div style={{fontFamily: MONO, fontSize: 34, color: MUTED, marginTop: 12}}>LOAD {Math.round(loadW * 100)}%</div>
+          </div>
+        );
+      })}
+      <div style={{backgroundColor: 'rgba(52,211,153,0.08)', border: `2px solid ${GREEN}`, borderRadius: 18, padding: '30px 40px', marginTop: 10}}>
+        <div style={{fontFamily: MONO, fontSize: 36, letterSpacing: 8, color: GREEN}}>RESOLVED</div>
+        <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 110, color: INK}}>
+          {resolvedCount}<span style={{fontSize: 54, color: MUTED}}> / 8</span>
+        </div>
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Footer
+// Payoff banner
 // ---------------------------------------------------------------------------
-const Footer: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 60, fps);
+const PayoffBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - PAYOFF_START, fps, config: {damping: 200, stiffness: 70}});
+  const opacity = interpolate(enter, [0, 1], [0, 1]);
+  const scale = interpolate(enter, [0, 1], [0.94, 1]);
+  const w = interpolate(frame, [PAYOFF_START, PAYOFF_START + 50], [0, 3400], clamp01);
   return (
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 56,
-        left: 240,
-        right: 240,
-        display: 'flex',
-        justifyContent: 'space-between',
-        fontFamily: MONO,
-        fontSize: 27,
-        letterSpacing: 4,
-        color: FAINT,
-        opacity: e,
-      }}
-    >
-      <span>CHECKPOINT SAVED · EPOCH 60</span>
-      <span style={{color: MUTED}}>◈&nbsp;&nbsp;EARLY STOPPING · PATIENCE 10</span>
-      <span>ML OPS · DEMO PREVIEW</span>
+    <div style={{position: 'absolute', bottom: 130, left: 0, right: 0, display: 'flex', justifyContent: 'center', opacity, transform: `scale(${scale})`}}>
+      <div style={{backgroundColor: 'rgba(7,10,20,0.92)', border: `2px solid ${INDIGO}`, borderRadius: 26, padding: '44px 90px', textAlign: 'center', boxShadow: `0 0 90px rgba(129,140,248,0.35)`}}>
+        <div style={{fontFamily: MONO, fontSize: 40, letterSpacing: 12, color: INDIGO}}>TRIAGE COMPLETE</div>
+        <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 96, color: INK, marginTop: 12}}>QUEUE CLEAR &nbsp;·&nbsp; SLA 98.4%</div>
+        <div style={{width: w, maxWidth: '100%', height: 10, background: 'linear-gradient(90deg,#818CF8,#A78BFA,#67E8F9)', borderRadius: 5, margin: '26px auto 0'}} />
+      </div>
     </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Film grain (full-frame, re-seeded every frame)
+// ---------------------------------------------------------------------------
+const GRAIN_COUNT = 900;
+const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
+  const dots: React.ReactElement[] = [];
+  for (let i = 0; i < GRAIN_COUNT; i++) {
+    const x = random(`st-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`st-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`st-grain-o-${frame}-${i}`) * 0.04;
+    const s = 2 + random(`st-grain-s-${frame}-${i}`) * 2.5;
+    dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {dots}
+    </svg>
   );
 };
 
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const MLTrainingDashboard: React.FC = () => {
+export const SupportTicketTriage: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
+
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
-      <Header frame={frame} fps={fps} />
-      <LossChart frame={frame} fps={fps} />
-      <LogConsole frame={frame} fps={fps} />
-      <RightColumn frame={frame} fps={fps} />
-      <Footer frame={frame} fps={fps} />
+      <TitleBar frame={frame} fps={fps} />
+      <TicketRows frame={frame} fps={fps} />
+      <AgentPods frame={frame} fps={fps} />
+      <PayoffBanner frame={frame} fps={fps} />
+      <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
 };
-
-export default MLTrainingDashboard;
