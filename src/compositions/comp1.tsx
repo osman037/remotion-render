@@ -1,17 +1,11 @@
 /**
- * PasswordManagerExplainer.tsx
+ * ClosingCostBreakdown.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * A password manager story on dark slate: "password123" types out and
- * shatters (cracked in 0.02 seconds), a generator assembles a strong
- * passphrase word by word while a strength meter climbs to green, saved
- * passwords fly into a vault that locks with a key-turn, then one master
- * key unlocks it and a credential autofills into a login form - one password
- * to remember. Payoff on vault/autofill, no timer visuals.
- * Intro -> build -> payoff -> resolve.
- *
- * Register in Root.tsx:
- *   <Composition id="PasswordManagerExplainer" component={PasswordManagerExplainer}
- *     width={3840} height={2160} fps={60} durationInFrames={900} />
+ * A brand-neutral real-estate closing-cost anatomy for realtors, mortgage
+ * educators, and homebuyer courses: a $425,000 purchase price splits into
+ * four fee buckets (lender / third-party / title-escrow / prepaid), flows
+ * through Loan Estimate and Closing Disclosure, and lands on cash-to-close.
+ * Demand-validated 2026-09-30 (PLAUSIBLE-strong).
  */
 
 import React from 'react';
@@ -25,467 +19,284 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (dark slate + cyan)
+// Palette (warm paper + ink, trust blues)
 // ---------------------------------------------------------------------------
-const BG = '#0C1424';
-const INK = '#EAF1FB';
-const MUTED = 'rgba(234,241,251,0.60)';
-const CYAN = '#38E1FF';
-const CYAN_DEEP = '#0E7FA8';
-const RED = '#FF5D5D';
-const SUCCESS = '#34D399';
-const GOLD = '#E8B44A';
-const GOLD_DEEP = '#9A7A14';
-const PANEL = 'rgba(18,28,48,0.80)';
-const HAIRLINE = 'rgba(234,241,251,0.16)';
+const BG = '#0B0E14';
+const INK = '#F4F1E8';
+const MUTED = 'rgba(244,241,232,0.58)';
+const NAVY = '#3B82F6';
+const TEAL = '#2DD4BF';
+const GOLD = '#FBBF24';
+const ROSE = '#FB7185';
+const GREEN = '#34D399';
+const PANEL = 'rgba(12,16,24,0.94)';
+const HAIRLINE = 'rgba(244,241,232,0.15)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
-// Timeline
+// Data
 // ---------------------------------------------------------------------------
-const WEAK_START = 60;
-const WEAK_TYPE_END = 150;
-const CRACK_START = 190;
-const GEN_START = 300;
-const METER_START = 420;
-const VAULT_START = 520;
-const LOCK_START = 640;
-const KEY_START = 700;
-const AUTOFILL_START = 740;
-const SHIELD_START = 810;
-const RESOLVE_START = 850;
+const PRICE = 425000;
+const BUCKETS = [
+  {name: 'LENDER FEES', items: ['origination 1%', 'appraisal $600', 'credit report $75'], total: 4925, color: NAVY},
+  {name: 'THIRD-PARTY', items: ['inspection $450', 'survey $550', 'attorney $900'], total: 1900, color: TEAL},
+  {name: 'TITLE & ESCROW', items: ['title search $400', 'title insurance $1,900', 'escrow $850'], total: 3150, color: GOLD},
+  {name: 'PREPAIDS', items: ['1-yr insurance $2,400', 'tax escrow $3,100', 'prepaid interest $780'], total: 6280, color: ROSE},
+];
+const CLOSING = BUCKETS.reduce((a, b) => a + b.total, 0);
+const DOWN = Math.round(PRICE * 0.1);
+const CASH_TO_CLOSE = DOWN + CLOSING;
 
-const WEAK = 'password123';
-const WORDS = ['harbor', 'lantern', '47', 'comet'];
-const SAVED_SITES = ['mail', 'bank', 'shop', 'cloud', 'work', 'social'];
+const B_START = 200;
+const B_GAP = 110;
+const DOC_START = 600;
+const TOTAL_START = 740;
 
 // ---------------------------------------------------------------------------
 // SVG defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="pmGlow" cx="50%" cy="32%" r="72%">
-      <stop offset="0%" stopColor="rgba(56,225,255,0.12)" />
-      <stop offset="55%" stopColor="rgba(56,225,255,0.04)" />
-      <stop offset="100%" stopColor="rgba(12,20,36,0)" />
+    <radialGradient id="ccGlow" cx="50%" cy="26%" r="80%">
+      <stop offset="0%" stopColor="#14263F" stopOpacity={0.85} />
+      <stop offset="55%" stopColor="#0C1626" stopOpacity={0.32} />
+      <stop offset="100%" stopColor="#0B0E14" stopOpacity={0} />
     </radialGradient>
-    <radialGradient id="pmVignette" cx="50%" cy="50%" r="76%">
-      <stop offset="60%" stopColor="rgba(4,8,16,0)" />
-      <stop offset="100%" stopColor="rgba(4,8,16,0.72)" />
+    <radialGradient id="ccVig" cx="50%" cy="50%" r="72%">
+      <stop offset="0%" stopColor="#000000" stopOpacity={0} />
+      <stop offset="78%" stopColor="#000000" stopOpacity={0} />
+      <stop offset="100%" stopColor="#030507" stopOpacity={0.85} />
     </radialGradient>
-    <linearGradient id="goldVault" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stopColor={'#F2D47E'} />
-      <stop offset="55%" stopColor={GOLD} />
-      <stop offset="100%" stopColor={GOLD_DEEP} />
+    <linearGradient id="ccSweep" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="#3B82F6" stopOpacity={0} />
+      <stop offset="50%" stopColor="#3B82F6" stopOpacity={0.10} />
+      <stop offset="100%" stopColor="#3B82F6" stopOpacity={0} />
     </linearGradient>
-    <filter id="cyanGlow2" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="14" result="blur" />
+    <filter id="ccGlow10" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation={10} result="b" />
       <feMerge>
-        <feMergeNode in="blur" />
+        <feMergeNode in="b" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
-    </filter>
-    <filter id="panelShadow8" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="22" stdDeviation="30" floodColor="#000000" floodOpacity="0.55" />
     </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background
+// Background: ink base + glow + vignette + drifting blueprint grid + sweep
 // ---------------------------------------------------------------------------
-const Background: React.FC = () => (
-  <>
-    <AbsoluteFill style={{backgroundColor: BG}} />
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <Defs />
-      <rect x={0} y={0} width={3840} height={2160} fill="url(#pmGlow)" />
-      <rect x={0} y={0} width={3840} height={2160} fill="url(#pmVignette)" />
+const Background: React.FC<{frame: number}> = ({frame}) => {
+  const lines: React.ReactElement[] = [];
+  const drift = (frame * 0.4) % 140;
+  for (let i = 0; i <= 30; i++) {
+    const x = i * 140 - drift;
+    lines.push(<line key={`v${i}`} x1={x} y1={0} x2={x} y2={2160} stroke="#8FA3C8" strokeWidth={1.5} opacity={0.07} />);
+  }
+  for (let j = 0; j <= 18; j++) {
+    const y = j * 140 - drift;
+    lines.push(<line key={`h${j}`} x1={0} y1={y} x2={3840} y2={y} stroke="#8FA3C8" strokeWidth={1.5} opacity={0.07} />);
+  }
+  const sweepY = interpolate(frame, [0, 900], [-400, 2560], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', inset: 0}}>
+      <rect width={3840} height={2160} fill={BG} />
+      <rect width={3840} height={2160} fill="url(#ccGlow)" />
+      <g>{lines}</g>
+      <rect x={0} y={sweepY - 260} width={3840} height={520} fill="url(#ccSweep)" />
+      <rect width={3840} height={2160} fill="url(#ccVig)" />
     </svg>
-  </>
-);
+  );
+};
 
 // ---------------------------------------------------------------------------
-// Title bar
+// Film grain
 // ---------------------------------------------------------------------------
-const TitleBar: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [0, 40], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const rise = interpolate(frame, [0, 40], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+const GRAIN_COUNT = 1100;
+
+const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
+  const rects: React.ReactElement[] = [];
+  for (let i = 0; i < GRAIN_COUNT; i++) {
+    const x = random(`cc-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`cc-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`cc-grain-o-${frame}-${i}`) * 0.045;
+    const s = 2 + random(`cc-grain-s-${frame}-${i}`) * 2.5;
+    const white = random(`cc-grain-w-${frame}-${i}`) > 0.5;
+    rects.push(
+      <rect key={i} x={x} y={y} width={s} height={s} fill={white ? '#FFFFFF' : '#000000'} opacity={o} />,
+    );
+  }
   return (
-    <div style={{position: 'absolute', top: 80 + rise, left: 200, opacity: fade}}>
-      <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 78, letterSpacing: -1.5}}>
-        One password <span style={{color: CYAN}}>to remember</span>
+    <svg width={3840} height={2160} style={{position: 'absolute', inset: 0}}>
+      {rects}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Header + price hero
+// ---------------------------------------------------------------------------
+const Header: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const p = spring({frame: Math.max(0, frame - 8), fps, config: {damping: 120, stiffness: 160}});
+  const y = interpolate(p, [0, 1], [60, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const op = interpolate(p, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const price = Math.floor(interpolate(frame, [30, 170], [0, PRICE], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
+  return (
+    <div style={{position: 'absolute', top: 100, left: 0, right: 0, opacity: op, transform: `translateY(${y}px)`, textAlign: 'center'}}>
+      <div style={{fontFamily: MONO, fontSize: 34, letterSpacing: 10, color: MUTED}}>HOMEBUYER EDUCATION</div>
+      <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 104, letterSpacing: 8, color: INK, marginTop: 22}}>
+        CLOSING COST <span style={{color: NAVY}}>BREAKDOWN</span>
       </div>
-      <div style={{color: MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 3, marginTop: 12}}>
-        PASSWORD MANAGER &middot; HOW IT WORKS
+      <div style={{marginTop: 18, display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: 30}}>
+        <span style={{fontFamily: MONO, fontSize: 34, letterSpacing: 6, color: MUTED}}>PURCHASE PRICE</span>
+        <span style={{fontFamily: FONT, fontWeight: 800, fontSize: 88, color: INK}}>${price.toLocaleString('en-US')}</span>
+        <span style={{fontFamily: MONO, fontSize: 34, letterSpacing: 6, color: MUTED}}>10% DOWN</span>
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Weak password types out, then cracks and shatters
+// Four fee-bucket cards
 // ---------------------------------------------------------------------------
-const WeakPassword: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - WEAK_START, fps, config: {damping: 200, stiffness: 90}});
-  if (s <= 0.001) return null;
+const Buckets: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const maxTotal = Math.max(...BUCKETS.map((b) => b.total));
+  return (
+    <div style={{position: 'absolute', top: 560, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 64}}>
+      {BUCKETS.map((b, i) => {
+        const start = B_START + i * B_GAP;
+        const inn = spring({frame: Math.max(0, frame - start), fps, config: {damping: 110, stiffness: 160}});
+        const op = interpolate(inn, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+        const yy = interpolate(inn, [0, 1], [70, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+        if (op <= 0) return null;
+        const fill = interpolate(frame, [start + 30, start + 100], [0, 1], {
+          extrapolateLeft: 'clamp',
+          extrapolateRight: 'clamp',
+        });
+        const shownTotal = Math.floor(b.total * fill);
+        return (
+          <div
+            key={b.name}
+            style={{
+              width: 800,
+              padding: '48px 54px',
+              background: PANEL,
+              border: `2px solid ${HAIRLINE}`,
+              borderTop: `8px solid ${b.color}`,
+              borderRadius: 26,
+              opacity: op,
+              transform: `translateY(${yy}px)`,
+            }}
+          >
+            <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 44, color: INK, letterSpacing: 4}}>{b.name}</div>
+            <div style={{marginTop: 30, display: 'flex', flexDirection: 'column', gap: 16}}>
+              {b.items.map((it, k) => {
+                const tick = frame >= start + 40 + k * 18;
+                return (
+                  <div key={it} style={{display: 'flex', justifyContent: 'space-between', opacity: tick ? 1 : 0.25}}>
+                    <span style={{fontFamily: MONO, fontSize: 29, color: tick ? INK : MUTED}}>{it.split(' ').slice(0, -1).join(' ')}</span>
+                    <span style={{fontFamily: MONO, fontSize: 29, color: tick ? b.color : MUTED, fontWeight: 700}}>
+                      {it.split(' ').slice(-1)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{marginTop: 32, height: 26, background: 'rgba(244,241,232,0.08)', borderRadius: 13, overflow: 'hidden'}}>
+              <div style={{width: `${(b.total / maxTotal) * fill * 100}%`, height: '100%', background: b.color, borderRadius: 13, boxShadow: `0 0 20px ${b.color}`}} />
+            </div>
+            <div style={{marginTop: 16, textAlign: 'right', fontFamily: FONT, fontWeight: 800, fontSize: 52, color: b.color}}>
+              ${shownTotal.toLocaleString('en-US')}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
-  const typed = Math.min(WEAK.length, Math.floor((frame - WEAK_START) / ((WEAK_TYPE_END - WEAK_START) / WEAK.length)));
-  const crack = spring({frame: frame - CRACK_START, fps, config: {damping: 200, stiffness: 120}});
-  const shattered = frame >= CRACK_START + 50;
-
-  // crack shards
-  const shards = [0, 1, 2, 3, 4, 5];
-  const dirs = [
-    [-1, -1], [1, -1.4], [-1.4, 0.6], [1.2, 0.8], [-0.5, 1.4], [0.7, -0.6],
+// ---------------------------------------------------------------------------
+// Document rail: Loan Estimate -> Closing Disclosure
+// ---------------------------------------------------------------------------
+const DocRail: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const docs = [
+    {name: 'LOAN ESTIMATE', when: 'WITHIN 3 DAYS OF APPLICATION', start: DOC_START},
+    {name: 'CLOSING DISCLOSURE', when: 'AT LEAST 3 DAYS BEFORE CLOSING', start: DOC_START + 70},
   ];
-
   return (
-    <div style={{
-      position: 'absolute', left: 200, top: 400, width: 1600,
-      opacity: Math.min(1, s) * (shattered ? interpolate(frame, [CRACK_START + 50, CRACK_START + 110], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}) : 1),
-    }}>
-      <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>TYPICAL PASSWORD</div>
-      <div style={{
-        marginTop: 18, background: PANEL, borderRadius: 26,
-        border: `3px solid ${crack > 0.3 ? RED : HAIRLINE}`,
-        padding: '44px 56px', filter: 'url(#panelShadow8)',
-        position: 'relative', overflow: 'visible',
-      }}>
-        <div style={{display: 'flex', alignItems: 'center', gap: 6, minHeight: 110}}>
-          {WEAK.slice(0, Math.max(0, typed)).split('').map((ch, i) => {
-            const dir = dirs[i % dirs.length];
-            const fly = shattered ? Math.min(1, (frame - CRACK_START - 50) / 40) : 0;
-            return (
-              <span key={i} style={{
-                color: crack > 0.3 ? RED : INK,
-                fontFamily: MONO, fontWeight: 800, fontSize: 88,
-                display: 'inline-block',
-                transform: fly > 0
-                  ? `translate(${dir[0] * fly * 260}px, ${dir[1] * fly * 200}px) rotate(${fly * dir[0] * 120}deg)`
-                  : 'none',
-                opacity: 1 - fly * 0.4,
-                textShadow: crack > 0.3 ? '0 0 30px rgba(255,93,93,0.6)' : 'none',
-              }}>
-                {ch}
-              </span>
-            );
-          })}
-          {typed < WEAK.length && frame < CRACK_START && (
-            <span style={{
-              width: 8, height: 96, background: CYAN, marginLeft: 8,
-              opacity: Math.sin(frame * 0.4) > 0 ? 1 : 0.15,
-            }} />
-          )}
-        </div>
-        {/* crack lines */}
-        {crack > 0.3 && !shattered && (
-          <svg width={1488} height={220} style={{position: 'absolute', left: 0, top: 0, overflow: 'visible'}}>
-            {[
-              'M 300 20 L 420 120 L 380 220',
-              'M 700 10 L 640 130 L 760 220',
-              'M 1100 30 L 1020 140 L 1120 220',
-            ].map((d, i) => (
-              <path key={i} d={d} fill="none" stroke={RED} strokeWidth={6}
-                pathLength={1} strokeDasharray={1} strokeDashoffset={1 - Math.min(1, crack)}
-                filter="url(#cyanGlow2)" />
-            ))}
-          </svg>
-        )}
-      </div>
-      {crack > 0.5 && (
-        <div style={{
-          marginTop: 22, display: 'flex', alignItems: 'center', gap: 20,
-          opacity: interpolate(frame, [CRACK_START + 10, CRACK_START + 40], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
-        }}>
-          <span style={{
-            background: RED, color: '#fff', fontFamily: MONO, fontWeight: 800,
-            fontSize: 36, padding: '12px 30px', borderRadius: 12,
-          }}>
-            CRACKED IN 0.02 SECONDS
-          </span>
-          <span style={{color: MUTED, fontFamily: FONT, fontSize: 30}}>
-            reused on 14 sites
-          </span>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Generator: passphrase words slot in, strength meter climbs
-// ---------------------------------------------------------------------------
-const Generator: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - GEN_START, fps, config: {damping: 200, stiffness: 80}});
-  if (s <= 0.001) return null;
-  const meter = interpolate(frame, [METER_START, METER_START + 120], [0, 1], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
-  const bits = Math.round(interpolate(frame, [METER_START, METER_START + 120], [0, 128], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  }));
-
-  return (
-    <div style={{
-      position: 'absolute', left: 2040, top: 400, width: 1600,
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 60}px)`,
-    }}>
-      <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>GENERATED FOR YOU</div>
-      <div style={{
-        marginTop: 18, background: PANEL, borderRadius: 26,
-        border: `2px solid ${HAIRLINE}`, padding: '44px 56px', filter: 'url(#panelShadow8)',
-      }}>
-        <div style={{display: 'flex', gap: 18, flexWrap: 'wrap'}}>
-          {WORDS.map((w, i) => {
-            const ws = spring({frame: frame - (GEN_START + 30 + i * 46), fps, config: {damping: 200, stiffness: 150}});
-            if (ws <= 0.001) return null;
-            return (
-              <span key={w} style={{
-                background: 'rgba(56,225,255,0.10)', border: `2px solid ${CYAN}`,
-                borderRadius: 16, padding: '18px 34px',
-                color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 52,
-                opacity: Math.min(1, ws),
-                transform: `translateY(${(1 - Math.min(1, ws)) * -30}px)`,
-                boxShadow: '0 0 30px rgba(56,225,255,0.25)',
-              }}>
-                {w}
-              </span>
-            );
-          })}
-        </div>
-        {/* strength meter */}
-        <div style={{marginTop: 36}}>
-          <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 14}}>
-            <span style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 2}}>STRENGTH</span>
-            <span style={{
-              color: meter > 0.8 ? SUCCESS : meter > 0.4 ? '#FFB020' : RED,
-              fontFamily: MONO, fontWeight: 800, fontSize: 40,
-            }}>
-              {meter > 0.8 ? 'STRONG' : meter > 0.4 ? 'FAIR' : 'WEAK'}
-            </span>
-          </div>
-          <div style={{height: 40, borderRadius: 20, background: 'rgba(234,241,251,0.08)', overflow: 'hidden', border: `2px solid ${HAIRLINE}`}}>
-            <div style={{
-              height: '100%', width: `${meter * 100}%`, borderRadius: 20,
-              background: meter > 0.8 ? SUCCESS : meter > 0.4 ? 'linear-gradient(90deg,#C77E0A,#FFB020)' : RED,
-              boxShadow: meter > 0.8 ? '0 0 30px rgba(52,211,153,0.5)' : 'none',
-            }} />
-          </div>
-          <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, marginTop: 12}}>
-            {bits}-bit entropy &middot; {Math.round(bits * 3.2)} trillion trillion guesses
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Vault: passwords fly in, door locks with key turn
-// ---------------------------------------------------------------------------
-const Vault: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - (VAULT_START - 60), fps, config: {damping: 200, stiffness: 75}});
-  if (s <= 0.001) return null;
-  const lockT = interpolate(frame, [LOCK_START, LOCK_START + 60], [0, 1], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
-  const locked = lockT >= 1;
-
-  const VX = 200; const VY = 1080; const VW = 1100; const VH = 760;
-
-  return (
-    <div style={{
-      position: 'absolute', left: VX, top: VY, width: VW,
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 60}px)`,
-    }}>
-      <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3, marginBottom: 18}}>
-        YOUR ENCRYPTED VAULT
-      </div>
-      <div style={{position: 'relative', width: VW, height: VH}}>
-        <svg width={VW} height={VH} viewBox={`0 0 ${VW} ${VH}`}>
-          {/* vault body */}
-          <rect x={20} y={20} width={VW - 40} height={VH - 40} rx={40}
-            fill="#1A2438" stroke={locked ? SUCCESS : GOLD} strokeWidth={8} />
-          <rect x={20} y={20} width={VW - 40} height={VH - 40} rx={40}
-            fill="none" stroke={GOLD} strokeWidth={3} opacity={0.4} />
-          {/* door */}
-          <g transform={`translate(${VW / 2} ${VH / 2})`}>
-            <circle r={220} fill="#0E1830" stroke={GOLD} strokeWidth={10} />
-            {/* spokes rotate as it locks */}
-            <g transform={`rotate(${lockT * 120})`}>
-              {[0, 60, 120].map((a) => (
-                <rect key={a} x={-26} y={-210} width={52} height={420} rx={26}
-                  fill="url(#goldVault)" opacity={0.9}
-                  transform={`rotate(${a})`} />
-              ))}
-            </g>
-            <circle r={70} fill="url(#goldVault)" stroke={GOLD_DEEP} strokeWidth={6} />
-            <circle r={26} fill="#0E1830" />
-          </g>
-          {/* flying passwords */}
-          {SAVED_SITES.map((site, i) => {
-            const start = VAULT_START + i * 40;
-            const t = interpolate(frame, [start, start + 70], [0, 1], {
-              extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-            });
-            if (t <= 0 || t >= 1) return null;
-            const fx = interpolate(t, [0, 1], [VW + 300, VW / 2]);
-            const fy = interpolate(t, [0, 1], [120 + i * 90, VH / 2]);
-            return (
-              <g key={site} opacity={1 - t * 0.3}>
-                <rect x={fx - 130} y={fy - 44} width={260} height={88} rx={18}
-                  fill={PANEL} stroke={CYAN} strokeWidth={3} />
-                <text x={fx} y={fy + 12} textAnchor="middle" fill={INK} fontSize={36} fontFamily={MONO} fontWeight={700}>
-                  {site}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-        {locked && (
-          <div style={{
-            position: 'absolute', bottom: -30, left: 0, right: 0, textAlign: 'center',
-            opacity: interpolate(frame, [LOCK_START + 40, LOCK_START + 80], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
-          }}>
-            <span style={{
-              background: 'rgba(52,211,153,0.14)', border: `2px solid ${SUCCESS}`,
-              color: SUCCESS, fontFamily: MONO, fontWeight: 800, fontSize: 36,
-              padding: '14px 44px', borderRadius: 999, letterSpacing: 2,
-            }}>
-              256-BIT ENCRYPTED &middot; LOCKED
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Master key unlocks -> autofill into login form
-// ---------------------------------------------------------------------------
-const Autofill: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - (KEY_START - 60), fps, config: {damping: 200, stiffness: 80}});
-  if (s <= 0.001) return null;
-  const keyTurn = interpolate(frame, [KEY_START, KEY_START + 50], [0, 1], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
-  const unlocked = keyTurn >= 1;
-  const fillUser = interpolate(frame, [AUTOFILL_START, AUTOFILL_START + 40], [0, 1], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
-  const fillPass = interpolate(frame, [AUTOFILL_START + 40, AUTOFILL_START + 90], [0, 1], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
-  const shield = spring({frame: frame - SHIELD_START, fps, config: {damping: 150, stiffness: 160}});
-
-  const LX = 1520; const LW = 1920;
-
-  return (
-    <div style={{
-      position: 'absolute', left: LX, top: 1080, width: LW,
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 60}px)`,
-    }}>
-      <div style={{display: 'flex', gap: 60, alignItems: 'flex-start'}}>
-        {/* master key */}
-        <div style={{textAlign: 'center', paddingTop: 30}}>
-          <svg width={220} height={220} viewBox="0 0 220 220">
-            <g transform={`rotate(${keyTurn * 90} 110 110)`}>
-              <circle cx={110} cy={70} r={44} fill="none" stroke={GOLD} strokeWidth={18} />
-              <rect x={101} y={110} width={18} height={90} fill={GOLD} />
-              <rect x={101} y={150} width={44} height={16} fill={GOLD} />
-              <rect x={101} y={180} width={34} height={16} fill={GOLD} />
-            </g>
-          </svg>
-          <div style={{color: unlocked ? SUCCESS : MUTED, fontFamily: MONO, fontWeight: 800, fontSize: 32, marginTop: 12}}>
-            {unlocked ? 'UNLOCKED' : 'MASTER KEY'}
-          </div>
-        </div>
-        {/* login form */}
-        <div style={{
-          flex: 1, background: PANEL, borderRadius: 30, padding: '48px 56px',
-          border: `2px solid ${fillPass >= 1 ? SUCCESS : HAIRLINE}`,
-          filter: 'url(#panelShadow8)',
-          boxShadow: fillPass >= 1 ? '0 0 60px rgba(52,211,153,0.25)' : 'none',
-        }}>
-          <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>SIGN IN &middot; AUTOFILL</div>
-          <div style={{
-            marginTop: 24, borderRadius: 16, border: `2px solid ${HAIRLINE}`,
-            padding: '26px 34px', background: 'rgba(234,241,251,0.04)',
-          }}>
-            <div style={{color: MUTED, fontFamily: MONO, fontSize: 24, letterSpacing: 2}}>USERNAME</div>
-            <div style={{color: INK, fontFamily: MONO, fontSize: 44, fontWeight: 700, marginTop: 6, minHeight: 60}}>
-              {'danish.khan@mail.com'.slice(0, Math.floor(fillUser * 21))}
-              {fillUser < 1 && <span style={{opacity: Math.sin(frame * 0.4) > 0 ? 1 : 0.15, color: CYAN}}>|</span>}
+    <div style={{position: 'absolute', top: 1470, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 90, alignItems: 'center'}}>
+      {docs.map((d, i) => {
+        const on = frame >= d.start;
+        const pop = on ? spring({frame: frame - d.start, fps, config: {damping: 95, stiffness: 220}}) : 0;
+        const op = interpolate(pop, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+        if (op <= 0) return null;
+        return (
+          <React.Fragment key={d.name}>
+            {i > 0 && (
+              <div style={{fontSize: 64, color: GREEN, opacity: op}}>→</div>
+            )}
+            <div
+              style={{
+                width: 1150,
+                padding: '40px 60px',
+                background: PANEL,
+                border: `2px solid ${on ? GREEN : HAIRLINE}`,
+                borderRadius: 24,
+                opacity: op,
+                transform: `scale(${0.9 + pop * 0.1})`,
+                boxShadow: on ? '0 0 50px rgba(52,211,153,0.16)' : 'none',
+              }}
+            >
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 44, color: INK, letterSpacing: 3}}>{d.name}</div>
+                <div style={{width: 64, height: 64, borderRadius: '50%', background: GREEN, color: '#06231C', fontSize: 40, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>✓</div>
+              </div>
+              <div style={{fontFamily: MONO, fontSize: 28, color: MUTED, marginTop: 12, letterSpacing: 3}}>{d.when}</div>
             </div>
-          </div>
-          <div style={{
-            marginTop: 20, borderRadius: 16, border: `2px solid ${HAIRLINE}`,
-            padding: '26px 34px', background: 'rgba(234,241,251,0.04)',
-          }}>
-            <div style={{color: MUTED, fontFamily: MONO, fontSize: 24, letterSpacing: 2}}>PASSWORD</div>
-            <div style={{color: INK, fontFamily: MONO, fontSize: 44, fontWeight: 700, marginTop: 6, minHeight: 60, letterSpacing: 8}}>
-              {'\u2022'.repeat(Math.floor(fillPass * 16))}
-            </div>
-          </div>
-          {fillPass >= 1 && (
-            <div style={{
-              marginTop: 24, borderRadius: 16, padding: '24px',
-              background: SUCCESS, textAlign: 'center',
-              opacity: interpolate(frame, [AUTOFILL_START + 90, AUTOFILL_START + 120], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
-            }}>
-              <span style={{color: '#0B1220', fontFamily: FONT, fontWeight: 800, fontSize: 44}}>
-                Signed in securely
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-      {/* shield checkmark */}
-      {shield > 0.001 && (
-        <div style={{
-          position: 'absolute', right: 40, top: -40,
-          transform: `scale(${0.5 + 0.5 * Math.min(1, shield)})`,
-          opacity: Math.min(1, shield),
-        }}>
-          <svg width={190} height={210} viewBox="0 0 190 210">
-            <path d="M95 8 L172 42 V118 C172 166 136 192 95 206 C54 192 18 166 18 118 V42 Z"
-              fill="rgba(52,211,153,0.14)" stroke={SUCCESS} strokeWidth={9} filter="url(#cyanGlow2)" />
-            <path d="M66 108 L88 132 L126 88" fill="none" stroke={SUCCESS} strokeWidth={16} strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-      )}
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Resolve strip
+// Cash-to-close payoff
 // ---------------------------------------------------------------------------
-const ResolveStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - RESOLVE_START, fps, config: {damping: 200, stiffness: 100}});
-  if (s <= 0.001) return null;
+const Payoff: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const on = frame >= TOTAL_START;
+  const p = on ? spring({frame: frame - TOTAL_START, fps, config: {damping: 90, stiffness: 140}}) : 0;
+  const op = interpolate(p, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  if (op <= 0) return null;
+  const cash = Math.floor(interpolate(frame, [TOTAL_START, 880], [0, CASH_TO_CLOSE], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
+  const scale = 0.85 + p * 0.15;
   return (
-    <div style={{
-      position: 'absolute', bottom: 92, left: 0, width: 3840,
-      display: 'flex', justifyContent: 'center',
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 40}px)`,
-    }}>
-      <div style={{
-        background: PANEL, border: `2px solid ${CYAN}`, borderRadius: 999,
-        padding: '28px 90px', display: 'flex', alignItems: 'center', gap: 40,
-      }}>
-        <span style={{
-          width: 58, height: 58, borderRadius: '50%', background: CYAN,
-          color: '#0B1220', fontSize: 36, fontWeight: 800,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>&#10003;</span>
-        <span style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 52}}>
-          One password to remember &mdash; the manager handles the rest
-        </span>
+    <div style={{position: 'absolute', bottom: 200, left: 0, right: 0, opacity: op, transform: `scale(${scale})`, textAlign: 'center'}}>
+      <div style={{fontFamily: MONO, fontSize: 36, letterSpacing: 12, color: MUTED}}>
+        DOWN PAYMENT ${DOWN.toLocaleString('en-US')} + CLOSING ${CLOSING.toLocaleString('en-US')}
+      </div>
+      <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 150, letterSpacing: 6, color: INK, marginTop: 10}}>
+        CASH TO CLOSE&nbsp;&nbsp;<span style={{color: GREEN, textShadow: '0 0 60px rgba(52,211,153,0.45)'}}>${cash.toLocaleString('en-US')}</span>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Ticker strip
+// ---------------------------------------------------------------------------
+const STRIP = '  •  CLOSING COSTS TYPICALLY RUN 2–5% OF THE PURCHASE PRICE    •  COMPARE THE LOAN ESTIMATE AGAINST THE CLOSING DISCLOSURE    •  SOME FEES ARE NEGOTIABLE — ASK    ';
+
+const Strip: React.FC<{frame: number}> = ({frame}) => {
+  const x = -((frame * 7) % 2400);
+  return (
+    <div style={{position: 'absolute', bottom: 56, left: 0, right: 0, overflow: 'hidden', borderTop: `2px solid ${HAIRLINE}`, borderBottom: `2px solid ${HAIRLINE}`, padding: '22px 0'}}>
+      <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 5, color: MUTED, whiteSpace: 'nowrap', transform: `translateX(${x}px)`}}>
+        {STRIP.repeat(3)}
       </div>
     </div>
   );
@@ -494,43 +305,20 @@ const ResolveStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-// Deterministic full-frame film grain — bitrate insurance for the >= 20 Mbps
-// verify gate. random() from 'remotion' is seeded; positions re-seed every
-// frame. Pure SVG/React (canvas/DOM grain is dead code under SSR). Subtle by design.
-// ---------------------------------------------------------------------------
-const GRAIN_COUNT = 2500;
-const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
-  const dots: React.ReactElement[] = [];
-  for (let i = 0; i < GRAIN_COUNT; i++) {
-    const x = random(`grain-x-${frame}-${i}`) * 3840;
-    const y = random(`grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`grain-o-${frame}-${i}`) * 0.04;
-    const s = 2 + random(`grain-s-${frame}-${i}`) * 2.5;
-    dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
-  }
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {dots}
-    </svg>
-  );
-};
-
-export const PasswordManagerExplainer: React.FC = () => {
+export const ClosingCostBreakdown: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
-      <Background />
-      <TitleBar frame={frame} />
-      <WeakPassword frame={frame} fps={fps} />
-      <Generator frame={frame} fps={fps} />
-      <Vault frame={frame} fps={fps} />
-      <Autofill frame={frame} fps={fps} />
-      <ResolveStrip frame={frame} fps={fps} />
+      <Defs />
+      <Background frame={frame} />
+      <Header frame={frame} fps={fps} />
+      <Buckets frame={frame} fps={fps} />
+      <DocRail frame={frame} fps={fps} />
+      <Payoff frame={frame} fps={fps} />
+      <Strip frame={frame} />
       <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
 };
-
-export default PasswordManagerExplainer;
