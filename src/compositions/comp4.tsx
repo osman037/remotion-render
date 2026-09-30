@@ -1,14 +1,11 @@
 /**
- * SalesPipelineStages.tsx
+ * MarketplaceSellerFees.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * A sales pipeline story on deep indigo: deals flow left to right through
- * five stages, conversion counters tick between stages, stalled deals pulse
- * for attention, and the forecast gauge rolls up to a closed-won total.
- * Intro -> build -> payoff -> resolve.
- *
- * Register in Root.tsx:
- *   <Composition id="SalesPipelineStages" component={SalesPipelineStages}
- *     width={3840} height={2160} fps={60} durationInFrames={900} />
+ * A brand-neutral marketplace seller fee waterfall for seller-education
+ * courses, ecommerce agencies, and seller SaaS: a $120 sale breaks into a
+ * fee-slice waterfall (referral, fulfillment, storage, returns reserve),
+ * and the payoff is the net-profit bar with a margin ring. Demand-validated
+ * 2026-09-30 (PROVEN).
  */
 
 import React from 'react';
@@ -22,367 +19,401 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (deep indigo + violet sales)
+// Palette (commerce teal + amber on ink)
 // ---------------------------------------------------------------------------
-const BG = '#0E1030';
-const INK = '#EEF0FD';
-const MUTED = 'rgba(238,240,253,0.60)';
-const VIOLET = '#8B7CFF';
-const VIOLET_DEEP = '#4A3FBF';
+const BG = '#071009';
+const INK = '#F1F7F2';
+const MUTED = 'rgba(241,247,242,0.58)';
+const TEAL = '#2DD4BF';
+const AMBER = '#FBBF24';
+const RED = '#F87171';
+const PURPLE = '#A78BFA';
+const BLUE = '#60A5FA';
 const GREEN = '#34D399';
-const AMBER = '#FFB020';
-const RED = '#FF6B6B';
-const PANEL = 'rgba(20,24,66,0.82)';
-const HAIRLINE = 'rgba(238,240,253,0.16)';
+const PANEL = 'rgba(8,20,14,0.92)';
+const HAIRLINE = 'rgba(241,247,242,0.15)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
+// Data: $120 sale waterfall
+// ---------------------------------------------------------------------------
+const SALE = 120;
+interface Fee {name: string; pct: number; amount?: number; color: string; note: string}
+const FEES: Fee[] = [
+  {name: 'REFERRAL FEE', pct: 15, color: RED, note: '15% of sale price'},
+  {name: 'FULFILLMENT', pct: 0, amount: 6.38, color: AMBER, note: 'pick · pack · ship'},
+  {name: 'STORAGE', pct: 0, amount: 2.10, color: PURPLE, note: 'monthly / unit'},
+  {name: 'RETURNS RESERVE', pct: 0, amount: 3.60, color: BLUE, note: '3% buffer'},
+];
+const feeAmount = (f: Fee): number =>
+  f.pct > 0 ? (SALE * f.pct) / 100 : (f.amount ?? 0);
+const TOTAL_FEES = FEES.reduce((a, f) => a + feeAmount(f), 0);
+const NET = SALE - TOTAL_FEES;
+const MARGIN = (NET / SALE) * 100;
+
+// ---------------------------------------------------------------------------
 // Timeline
 // ---------------------------------------------------------------------------
-const PIPE_START = 60;
-const DEALS_START = 140;
-const CONV_START = 420;
-const FORECAST_START = 560;
-const RESOLVE_START = 800;
-
-const STAGES = [
-  {name: 'LEAD', deals: 48, value: 240000, color: '#8B7CFF'},
-  {name: 'QUALIFIED', deals: 32, value: 198000, color: '#7CC4FF'},
-  {name: 'MEETING', deals: 21, value: 164000, color: '#5EEAD4'},
-  {name: 'PROPOSAL', deals: 12, value: 118000, color: '#FBBF24'},
-  {name: 'CLOSED WON', deals: 7, value: 84000, color: '#34D399'},
-];
-const CONVERSIONS = [67, 66, 57, 58]; // % between stages
-
-const DEALS = [
-  {label: 'NOVA LABS', value: 18000, stage: 4},
-  {label: 'HELIX CO', value: 24000, stage: 4},
-  {label: 'BRIGHTLINE', value: 12000, stage: 3},
-  {label: 'KODO', value: 31000, stage: 3},
-  {label: 'MERIDIAN', value: 9000, stage: 2},
-  {label: 'ATLAS FOODS', value: 27000, stage: 2},
-  {label: 'PULSEPOINT', value: 15000, stage: 1},
-  {label: 'FERNWAY', value: 22000, stage: 0},
-];
+const SALE_START = 40;
+const FEE_START = 220;
+const FEE_GAP = 95;
+const NET_START = 660;
+const MARGIN_START = 720;
 
 // ---------------------------------------------------------------------------
 // SVG defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="spGlow" cx="50%" cy="30%" r="72%">
-      <stop offset="0%" stopColor="rgba(139,124,255,0.13)" />
-      <stop offset="55%" stopColor="rgba(139,124,255,0.035)" />
-      <stop offset="100%" stopColor="rgba(14,16,48,0)" />
+    <radialGradient id="msGlow" cx="50%" cy="30%" r="80%">
+      <stop offset="0%" stopColor="#0B3B32" stopOpacity={0.8} />
+      <stop offset="55%" stopColor="#0A241E" stopOpacity={0.3} />
+      <stop offset="100%" stopColor="#071009" stopOpacity={0} />
     </radialGradient>
-    <radialGradient id="spVignette" cx="50%" cy="50%" r="76%">
-      <stop offset="60%" stopColor="rgba(6,7,22,0)" />
-      <stop offset="100%" stopColor="rgba(6,7,22,0.72)" />
+    <radialGradient id="msVig" cx="50%" cy="50%" r="72%">
+      <stop offset="0%" stopColor="#000000" stopOpacity={0} />
+      <stop offset="78%" stopColor="#000000" stopOpacity={0} />
+      <stop offset="100%" stopColor="#010604" stopOpacity={0.85} />
     </radialGradient>
-    <linearGradient id="spFlow" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={VIOLET_DEEP} />
-      <stop offset="100%" stopColor={VIOLET} />
+    <linearGradient id="msSweep" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor="#2DD4BF" stopOpacity={0} />
+      <stop offset="50%" stopColor="#2DD4BF" stopOpacity={0.10} />
+      <stop offset="100%" stopColor="#2DD4BF" stopOpacity={0} />
     </linearGradient>
-    <filter id="spGlow14" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="14" result="blur" />
+    <filter id="msGlow10" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation={10} result="b" />
       <feMerge>
-        <feMergeNode in="blur" />
+        <feMergeNode in="b" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
-    </filter>
-    <filter id="spShadow" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="22" stdDeviation="30" floodColor="#000000" floodOpacity="0.55" />
     </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background
+// Background: teal glow + vignette + drifting coin field + vertical sweep
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const driftX = (frame * 0.3) % 120;
-  const driftY = (frame * 0.18) % 120;
-  const scanY = ((frame / 900) * (2160 + 300)) % (2160 + 300) - 150;
-  const dots: React.ReactElement[] = [];
-  for (let gx = 0; gx <= 33; gx++) {
-    for (let gy = 0; gy <= 19; gy++) {
-      const shimmer = 0.05 + 0.05 * Math.sin(frame * 0.07 + gx * 0.9 + gy * 1.1);
-      dots.push(
-        <circle key={`${gx}-${gy}`} cx={gx * 120 - driftX} cy={gy * 120 - driftY} r={2.2} fill="#8B7CFF" opacity={shimmer} />
-      );
-    }
+  const coins: React.ReactElement[] = [];
+  for (let i = 0; i < 90; i++) {
+    const bx = random(`ms-coin-x-${i}`) * 3840;
+    const by = random(`ms-coin-y-${i}`) * 2160;
+    const y = ((by + frame * (0.6 + random(`ms-coin-v-${i}`) * 1.2)) % 2300) - 70;
+    const o = 0.04 + random(`ms-coin-o-${i}`) * 0.06;
+    const r = 3 + random(`ms-coin-r-${i}`) * 7;
+    coins.push(<circle key={i} cx={bx} cy={y} r={r} fill="#2DD4BF" opacity={o} />);
   }
+  const sweepX = interpolate(frame, [0, 900], [-500, 4340], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
   return (
-    <>
-      <AbsoluteFill style={{backgroundColor: BG}} />
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <Defs />
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#spGlow)" />
-        {dots}
-        <rect x={0} y={scanY - 80} width={3840} height={160} fill="rgba(139,124,255,0.03)" />
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#spVignette)" />
-      </svg>
-    </>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Title bar
-// ---------------------------------------------------------------------------
-const TitleBar: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [0, 40], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const rise = interpolate(frame, [0, 40], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  return (
-    <div style={{position: 'absolute', top: 80 + rise, left: 200, opacity: fade}}>
-      <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 78, letterSpacing: -1.5}}>
-        Watch a quarter&rsquo;s <span style={{color: VIOLET}}>pipeline</span> take shape
-      </div>
-      <div style={{color: MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 3, marginTop: 12}}>
-        SALES PIPELINE &middot; LEAD TO CLOSED WON
-      </div>
-    </div>
-  );
-};
-
-const fmt = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
-
-// ---------------------------------------------------------------------------
-// Pipeline: 5 stage columns + flowing deal cards + conversion counters
-// ---------------------------------------------------------------------------
-const COL_W = 640;
-const COL_GAP = 70;
-const PIPE_X = 200;
-const PIPE_Y = 470;
-const COL_TOP = 640;
-
-const Pipeline: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - (PIPE_START - 30), fps, config: {damping: 200, stiffness: 80}});
-  if (s <= 0.001) return null;
-
-  const colX = (i: number) => PIPE_X + i * (COL_W + COL_GAP);
-
-  return (
-    <div style={{position: 'absolute', left: 0, top: 0, opacity: Math.min(1, s)}}>
-      {/* connector rail */}
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <line x1={PIPE_X} y1={PIPE_Y} x2={PIPE_X + 5 * COL_W + 4 * COL_GAP} y2={PIPE_Y} stroke={HAIRLINE} strokeWidth={8} strokeLinecap="round" />
-        {CONVERSIONS.map((c, i) => {
-          const cf = interpolate(frame, [CONV_START + i * 40, CONV_START + i * 40 + 70], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-          const x0 = colX(i) + COL_W;
-          const x1 = colX(i + 1);
-          const conv = Math.round(c * cf);
-          return (
-            <g key={i} opacity={cf > 0 ? 1 : 0}>
-              <line x1={x0} y1={PIPE_Y} x2={x0 + (x1 - x0) * cf} y2={PIPE_Y} stroke="url(#spFlow)" strokeWidth={8} strokeLinecap="round" filter="url(#spGlow14)" />
-              <text x={(x0 + x1) / 2} y={PIPE_Y - 40} textAnchor="middle"
-                fill={INK} fontSize={38} fontFamily={MONO} fontWeight={800}>
-                {conv}%
-              </text>
-              <text x={(x0 + x1) / 2} y={PIPE_Y + 62} textAnchor="middle"
-                fill={MUTED} fontSize={24} fontFamily={MONO} letterSpacing={2}>
-                CONVERSION
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-
-      {/* stage columns */}
-      {STAGES.map((st, i) => {
-        const cs = spring({frame: frame - (PIPE_START + i * 45), fps, config: {damping: 200, stiffness: 90}});
-        if (cs <= 0.001) return null;
-        const dealN = Math.round(interpolate(frame, [PIPE_START + 60 + i * 45, PIPE_START + 160 + i * 45], [0, st.deals], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
-        const val = interpolate(frame, [PIPE_START + 60 + i * 45, PIPE_START + 160 + i * 45], [0, st.value], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-        return (
-          <div key={st.name} style={{
-            position: 'absolute', left: colX(i), top: COL_TOP, width: COL_W,
-            opacity: Math.min(1, cs), transform: `translateY(${(1 - Math.min(1, cs)) * 60}px)`,
-          }}>
-            <div style={{
-              background: PANEL, borderRadius: 26, padding: '34px 36px',
-              border: `3px solid ${st.color}`, filter: 'url(#spShadow)',
-              boxShadow: `0 0 50px ${st.color}33`,
-            }}>
-              <div style={{color: st.color, fontFamily: MONO, fontWeight: 800, fontSize: 36, letterSpacing: 3}}>
-                {st.name}
-              </div>
-              <div style={{display: 'flex', alignItems: 'baseline', gap: 18, marginTop: 10}}>
-                <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 64}}>{dealN}</span>
-                <span style={{color: MUTED, fontFamily: FONT, fontSize: 28}}>deals</span>
-              </div>
-              <div style={{color: INK, fontFamily: MONO, fontWeight: 700, fontSize: 40, marginTop: 6}}>
-                {fmt(val)}
-              </div>
-              <div style={{marginTop: 22}}>
-                {Array.from({length: Math.min(5, Math.ceil(st.deals / 10))}, (_, r) => (
-                  <div key={r} style={{
-                    height: 14, borderRadius: 7, marginTop: r === 0 ? 0 : 10,
-                    background: `linear-gradient(90deg, ${st.color}, ${st.color}55)`,
-                    width: `${92 - r * 12}%`,
-                  }} />
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-
-      {/* advancing deal cards */}
-      {DEALS.map((d, i) => {
-        const start = DEALS_START + i * 46;
-        const end = Math.min(720, start + 200);
-        const t = interpolate(frame, [start, end], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-        if (t <= 0 || t >= 1) return null;
-        const from = colX(0) + COL_W / 2;
-        const to = colX(d.stage) + COL_W / 2;
-        const x = from + (to - from) * t;
-        const y = 1500 + Math.sin(t * Math.PI) * -90;
-        const stalled = i === 5 && frame > start + 90;
-        return (
-          <div key={d.label} style={{
-            position: 'absolute', left: x - 130, top: y,
-            width: 260, borderRadius: 18, padding: '18px 22px',
-            background: stalled ? 'rgba(255,176,32,0.14)' : PANEL,
-            border: `2px solid ${stalled ? AMBER : STAGES[d.stage].color}`,
-            boxShadow: stalled ? `0 0 34px rgba(255,176,32,${0.4 + 0.3 * Math.sin(frame * 0.3)})` : 'none',
-            opacity: 1 - t * 0.15,
-          }}>
-            <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 28}}>{d.label}</div>
-            <div style={{color: STAGES[d.stage].color, fontFamily: MONO, fontWeight: 700, fontSize: 30, marginTop: 6}}>
-              {fmt(d.value)}
-            </div>
-            {stalled && (
-              <div style={{color: AMBER, fontFamily: MONO, fontSize: 24, marginTop: 6, fontWeight: 800}}>
-                STALLED · 9 DAYS
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Forecast rollup panel
-// ---------------------------------------------------------------------------
-const Forecast: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - (FORECAST_START - 40), fps, config: {damping: 200, stiffness: 80}});
-  if (s <= 0.001) return null;
-
-  const closed = interpolate(frame, [FORECAST_START, FORECAST_START + 110], [0, 84000], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const target = 100000;
-  const cov = closed / target;
-  const R = 92;
-
-  return (
-    <div style={{
-      position: 'absolute', left: 200, top: 1630, width: 3440,
-      opacity: Math.min(1, s),
-      transform: `translateY(${(1 - s) * 50}px)`,
-    }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 56,
-        background: PANEL, borderRadius: 30, padding: '26px 54px',
-        border: `2px solid ${HAIRLINE}`, filter: 'url(#spShadow)',
-      }}>
-        <svg width={250} height={250} viewBox="0 0 250 250">
-          <circle cx={125} cy={125} r={R} fill="none" stroke="rgba(238,240,253,0.10)" strokeWidth={26} />
-          <circle cx={125} cy={125} r={R} fill="none" stroke={GREEN} strokeWidth={26}
-            strokeLinecap="round" pathLength={1} strokeDasharray={1}
-            strokeDashoffset={1 - cov} transform="rotate(-90 125 125)" filter="url(#spGlow14)" />
-          <text x={125} y={118} textAnchor="middle" fill={INK} fontSize={48} fontFamily={MONO} fontWeight={800}>
-            {Math.round(cov * 100)}%
-          </text>
-          <text x={125} y={156} textAnchor="middle" fill={MUTED} fontSize={22} fontFamily={MONO}>OF TARGET</text>
-        </svg>
-        <div style={{flex: 1}}>
-          <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>QUARTER FORECAST</div>
-          <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 78, marginTop: 4, textShadow: '0 0 30px rgba(52,211,153,0.4)'}}>
-            {fmt(closed)}
-          </div>
-          <div style={{color: MUTED, fontFamily: FONT, fontSize: 28, marginTop: 6}}>
-            closed-won to date &middot; {fmt(target)} target &middot; weighted pipeline {fmt(312000)}
-          </div>
-        </div>
-        <div style={{textAlign: 'right'}}>
-          <div style={{color: GREEN, fontFamily: MONO, fontWeight: 800, fontSize: 38}}>&#9650; 12% QoQ</div>
-          <div style={{color: MUTED, fontFamily: FONT, fontSize: 26, marginTop: 8}}>velocity rising</div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Resolve strip
-// ---------------------------------------------------------------------------
-const ResolveStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - RESOLVE_START, fps, config: {damping: 200, stiffness: 100}});
-  if (s <= 0.001) return null;
-  return (
-    <div style={{
-      position: 'absolute', bottom: 96, left: 0, width: 3840,
-      display: 'flex', justifyContent: 'center',
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 40}px)`,
-    }}>
-      <div style={{
-        background: 'rgba(139,124,255,0.10)', border: `2px solid ${VIOLET}`,
-        borderRadius: 999, padding: '28px 90px',
-        display: 'flex', alignItems: 'center', gap: 44,
-      }}>
-        <span style={{
-          width: 58, height: 58, borderRadius: '50%', background: VIOLET,
-          color: '#0E1030', fontSize: 36, fontWeight: 800,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>&#10003;</span>
-        <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 48, letterSpacing: 2}}>
-          EVERY STAGE HAS A CONVERSION RATE &middot; FIX THE WEAKEST LINK FIRST
-        </span>
-      </div>
-    </div>
+    <svg width={3840} height={2160} style={{position: 'absolute', inset: 0}}>
+      <rect width={3840} height={2160} fill={BG} />
+      <rect width={3840} height={2160} fill="url(#msGlow)" />
+      <g>{coins}</g>
+      <rect x={sweepX - 300} y={0} width={600} height={2160} fill="url(#msSweep)" />
+      <rect width={3840} height={2160} fill="url(#msVig)" />
+    </svg>
   );
 };
 
 // ---------------------------------------------------------------------------
 // Film grain
 // ---------------------------------------------------------------------------
-const GRAIN_COUNT = 420;
+const GRAIN_COUNT = 1100;
+
 const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
-  const dots: React.ReactElement[] = [];
+  const rects: React.ReactElement[] = [];
   for (let i = 0; i < GRAIN_COUNT; i++) {
-    const x = random(`sp-grain-x-${frame}-${i}`) * 3840;
-    const y = random(`sp-grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`sp-grain-o-${frame}-${i}`) * 0.04;
-    const s = 2 + random(`sp-grain-s-${frame}-${i}`) * 2.5;
-    dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
+    const x = random(`ms-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`ms-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`ms-grain-o-${frame}-${i}`) * 0.045;
+    const s = 2 + random(`ms-grain-s-${frame}-${i}`) * 2.5;
+    const white = random(`ms-grain-w-${frame}-${i}`) > 0.5;
+    rects.push(
+      <rect key={i} x={x} y={y} width={s} height={s} fill={white ? '#FFFFFF' : '#000000'} opacity={o} />,
+    );
   }
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {dots}
+    <svg width={3840} height={2160} style={{position: 'absolute', inset: 0}}>
+      {rects}
     </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Header
+// ---------------------------------------------------------------------------
+const Header: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const p = spring({frame: Math.max(0, frame - 8), fps, config: {damping: 120, stiffness: 160}});
+  const y = interpolate(p, [0, 1], [60, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const op = interpolate(p, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  return (
+    <div style={{position: 'absolute', top: 110, left: 0, right: 0, opacity: op, transform: `translateY(${y}px)`, textAlign: 'center'}}>
+      <div style={{fontFamily: MONO, fontSize: 34, letterSpacing: 10, color: MUTED}}>
+        MARKETPLACE SELLER ECONOMICS
+      </div>
+      <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 112, letterSpacing: 8, color: INK, marginTop: 24}}>
+        WHERE YOUR <span style={{color: TEAL}}>$120</span> SALE GOES
+      </div>
+      <div style={{fontFamily: MONO, fontSize: 36, letterSpacing: 16, color: AMBER, marginTop: 16}}>
+        THE FEE WATERFALL
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Waterfall: sale bar -> fee slices -> net bar
+// ---------------------------------------------------------------------------
+const BAR_LEFT = 480;
+const BAR_WIDTH = 2880;
+const ROW_H = 108;
+const ROW_GAP = 46;
+const TOP = 640;
+
+const Waterfall: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const rows: React.ReactElement[] = [];
+  let running = SALE;
+
+  // Sale bar (full width)
+  const saleP = interpolate(frame, [SALE_START, SALE_START + 70], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  rows.push(
+    <WaterfallRow
+      key="sale"
+      y={TOP}
+      label="SALE PRICE"
+      note="1 unit · $120.00"
+      value={SALE}
+      widthFrac={saleP}
+      color={TEAL}
+      big
+    />,
+  );
+
+  // Fee slices
+  FEES.forEach((f, i) => {
+    const start = FEE_START + i * FEE_GAP;
+    const p = interpolate(frame, [start, start + 80], [0, 1], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    const amt = feeAmount(f);
+    running -= amt;
+    const y = TOP + (i + 1) * (ROW_H + ROW_GAP);
+    rows.push(
+      <WaterfallRow
+        key={f.name}
+        y={y}
+        label={f.name}
+        note={`${f.pct > 0 ? f.pct + '%' : '$' + (f.amount ?? 0).toFixed(2)} · ${f.note}`}
+        value={amt}
+        widthFrac={p * (amt / SALE)}
+        color={f.color}
+        offset={p * (running / SALE)}
+      />,
+    );
+    // Remaining indicator
+    const remP = interpolate(frame, [start + 60, start + 110], [0, 1], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    if (remP > 0) {
+      rows.push(
+        <text
+          key={`rem-${i}`}
+          x={BAR_LEFT + BAR_WIDTH + 40}
+          y={y + 68}
+          fontFamily={MONO}
+          fontSize={34}
+          fill={MUTED}
+          opacity={remP}
+        >
+          ${running.toFixed(2)} LEFT
+        </text>,
+      );
+    }
+  });
+
+  // Net profit bar
+  const netP = spring({frame: Math.max(0, frame - NET_START), fps, config: {damping: 100, stiffness: 170}});
+  const netW = interpolate(netP, [0, 1], [0, NET / SALE], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const netY = TOP + FEES.length * (ROW_H + ROW_GAP) + 60;
+  const netOn = frame >= NET_START;
+  rows.push(
+    <g key="net">
+      <text x={BAR_LEFT} y={netY - 24} fontFamily={FONT} fontWeight={800} fontSize={52} letterSpacing={4} fill={GREEN} opacity={netOn ? 1 : 0}>
+        NET PROFIT — ${NET.toFixed(2)}
+      </text>
+      <rect x={BAR_LEFT} y={netY} width={BAR_WIDTH} height={ROW_H + 30} rx={18} fill="rgba(241,247,242,0.07)" stroke={HAIRLINE} strokeWidth={2} />
+      <rect
+        x={BAR_LEFT}
+        y={netY}
+        width={BAR_WIDTH * netW}
+        height={ROW_H + 30}
+        rx={18}
+        fill={GREEN}
+        filter="url(#msGlow10)"
+        opacity={netOn ? 1 : 0}
+      />
+      {netOn && (
+        <text
+          x={BAR_LEFT + BAR_WIDTH * netW - 40}
+          y={netY + 92}
+          textAnchor="end"
+          fontFamily={MONO}
+          fontWeight={700}
+          fontSize={44}
+          fill="#06231C"
+          opacity={netW > 0.15 ? 1 : 0}
+        >
+          ${NET.toFixed(2)}
+        </text>
+      )}
+    </g>,
+  );
+
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', inset: 0}}>
+      {rows}
+    </svg>
+  );
+};
+
+const WaterfallRow: React.FC<{
+  y: number;
+  label: string;
+  note: string;
+  value: number;
+  widthFrac: number;
+  color: string;
+  big?: boolean;
+  offset?: number;
+}> = ({y, label, note, value, widthFrac, color, big, offset = 0}) => {
+  const w = Math.max(0, BAR_WIDTH * widthFrac);
+  const x = BAR_LEFT + BAR_WIDTH * offset;
+  return (
+    <g opacity={widthFrac > 0 ? 1 : 0}>
+      <text x={BAR_LEFT} y={y - 24} fontFamily={MONO} fontSize={big ? 38 : 32} letterSpacing={big ? 8 : 5} fill={big ? INK : MUTED} fontWeight={big ? 700 : 400}>
+        {label}
+      </text>
+      <text x={BAR_LEFT + BAR_WIDTH} y={y - 24} textAnchor="end" fontFamily={MONO} fontSize={34} fill={color} fontWeight={700}>
+        −${value.toFixed(2)}
+      </text>
+      <rect x={BAR_LEFT} y={y} width={BAR_WIDTH} height={ROW_H} rx={16} fill="rgba(241,247,242,0.05)" />
+      {w > 2 && (
+        <rect x={x} y={y} width={w} height={ROW_H} rx={16} fill={color} filter="url(#msGlow10)" />
+      )}
+      <text x={BAR_LEFT} y={y + ROW_H + 36} fontFamily={MONO} fontSize={28} fill={MUTED} letterSpacing={2}>
+        {note}
+      </text>
+    </g>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Margin ring payoff
+// ---------------------------------------------------------------------------
+const MarginRing: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const on = frame >= MARGIN_START;
+  const p = on
+    ? spring({frame: frame - MARGIN_START, fps, config: {damping: 90, stiffness: 130}})
+    : 0;
+  const R = 200;
+  const C = 2 * Math.PI * R;
+  const shown = MARGIN * interpolate(p, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const cx = 1920;
+  const cy = 1770;
+  if (!on) return null;
+  return (
+    <div style={{position: 'absolute', inset: 0}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', inset: 0}}>
+        <circle cx={cx} cy={cy} r={R} fill="none" stroke="rgba(241,247,242,0.10)" strokeWidth={34} />
+        <circle
+          cx={cx}
+          cy={cy}
+          r={R}
+          fill="none"
+          stroke={GREEN}
+          strokeWidth={34}
+          strokeLinecap="round"
+          strokeDasharray={C}
+          strokeDashoffset={C * (1 - shown / 100)}
+          transform={`rotate(-90 ${cx} ${cy})`}
+          filter="url(#msGlow10)"
+        />
+        <text x={cx} y={cy - 10} textAnchor="middle" fontFamily={FONT} fontWeight={800} fontSize={110} fill={INK}>
+          {shown.toFixed(1)}%
+        </text>
+        <text x={cx} y={cy + 66} textAnchor="middle" fontFamily={MONO} fontSize={32} letterSpacing={8} fill={MUTED}>
+          NET MARGIN
+        </text>
+      </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Live fee ticker (per-frame motion)
+// ---------------------------------------------------------------------------
+const LiveTicker: React.FC<{frame: number}> = ({frame}) => {
+  const feesSoFar = Math.min(TOTAL_FEES, (frame / 700) * TOTAL_FEES * 1.35);
+  const pct = Math.min(100, (frame / 700) * 100 * 1.35);
+  return (
+    <div style={{position: 'absolute', top: 380, right: 240, textAlign: 'right'}}>
+      <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 6, color: MUTED}}>FEES PAID SO FAR</div>
+      <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 84, color: RED, textShadow: '0 0 30px rgba(248,113,113,0.35)'}}>
+        ${feesSoFar.toFixed(2)}
+      </div>
+      <div style={{fontFamily: MONO, fontSize: 28, letterSpacing: 4, color: MUTED, marginTop: 6}}>
+        {pct.toFixed(1)}% OF SALE EATEN BY FEES
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Bottom strip: per-frame scrolling insight
+// ---------------------------------------------------------------------------
+const STRIP = '  •  ESTABLISHED SELLER BRANDS AVERAGE ~13% NET MARGIN AFTER FEES, SHIPPING & ADS    •  KNOW YOUR FEE STACK BEFORE YOU PRICE    •  REFERRAL + FULFILLMENT + STORAGE = THE BIG THREE    ';
+
+const Strip: React.FC<{frame: number}> = ({frame}) => {
+  const x = -((frame * 7) % 2400);
+  return (
+    <div style={{position: 'absolute', bottom: 56, left: 0, right: 0, overflow: 'hidden', borderTop: `2px solid ${HAIRLINE}`, borderBottom: `2px solid ${HAIRLINE}`, padding: '22px 0'}}>
+      <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 5, color: MUTED, whiteSpace: 'nowrap', transform: `translateX(${x}px)`}}>
+        {STRIP.repeat(3)}
+      </div>
+    </div>
   );
 };
 
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const SalesPipelineStages: React.FC = () => {
+export const MarketplaceSellerFees: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
+      <Defs />
       <Background frame={frame} />
-      <TitleBar frame={frame} />
-      <Pipeline frame={frame} fps={fps} />
-      <Forecast frame={frame} fps={fps} />
-      <ResolveStrip frame={frame} fps={fps} />
+      <Header frame={frame} fps={fps} />
+      <LiveTicker frame={frame} />
+      <Waterfall frame={frame} fps={fps} />
+      <MarginRing frame={frame} fps={fps} />
+      <Strip frame={frame} />
       <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
 };
-
-export default SalesPipelineStages;
