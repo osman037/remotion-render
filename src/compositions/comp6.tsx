@@ -1,13 +1,14 @@
 /**
- * ProductReturnFlow.tsx
+ * PayrollRunCycle.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * A reverse-logistics story on deep slate teal: the delivered box starts its
- * journey home — QR return label generates, drop-off scans ping, the route
- * rewinds to the warehouse, inspection branches to refund or restock, and the
- * refund counter pays off. Intro -> build -> payoff -> resolve.
+ * A brand-neutral PAYROLL RUN visual for HR SaaS marketers, payroll providers
+ * and finance trainers: an employee roster assembles, each line runs through
+ * a gross-to-net waterfall (federal tax, state tax, benefits, 401k), net-pay
+ * cards stamp PAID one by one, a pay-day countdown locks, and the payoff is a
+ * cycle-complete ledger with totals. Deterministic seeded randomness only.
  *
  * Register in Root.tsx:
- *   <Composition id="ProductReturnFlow" component={ProductReturnFlow}
+ *   <Composition id="PayrollRunCycle" component={PayrollRunCycle}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
@@ -22,76 +23,89 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (deep slate teal + return amber)
+// Palette (deep emerald finance console)
 // ---------------------------------------------------------------------------
-const BG = '#0B1E22';
-const INK = '#EBF5F5';
-const MUTED = 'rgba(235,245,245,0.60)';
-const TEAL = '#2DD4BF';
-const TEAL_DEEP = '#0E7C6F';
-const AMBER = '#FBBF24';
-const GREEN = '#34D399';
-const RED = '#FF6B6B';
-const PANEL = 'rgba(15,40,46,0.82)';
-const HAIRLINE = 'rgba(235,245,245,0.16)';
+const BG = '#04100C';
+const INK = '#EAF7F0';
+const MUTED = 'rgba(234,247,240,0.58)';
+const EMERALD = '#34D399';
+const MINT = '#A7F3D0';
+const GOLD = '#FBBF24';
+const CYAN = '#67E8F9';
+const DEDUCT = '#F87171';
+const PANEL = 'rgba(7,20,15,0.88)';
+const HAIRLINE = 'rgba(234,247,240,0.14)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
-// Timeline
+// Timeline (frames at 60 fps) -> 900 frames = 15 s
 // ---------------------------------------------------------------------------
-const LABEL_START = 60;
-const ROUTE_START = 180;
-const SCAN_START = 330;
-const INSPECT_START = 500;
-const REFUND_START = 640;
-const RESOLVE_START = 810;
+const ROSTER_START = 24;
+const ROSTER_GAP = 13;
+const RUN_START = 190;      // payroll engine starts
+const RUN_STEP = 58;        // frames per employee cycle
+const STAMP_START = 620;    // PAID stamps
+const PAYOFF_START = 770;
 
-const STAGES = ['RETURN REQUEST', 'QR LABEL', 'DROP-OFF', 'IN TRANSIT', 'INSPECT', 'REFUND'];
-const STAGE_TIMES = [LABEL_START - 20, LABEL_START, SCAN_START, ROUTE_START + 40, INSPECT_START, REFUND_START];
+const clamp01 = {extrapolateLeft: 'clamp' as const, extrapolateRight: 'clamp' as const};
 
 // ---------------------------------------------------------------------------
-// Route geometry (doorstep -> warehouse, reverse of the sale)
+// Data: 7 employees, gross + deduction stack
 // ---------------------------------------------------------------------------
-const P_DOOR = {x: 3100, y: 1080};
-const P_HUB = {x: 2050, y: 700};
-const P_WARE = {x: 900, y: 1080};
+interface Employee {
+  name: string;
+  role: string;
+  gross: number;
+  fed: number;
+  state: number;
+  benefits: number;
+  k401: number;
+}
+const EMPLOYEES: Employee[] = [
+  {name: 'Maya Chen', role: 'ENGINEERING', gross: 9200, fed: 1840, state: 552, benefits: 310, k401: 552},
+  {name: 'Jonas Weber', role: 'DESIGN', gross: 7800, fed: 1482, state: 468, benefits: 310, k401: 468},
+  {name: 'Priya Nair', role: 'DATA', gross: 8600, fed: 1682, state: 516, benefits: 310, k401: 516},
+  {name: 'Sam Ortiz', role: 'SUPPORT', gross: 5400, fed: 918, state: 324, benefits: 310, k401: 270},
+  {name: 'Lena Kova', role: 'MARKETING', gross: 6900, fed: 1277, state: 414, benefits: 310, k401: 414},
+  {name: 'Dev Patel', role: 'DEVOPS', gross: 8900, fed: 1771, state: 534, benefits: 310, k401: 534},
+  {name: 'Ana Ruiz', role: 'FINANCE', gross: 7400, fed: 1391, state: 444, benefits: 310, k401: 444},
+];
+const netOf = (e: Employee) => e.gross - e.fed - e.state - e.benefits - e.k401;
 
-const routePoint = (t: number) => {
-  // quadratic-ish path through hub
-  const x = (1 - t) * (1 - t) * P_DOOR.x + 2 * (1 - t) * t * P_HUB.x + t * t * P_WARE.x;
-  const y = (1 - t) * (1 - t) * P_DOOR.y + 2 * (1 - t) * t * P_HUB.y + t * t * P_WARE.y;
-  return {x, y};
-};
+const DEDUCTS = [
+  {key: 'fed', label: 'FED TAX', color: DEDUCT},
+  {key: 'state', label: 'STATE', color: '#FB923C'},
+  {key: 'benefits', label: 'BENEFITS', color: GOLD},
+  {key: 'k401', label: '401(K)', color: CYAN},
+] as const;
 
 // ---------------------------------------------------------------------------
 // SVG defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="prGlow" cx="50%" cy="30%" r="72%">
-      <stop offset="0%" stopColor="rgba(45,212,191,0.12)" />
-      <stop offset="55%" stopColor="rgba(45,212,191,0.035)" />
-      <stop offset="100%" stopColor="rgba(11,30,34,0)" />
+    <radialGradient id="prGlow" cx="60%" cy="30%" r="78%">
+      <stop offset="0%" stopColor="rgba(52,211,153,0.13)" />
+      <stop offset="55%" stopColor="rgba(52,211,153,0.035)" />
+      <stop offset="100%" stopColor="rgba(4,16,12,0)" />
     </radialGradient>
     <radialGradient id="prVignette" cx="50%" cy="50%" r="76%">
-      <stop offset="60%" stopColor="rgba(4,13,15,0)" />
-      <stop offset="100%" stopColor="rgba(4,13,15,0.72)" />
+      <stop offset="60%" stopColor="rgba(2,8,6,0)" />
+      <stop offset="100%" stopColor="rgba(1,6,4,0.76)" />
     </radialGradient>
-    <linearGradient id="prRoute" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={TEAL_DEEP} />
-      <stop offset="100%" stopColor={TEAL} />
+    <linearGradient id="prScan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="rgba(52,211,153,0)" />
+      <stop offset="50%" stopColor="rgba(52,211,153,0.15)" />
+      <stop offset="100%" stopColor="rgba(52,211,153,0)" />
     </linearGradient>
-    <filter id="prGlow14" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="14" result="blur" />
-      <feMerge>
-        <feMergeNode in="blur" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
-    </filter>
-    <filter id="prShadow" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="22" stdDeviation="30" floodColor="#000000" floodOpacity="0.55" />
+    <linearGradient id="prGold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={GOLD} />
+      <stop offset="100%" stopColor="#FDE68A" />
+    </linearGradient>
+    <filter id="prBlur70" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="70" />
     </filter>
   </defs>
 );
@@ -100,284 +114,181 @@ const Defs: React.FC = () => (
 // Background
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const driftX = (frame * 0.3) % 120;
-  const driftY = (frame * 0.2) % 120;
-  const scanY = ((frame / 900) * (2160 + 300)) % (2160 + 300) - 150;
-  const dots: React.ReactElement[] = [];
-  for (let gx = 0; gx <= 33; gx++) {
-    for (let gy = 0; gy <= 19; gy++) {
-      const shimmer = 0.05 + 0.05 * Math.sin(frame * 0.075 + gx * 1.2 + gy * 0.8);
-      dots.push(
-        <circle key={`${gx}-${gy}`} cx={gx * 120 - driftX} cy={gy * 120 - driftY} r={2.2} fill="#2DD4BF" opacity={shimmer} />
-      );
-    }
+  const drift1 = Math.sin((frame / 900) * Math.PI * 2) * 80;
+  const scanY = (frame / 900) * 2400 - 240;
+  const orbs: React.ReactElement[] = [];
+  for (let i = 0; i < 5; i++) {
+    const ox = random(`pr-orb-x-${i}`) * 3840;
+    const oy = random(`pr-orb-y-${i}`) * 2160;
+    const r = 240 + random(`pr-orb-r-${i}`) * 300;
+    const hue = i % 2 === 0 ? 'rgba(52,211,153,0.10)' : 'rgba(251,191,36,0.06)';
+    const mx = Math.sin((frame / 900) * Math.PI * 2 + i * 2.1) * 110;
+    orbs.push(<circle key={i} cx={ox + mx} cy={oy} r={r} fill={hue} filter="url(#prBlur70)" />);
+  }
+  const grid: React.ReactElement[] = [];
+  for (let gx = 0; gx <= 3840; gx += 240) {
+    grid.push(<line key={`v${gx}`} x1={gx} y1={0} x2={gx} y2={2160} stroke="rgba(234,247,240,0.04)" strokeWidth={1} />);
+  }
+  for (let gy = 0; gy <= 2160; gy += 240) {
+    grid.push(<line key={`h${gy}`} x1={0} y1={gy} x2={3840} y2={gy} stroke="rgba(234,247,240,0.04)" strokeWidth={1} />);
   }
   return (
-    <>
-      <AbsoluteFill style={{backgroundColor: BG}} />
+    <div style={{position: 'absolute', inset: 0, backgroundColor: BG}}>
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs />
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#prGlow)" />
-        {dots}
-        <rect x={0} y={scanY - 80} width={3840} height={160} fill="rgba(45,212,191,0.03)" />
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#prVignette)" />
+        <rect width={3840} height={2160} fill="url(#prGlow)" transform={`translate(${drift1},0)`} />
+        {orbs}
+        {grid}
+        <rect x={0} y={scanY} width={3840} height={320} fill="url(#prScan)" />
+        <rect width={3840} height={2160} fill="url(#prVignette)" />
       </svg>
-    </>
+    </div>
   );
 };
 
 // ---------------------------------------------------------------------------
 // Title bar
 // ---------------------------------------------------------------------------
-const TitleBar: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [0, 40], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const rise = interpolate(frame, [0, 40], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+const TitleBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const rise = spring({frame, fps, config: {damping: 200, stiffness: 90}});
+  const opacity = interpolate(rise, [0, 1], [0, 1]);
+  const y = interpolate(rise, [0, 1], [60, 0]);
+  const engineOn = frame >= RUN_START;
   return (
-    <div style={{position: 'absolute', top: 80 + rise, left: 200, opacity: fade}}>
-      <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 78, letterSpacing: -1.5}}>
-        The <span style={{color: TEAL}}>return journey</span>, in reverse
+    <div style={{position: 'absolute', top: 110, left: 220, right: 220, opacity, transform: `translateY(${y}px)`}}>
+      <div style={{fontFamily: MONO, fontSize: 44, letterSpacing: 14, color: EMERALD}}>
+        PAYROLL ENGINE &nbsp;·&nbsp; SEPTEMBER CYCLE
       </div>
-      <div style={{color: MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 3, marginTop: 12}}>
-        REVERSE LOGISTICS &middot; ORDER #8841-2290
+      <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 148, color: INK, marginTop: 16}}>
+        Payroll Run
       </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Stage rail
-// ---------------------------------------------------------------------------
-const StageRail: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 25, fps, config: {damping: 200, stiffness: 80}});
-  if (s <= 0.001) return null;
-  const railX = 200; const railW = 3440; const railY = 340;
-  return (
-    <div style={{position: 'absolute', left: 0, top: 0, opacity: Math.min(1, s)}}>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <line x1={railX} y1={railY} x2={railX + railW} y2={railY} stroke={HAIRLINE} strokeWidth={8} strokeLinecap="round" />
-        {STAGES.map((st, i) => {
-          const active = frame >= STAGE_TIMES[i];
-          const done = i < STAGES.length - 1 ? frame >= STAGE_TIMES[i + 1] : frame >= RESOLVE_START;
-          const x = railX + (i / (STAGES.length - 1)) * railW;
-          return (
-            <g key={st}>
-              {i < STAGES.length - 1 && (() => {
-                const nx = railX + ((i + 1) / (STAGES.length - 1)) * railW;
-                const cf = interpolate(frame, [STAGE_TIMES[i], STAGE_TIMES[i + 1]], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-                return (
-                  <line x1={x} y1={railY} x2={x + (nx - x) * cf} y2={railY}
-                    stroke={done ? GREEN : TEAL} strokeWidth={8} strokeLinecap="round" filter="url(#prGlow14)" />
-                );
-              })()}
-              <circle cx={x} cy={railY} r={active ? 34 : 24}
-                fill={done ? GREEN : active ? TEAL : BG}
-                stroke={done ? GREEN : active ? TEAL : HAIRLINE} strokeWidth={6} />
-              {done && (
-                <text x={x} y={railY + 12} textAnchor="middle" fill="#0B1E22" fontSize={34} fontWeight={800}>&#10003;</text>
-              )}
-              <text x={x} y={railY + 84} textAnchor="middle"
-                fill={active ? INK : MUTED} fontSize={28} fontFamily={MONO}
-                fontWeight={active ? 800 : 500} letterSpacing={2}>{st}</text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// QR label card (left) + map with traveling box (center) + inspection (right)
-// ---------------------------------------------------------------------------
-const QRCode: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - LABEL_START, fps, config: {damping: 200, stiffness: 90}});
-  if (s <= 0.001) return null;
-  // deterministic faux-QR blocks
-  const cells: React.ReactElement[] = [];
-  for (let cx = 0; cx < 12; cx++) {
-    for (let cy = 0; cy < 12; cy++) {
-      if (random(`qr-${cx}-${cy}`) > 0.52) {
-        cells.push(<rect key={`${cx}-${cy}`} x={cx * 22} y={cy * 22} width={19} height={19} fill={INK} />);
-      }
-    }
-  }
-  return (
-    <div style={{
-      position: 'absolute', left: 200, top: 600, width: 560,
-      opacity: Math.min(1, s), transform: `scale(${0.8 + 0.2 * Math.min(1, s)})`,
-    }}>
-      <div style={{
-        background: PANEL, borderRadius: 28, padding: '44px',
-        border: `3px solid ${TEAL}`, filter: 'url(#prShadow)',
-        boxShadow: '0 0 50px rgba(45,212,191,0.3)', textAlign: 'center',
-      }}>
-        <div style={{color: TEAL, fontFamily: MONO, fontWeight: 800, fontSize: 32, letterSpacing: 3}}>
-          RETURN LABEL
-        </div>
-        <svg width={264} height={264} viewBox="0 0 264 264" style={{margin: '24px auto 0', display: 'block'}}>
-          <rect x={0} y={0} width={264} height={264} fill="#0B1E22" rx={12} />
-          <g transform="translate(6,6)">{cells}</g>
-          <rect x={6} y={6} width={62} height={62} fill="none" stroke={TEAL} strokeWidth={8} />
-          <rect x={196} y={6} width={62} height={62} fill="none" stroke={TEAL} strokeWidth={8} />
-          <rect x={6} y={196} width={62} height={62} fill="none" stroke={TEAL} strokeWidth={8} />
-        </svg>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, marginTop: 20}}>
-          RMA-8841-2290 &middot; prepaid postage
+      <div style={{display: 'flex', alignItems: 'center', marginTop: 24, gap: 30}}>
+        <div style={{fontFamily: MONO, fontSize: 40, color: MUTED}}>7 EMPLOYEES &nbsp;·&nbsp; BIWEEKLY</div>
+        <div style={{marginLeft: 'auto', fontFamily: MONO, fontSize: 40, color: engineOn ? '#04100C' : MUTED, backgroundColor: engineOn ? EMERALD : 'rgba(234,247,240,0.08)', borderRadius: 12, padding: '12px 30px', fontWeight: 700}}>
+          {engineOn ? '● RUNNING' : '○ STANDBY'}
         </div>
       </div>
     </div>
   );
 };
 
-const RouteMap: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - (ROUTE_START - 40), fps, config: {damping: 200, stiffness: 80}});
-  if (s <= 0.001) return null;
-
-  const t = interpolate(frame, [ROUTE_START, ROUTE_START + 300], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const pos = routePoint(t);
-  const pathD = `M ${P_DOOR.x} ${P_DOOR.y} Q ${P_HUB.x + 320} ${P_HUB.y - 120} ${P_WARE.x} ${P_WARE.y}`;
-
-  const scanned = Math.floor(interpolate(frame, [SCAN_START, SCAN_START + 200], [0, 3], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
-  const scanPts = [
-    {x: 2680, y: 940, label: 'PICKUP'},
-    {x: 2050, y: 700, label: 'HUB SORT'},
-    {x: 1340, y: 920, label: 'REGIONAL'},
-  ];
-
+// ---------------------------------------------------------------------------
+// Roster with gross-to-net waterfall
+// ---------------------------------------------------------------------------
+const Roster: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
   return (
-    <div style={{position: 'absolute', left: 0, top: 0, opacity: Math.min(1, s)}}>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <path d={pathD} fill="none" stroke="rgba(235,245,245,0.14)" strokeWidth={6} strokeDasharray="18 20" />
-        <path d={pathD} fill="none" stroke="url(#prRoute)" strokeWidth={6} strokeLinecap="round"
-          pathLength={1} strokeDasharray={1} strokeDashoffset={1 - t} filter="url(#prGlow14)" />
-        {/* warehouse pin */}
-        <g transform={`translate(${P_WARE.x}, ${P_WARE.y})`}>
-          <circle r={46} fill={TEAL} opacity={0.25} />
-          <rect x={-40} y={-40} width={80} height={80} rx={14} fill={TEAL} />
-          <text x={0} y={16} textAnchor="middle" fontSize={44} fill="#0B1E22" fontWeight={800}>&#8962;</text>
-          <text x={0} y={110} textAnchor="middle" fill={MUTED} fontSize={30} fontFamily={MONO}>WAREHOUSE</text>
-        </g>
-        {/* doorstep pin */}
-        <g transform={`translate(${P_DOOR.x}, ${P_DOOR.y})`}>
-          <circle r={36} fill={AMBER} opacity={0.25} />
-          <circle r={26} fill={AMBER} />
-          <text x={0} y={92} textAnchor="middle" fill={MUTED} fontSize={30} fontFamily={MONO}>CUSTOMER</text>
-        </g>
-        {/* scan pings */}
-        {scanPts.map((p, i) => {
-          if (i >= scanned) return null;
-          const pulse = 0.5 + 0.5 * Math.sin(frame * 0.2 + i);
-          return (
-            <g key={p.label} transform={`translate(${p.x}, ${p.y})`}>
-              <circle r={20 + pulse * 16} fill="none" stroke={TEAL} strokeWidth={4} opacity={0.8 - pulse * 0.3} />
-              <circle r={10} fill={TEAL} />
-              <text x={0} y={-46} textAnchor="middle" fill={TEAL} fontSize={28} fontFamily={MONO} fontWeight={800}>
-                {p.label} &#10003;
-              </text>
-            </g>
-          );
-        })}
-        {/* the box traveling home */}
-        <g transform={`translate(${pos.x - 60}, ${pos.y - 46})`} opacity={t >= 1 ? 0 : 1}>
-          <rect x={0} y={0} width={120} height={92} rx={10} fill="#C98A3B" stroke="#8A5A22" strokeWidth={5} />
-          <line x1={60} y1={0} x2={60} y2={92} stroke="#8A5A22" strokeWidth={5} />
-          <rect x={38} y={30} width={44} height={32} fill="#0B1E22" opacity={0.85} rx={4} />
-        </g>
-      </svg>
-      <div style={{position: 'absolute', left: 1380, top: 1320, width: 1080, textAlign: 'center'}}>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>MILES TO WAREHOUSE</div>
-        <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 92, marginTop: 8}}>
-          {Math.round(842 * (1 - t))}
-        </div>
-        <div style={{color: TEAL, fontFamily: MONO, fontSize: 32, marginTop: 4}}>
-          ETA {Math.max(0, Math.round(4 * (1 - t)))} DAYS
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const Inspection: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - INSPECT_START, fps, config: {damping: 200, stiffness: 80}});
-  if (s <= 0.001) return null;
-
-  const verdict = interpolate(frame, [INSPECT_START + 60, INSPECT_START + 110], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const refund = interpolate(frame, [REFUND_START, REFUND_START + 120], [0, 189.99], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-
-  return (
-    <div style={{
-      position: 'absolute', left: 200, top: 1330, width: 980,
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 60}px)`,
-    }}>
-      <div style={{
-        background: PANEL, borderRadius: 28, padding: '40px 48px',
-        border: `2px solid ${verdict > 0.5 ? GREEN : HAIRLINE}`,
-        filter: 'url(#prShadow)', backdropFilter: 'blur(6px)',
-        boxShadow: verdict > 0.5 ? '0 0 50px rgba(52,211,153,0.25)' : 'none',
-      }}>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>WAREHOUSE INSPECTION</div>
-        <div style={{display: 'flex', gap: 24, marginTop: 24}}>
-          {['ITEM INTACT', 'TAGS ATTACHED', 'RESALABLE'].map((c, i) => {
-            const on = frame >= INSPECT_START + 20 + i * 34;
-            return (
-              <div key={c} style={{
-                flex: 1, borderRadius: 16, padding: '18px 10px', textAlign: 'center',
-                background: on ? 'rgba(52,211,153,0.10)' : 'rgba(235,245,245,0.04)',
-                border: `2px solid ${on ? GREEN : HAIRLINE}`,
-              }}>
-                <div style={{color: on ? GREEN : MUTED, fontFamily: MONO, fontWeight: 800, fontSize: 28}}>
-                  {on ? '\u2713' : '\u00B7'}
+    <div style={{position: 'absolute', top: 500, left: 220, width: 3400}}>
+      {EMPLOYEES.map((e, i) => {
+        const enter = spring({frame: frame - (ROSTER_START + i * ROSTER_GAP), fps, config: {damping: 200, stiffness: 110}});
+        const opacity = interpolate(enter, [0, 1], [0, 1]);
+        const y = interpolate(enter, [0, 1], [60, 0]);
+        const runStart = RUN_START + i * RUN_STEP;
+        const progress = interpolate(frame, [runStart, runStart + 120], [0, 1], clamp01);
+        const net = netOf(e);
+        const paid = frame >= STAMP_START + i * 26;
+        const stampScale = spring({frame: frame - (STAMP_START + i * 26), fps, config: {damping: 120, stiffness: 220}});
+        const maxD = e.gross;
+        let used = 0;
+        return (
+          <div
+            key={e.name}
+            style={{
+              position: 'relative',
+              height: 190,
+              opacity,
+              transform: `translateY(${y}px)`,
+              backgroundColor: PANEL,
+              border: `1px solid ${HAIRLINE}`,
+              borderRadius: 18,
+              marginBottom: 20,
+              padding: '26px 44px',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{display: 'flex', alignItems: 'center', gap: 36}}>
+              <div style={{width: 520}}>
+                <div style={{fontFamily: FONT, fontWeight: 700, fontSize: 56, color: INK}}>{e.name}</div>
+                <div style={{fontFamily: MONO, fontSize: 34, letterSpacing: 6, color: MUTED, marginTop: 6}}>{e.role}</div>
+              </div>
+              <div style={{flex: 1, position: 'relative', height: 90}}>
+                <div style={{position: 'absolute', top: 0, left: 0, fontFamily: MONO, fontSize: 32, color: MUTED}}>
+                  GROSS ${e.gross.toLocaleString()}
                 </div>
-                <div style={{color: on ? INK : MUTED, fontFamily: MONO, fontSize: 22, marginTop: 6}}>
-                  {c}
+                <div style={{position: 'absolute', bottom: 0, left: 0, right: 0, height: 34, backgroundColor: 'rgba(234,247,240,0.08)', borderRadius: 17, overflow: 'hidden', display: 'flex'}}>
+                  {DEDUCTS.map((d) => {
+                    const val = e[d.key];
+                    const w = (val / maxD) * 100 * progress;
+                    used += val;
+                    return (
+                      <div key={d.key} style={{width: `${w}%`, height: '100%', backgroundColor: d.color, opacity: 0.9}} title={d.label} />
+                    );
+                  })}
+                  <div style={{width: `${(net / maxD) * 100 * progress}%`, height: '100%', backgroundColor: EMERALD}} />
+                </div>
+                <div style={{position: 'absolute', top: 0, right: 0, fontFamily: MONO, fontSize: 32, color: EMERALD}}>
+                  NET ${(net * progress).toLocaleString(undefined, {maximumFractionDigits: 0})}
                 </div>
               </div>
-            );
-          })}
-        </div>
-        {verdict > 0.5 && (
-          <div style={{
-            marginTop: 26, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            opacity: interpolate(frame, [INSPECT_START + 60, INSPECT_START + 110], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
-          }}>
-            <span style={{color: GREEN, fontFamily: MONO, fontWeight: 800, fontSize: 36, letterSpacing: 2}}>
-              PASSED &middot; REFUND APPROVED
-            </span>
-            <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 72}}>
-              ${refund.toFixed(2)}
-            </span>
+              <div style={{width: 300, textAlign: 'right'}}>
+                <div style={{fontFamily: MONO, fontSize: 30, color: MUTED}}>DEDUCTIONS</div>
+                <div style={{fontFamily: FONT, fontWeight: 750, fontSize: 54, color: INK}}>
+                  ${((e.gross - net) * progress).toLocaleString(undefined, {maximumFractionDigits: 0})}
+                </div>
+              </div>
+            </div>
+            {paid && (
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 36,
+                  top: 22,
+                  fontFamily: MONO,
+                  fontWeight: 800,
+                  fontSize: 44,
+                  letterSpacing: 6,
+                  color: '#04100C',
+                  backgroundColor: EMERALD,
+                  borderRadius: 10,
+                  padding: '10px 28px',
+                  transform: `scale(${interpolate(stampScale, [0, 1], [1.6, 1])}) rotate(-6deg)`,
+                  boxShadow: `0 0 40px ${EMERALD}`,
+                }}
+              >
+                PAID
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })}
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Resolve strip
+// Payoff ledger
 // ---------------------------------------------------------------------------
-const ResolveStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - RESOLVE_START, fps, config: {damping: 200, stiffness: 100}});
-  if (s <= 0.001) return null;
+const Payoff: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - PAYOFF_START, fps, config: {damping: 200, stiffness: 70}});
+  const opacity = interpolate(enter, [0, 1], [0, 1]);
+  const scale = interpolate(enter, [0, 1], [0.94, 1]);
+  const totalGross = EMPLOYEES.reduce((s, e) => s + e.gross, 0);
+  const totalNet = EMPLOYEES.reduce((s, e) => s + netOf(e), 0);
+  const count = interpolate(frame, [PAYOFF_START, PAYOFF_START + 60], [0, 1], clamp01);
   return (
-    <div style={{
-      position: 'absolute', bottom: 92, left: 0, width: 3840,
-      display: 'flex', justifyContent: 'center',
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 40}px)`,
-    }}>
-      <div style={{
-        background: 'rgba(52,211,153,0.10)', border: `2px solid ${GREEN}`,
-        borderRadius: 999, padding: '28px 90px',
-        display: 'flex', alignItems: 'center', gap: 44,
-      }}>
-        <span style={{
-          width: 58, height: 58, borderRadius: '50%', background: GREEN,
-          color: '#0B1E22', fontSize: 36, fontWeight: 800,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>&#10003;</span>
-        <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 48, letterSpacing: 2}}>
-          EASY RETURNS KEEP CUSTOMERS &middot; REFUND IN 3&ndash;5 DAYS
-        </span>
+    <div style={{position: 'absolute', bottom: 110, left: 0, right: 0, display: 'flex', justifyContent: 'center', opacity, transform: `scale(${scale})`}}>
+      <div style={{backgroundColor: 'rgba(4,16,12,0.94)', border: `2px solid ${EMERALD}`, borderRadius: 26, padding: '40px 90px', display: 'flex', gap: 110, alignItems: 'center', boxShadow: '0 0 90px rgba(52,211,153,0.30)'}}>
+        <div>
+          <div style={{fontFamily: MONO, fontSize: 36, letterSpacing: 10, color: EMERALD}}>CYCLE COMPLETE</div>
+          <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 88, color: INK, marginTop: 10}}>Payday Locked</div>
+        </div>
+        <div style={{textAlign: 'right'}}>
+          <div style={{fontFamily: MONO, fontSize: 36, color: MUTED}}>TOTAL GROSS</div>
+          <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 72, color: INK}}>${(totalGross * count).toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
+        </div>
+        <div style={{textAlign: 'right'}}>
+          <div style={{fontFamily: MONO, fontSize: 36, color: MUTED}}>TOTAL NET PAID</div>
+          <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 72, color: EMERALD}}>${(totalNet * count).toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
+        </div>
       </div>
     </div>
   );
@@ -386,7 +297,7 @@ const ResolveStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 // ---------------------------------------------------------------------------
 // Film grain
 // ---------------------------------------------------------------------------
-const GRAIN_COUNT = 420;
+const GRAIN_COUNT = 900;
 const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
   const dots: React.ReactElement[] = [];
   for (let i = 0; i < GRAIN_COUNT; i++) {
@@ -406,22 +317,17 @@ const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const ProductReturnFlow: React.FC = () => {
+export const PayrollRunCycle: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
-      <TitleBar frame={frame} />
-      <StageRail frame={frame} fps={fps} />
-      <RouteMap frame={frame} fps={fps} />
-      <QRCode frame={frame} fps={fps} />
-      <Inspection frame={frame} fps={fps} />
-      <ResolveStrip frame={frame} fps={fps} />
+      <TitleBar frame={frame} fps={fps} />
+      <Roster frame={frame} fps={fps} />
+      <Payoff frame={frame} fps={fps} />
       <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
 };
-
-export default ProductReturnFlow;
