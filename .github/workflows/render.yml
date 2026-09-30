@@ -18,6 +18,16 @@ name: 🎬 Remotion Universal Renderer
 #     the real duration is resolved with `npx remotion compositions` and the
 #     range is clamped to it — so the error
 #     'frame range 0-899 is not inbetween 0-719' cannot come back.
+#
+#     BITRATE FLOOR: every video output is verified against a minimum bitrate,
+#     default 20 Mbps. Change the floor without editing this file:
+#     repo Settings -> Secrets and variables -> Actions -> Variables -> MIN_MBPS
+#     (set it to 0 to disable, e.g. for small test renders).
+#     Remotion itself has no --min-rate flag (it only passes -b:v/-maxrate/-bufsize
+#     via --video-bitrate/--max-rate/--buffer-size), so for a hard minimum use
+#     `adobe_stock=true`, which re-encodes with
+#     -b:v 40M -minrate 35M -maxrate 50M -bufsize 100M -profile:v high -pix_fmt yuv420p,
+#     or pass video_bitrate=40M and advanced_args='--max-rate=50M --buffer-size=100M'.
 # ─────────────────────────────────────────────────────────────────────────────
 on:
   workflow_dispatch:
@@ -418,6 +428,11 @@ jobs:
             CMD="$CMD --video-bitrate=$VIDEO_BITRATE"
           elif [ -n "$CRF" ]; then
             CMD="$CMD --crf=$CRF"
+          elif [ "$ADOBE" = "true" ] && [ "$CODEC" = "h264" ]; then
+            # Adobe path: render a near-lossless master so that the 40 Mbps
+            # re-encode below is the only lossy step (override with crf/video_bitrate)
+            echo "Adobe master render: adding --crf=1"
+            CMD="$CMD --crf=1"
           fi
 
           # Audio bitrate
@@ -483,57 +498,147 @@ jobs:
           echo "=== Output File ==="
           ls -lh "$OUTPUT"
 
-      - name: 🔬 Inspect output
+      - name: 🔬 Verify output (bitrate floor + Adobe spec)
         run: |
           EXT="${{ needs.prepare.outputs.ext }}"
-          OUTPUT="out/${{ matrix.id }}.$EXT"
           CODEC="${{ github.event.inputs.codec || 'h264' }}"
+          OUT="out/${{ matrix.id }}.$EXT"
+          ID="${{ matrix.id }}"
+          ADOBE="${ADOBE_STOCK:-false}"
+          REQ_W="${{ github.event.inputs.width }}"
+          REQ_H="${{ github.event.inputs.height }}"
+          REQ_FPS="${{ github.event.inputs.fps }}"
 
-          if [ "$CODEC" = "gif" ] || [ "$CODEC" = "mp3" ] || [ "$CODEC" = "wav" ] || [ "$CODEC" = "aac" ]; then
-            echo "Output: $(ls -lh "$OUTPUT")"
+          # Minimum Mbps required by your delivery spec. Change it without editing
+          # this file: repo Settings -> Secrets and variables -> Actions ->
+          # Variables -> MIN_MBPS (set 0 to disable the floor).
+          MIN_MBPS="${{ vars.MIN_MBPS || '20' }}"
+          case "$MIN_MBPS" in
+            ''|*[!0-9]*)
+              MIN_MBPS=20
+              ;;
+          esac
+
+          # No measurable video bitrate in these containers
+          case "$CODEC" in
+            gif|mp3|wav|aac)
+              ls -lh "$OUT"
+              echo "Bitrate floor not applicable to codec '$CODEC'"
+              exit 0
+              ;;
+          esac
+
+          # probe() prints exactly one bare value. `-of default=nokey=1:noprint_wrappers=1`
+          # avoids the CSV writer, and `tr -d ',\r '` also tolerates the trailing field
+          # separator some ffprobe builds append (they printed "3840," for csv=p=0).
+          probe() {
+            ffprobe -v error -of default=nokey=1:noprint_wrappers=1 "$@" "$OUT" | tr -d ',\r ' | head -n 1
+          }
+
+          V_W=$(probe -select_streams v:0 -show_entries stream=width)
+          V_H=$(probe -select_streams v:0 -show_entries stream=height)
+          V_FPS=$(probe -select_streams v:0 -show_entries stream=r_frame_rate)
+          V_CODEC=$(probe -select_streams v:0 -show_entries stream=codec_name)
+          V_PROFILE=$(probe -select_streams v:0 -show_entries stream=profile)
+          V_PIXFMT=$(probe -select_streams v:0 -show_entries stream=pix_fmt)
+          C_BR=$(probe -show_entries format=bit_rate)
+          DUR=$(probe -show_entries format=duration)
+          A_CODEC=$(probe -select_streams a:0 -show_entries stream=codec_name)
+          SIZE=$(stat -c %s "$OUT")
+
+          # Effective bitrate = what stock platforms compute for the delivered file:
+          # size x 8 / duration (falls back to the container's own value).
+          BPS=$(awk -v s="$SIZE" -v d="$DUR" -v c="$C_BR" 'BEGIN { if (d + 0 > 0) print int(s * 8 / d); else if (c + 0 > 0) print c; else print 0 }')
+          MBPS=$(awk -v b="$BPS" 'BEGIN { printf "%.2f", b / 1000000 }')
+          MB=$(awk -v s="$SIZE" 'BEGIN { printf "%.1f", s / 1048576 }')
+          FPS_NUM=$(awk -v r="$V_FPS" 'BEGIN { split(r, a, "/"); if (a[2] + 0 > 0) printf "%.3f", a[1] / a[2]; else printf "%.3f", a[1] + 0 }')
+
+          echo "===== Output ====="
+          echo "File:        $OUT"
+          echo "Size:        $MB MB ($SIZE bytes)"
+          echo "Duration:    $DUR s"
+          echo "Bitrate:     $MBPS Mbps (floor: ${MIN_MBPS} Mbps)"
+          echo "Resolution:  ${V_W}x${V_H}"
+          echo "FPS:         $FPS_NUM ($V_FPS)"
+          echo "Video:       ${V_CODEC} ${V_PROFILE} ${V_PIXFMT}"
+          echo "Audio:       ${A_CODEC:-NONE}"
+
+          FAILED=0
+
+          # ── 1. The bitrate floor ─────────────────────────────────────────────
+          if [ "$MIN_MBPS" -gt 0 ]; then
+            if awk -v b="$BPS" -v m="$MIN_MBPS" 'BEGIN { exit !(b / 1000000 >= m) }'; then
+              echo "✅ Bitrate ${MBPS} Mbps >= ${MIN_MBPS} Mbps floor"
+            else
+              echo "❌ FAIL: bitrate ${MBPS} Mbps is below the ${MIN_MBPS} Mbps floor"
+              echo "   Fix A: set video_bitrate=40M and advanced_args='--max-rate=50M --buffer-size=100M'"
+              echo "   Fix B: set adobe_stock=true (re-encodes with -b:v 40M -minrate 35M -maxrate 50M)"
+              echo "   Fix C: set the MIN_MBPS repository variable to 0 to disable the floor"
+              FAILED=1
+            fi
           else
-            ffprobe -v quiet -print_format json -show_format -show_streams "$OUTPUT" > /tmp/probe.json 2>&1 || true
-            python3 - << 'PYEOF'
-          import json, os, sys
-          ADOBE = os.environ.get("ADOBE_STOCK", "false")
-          try:
-            d = json.load(open('/tmp/probe.json'))
-            fmt = d.get('format', {})
-            streams = d.get('streams', [])
-            vid = next((s for s in streams if s.get('codec_type') == 'video'), None)
-            aud = next((s for s in streams if s.get('codec_type') == 'audio'), None)
-            size_mb  = int(fmt.get('size', 0)) / 1024 / 1024
-            duration = float(fmt.get('duration', 0))
-            bitrate  = int(fmt.get('bit_rate', 0)) / 1_000_000
-            print()
-            print("=" * 50)
-            print(f"File:       {fmt.get('filename','')}")
-            print(f"Size:       {size_mb:.1f} MB")
-            print(f"Duration:   {duration:.2f}s")
-            print(f"Bitrate:    {bitrate:.2f} Mbps")
-            if vid:
-              print(f"Resolution: {vid.get('width')}x{vid.get('height')}")
-              print(f"FPS:        {vid.get('r_frame_rate')}")
-              print(f"Codec:      {vid.get('codec_name')} {vid.get('profile','')}")
-            print(f"Audio:      {'NONE' if aud is None else aud.get('codec_name','unknown') + ' (present)'}")
-            print("=" * 50)
-            errors = []
-            if ADOBE == "true":
-              if bitrate < 20:
-                errors.append(f"Bitrate too low: {bitrate:.1f} Mbps (need >= 20 Mbps for Adobe Stock)")
-              if aud is not None:
-                errors.append("Audio stream present — must be muted for Adobe Stock")
-            if errors:
-              print()
-              for e in errors:
-                print(f"FAIL: {e}")
-              sys.exit(1)
-            else:
-              print("All checks passed!")
-          except Exception as e:
-            print(f"Could not parse probe: {e}")
-          PYEOF
+            echo "ℹ Bitrate floor disabled (MIN_MBPS=0) — measured ${MBPS} Mbps"
           fi
+
+          # ── 2. Dimensions and fps, only when the inputs asked for them ───────
+          if [ -n "$REQ_W" ] && [ "$REQ_W" != "$V_W" ]; then
+            echo "❌ FAIL: width is $V_W but the width input asked for $REQ_W"
+            FAILED=1
+          fi
+          if [ -n "$REQ_H" ] && [ "$REQ_H" != "$V_H" ]; then
+            echo "❌ FAIL: height is $V_H but the height input asked for $REQ_H"
+            FAILED=1
+          fi
+          if [ -n "$REQ_FPS" ]; then
+            if awk -v a="$FPS_NUM" -v b="$REQ_FPS" 'BEGIN { exit !(a - b < 0.01 && b - a < 0.01) }'; then
+              echo "✅ FPS $FPS_NUM matches the fps input"
+            else
+              echo "⚠ FPS is $FPS_NUM but the fps input asked for $REQ_FPS — the --fps override needs Remotion >= 4.0.424, older versions ignore it"
+            fi
+          fi
+
+          # ── 3. Adobe Stock submission spec ──────────────────────────────────
+          if [ "$ADOBE" = "true" ]; then
+            if [ -n "$A_CODEC" ]; then
+              echo "❌ FAIL: audio stream present ($A_CODEC) — Adobe Stock must be silent"
+              FAILED=1
+            fi
+            if [ "$V_CODEC" != "h264" ]; then
+              echo "❌ FAIL: Adobe Stock requires H.264, got $V_CODEC"
+              FAILED=1
+            fi
+            if [ "$V_PIXFMT" != "yuv420p" ]; then
+              echo "❌ FAIL: Adobe Stock requires yuv420p, got $V_PIXFMT"
+              FAILED=1
+            fi
+            if awk -v b="$BPS" 'BEGIN { exit !(b / 1000000 >= 35) }'; then
+              echo "✅ Adobe 4K target band respected (${MBPS} Mbps)"
+            else
+              echo "⚠ The Adobe 4K guidance is 35-50 Mbps; this file is ${MBPS} Mbps (fine at lower resolutions)"
+            fi
+          fi
+
+          # ── 4. Job summary ──────────────────────────────────────────────────
+          {
+            echo "## 🔬 Verify \`$ID\`"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|---|---|"
+            echo "| Size | $MB MB |"
+            echo "| Duration | $DUR s |"
+            echo "| Bitrate | **$MBPS Mbps** (floor $MIN_MBPS) |"
+            echo "| Resolution | ${V_W}x${V_H} |"
+            echo "| FPS | $FPS_NUM |"
+            echo "| Codec | $V_CODEC $V_PROFILE $V_PIXFMT |"
+            echo "| Audio | ${A_CODEC:-NONE} |"
+            echo "| Artifact | \`${{ matrix.id }}_${{ github.event.inputs.codec || 'h264' }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$FAILED" -ne 0 ]; then
+            echo "❌ Output verification failed"
+            exit 1
+          fi
+          echo "✅ All output checks passed"
 
       - name: 📤 Upload artifact
         uses: actions/upload-artifact@v4
