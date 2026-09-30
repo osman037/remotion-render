@@ -1,14 +1,12 @@
 /**
- * ProductReturnFlow.tsx
+ * BackgroundCheckProcess.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * A reverse-logistics story on deep slate teal: the delivered box starts its
- * journey home — QR return label generates, drop-off scans ping, the route
- * rewinds to the warehouse, inspection branches to refund or restock, and the
- * refund counter pays off. Intro -> build -> payoff -> resolve.
- *
- * Register in Root.tsx:
- *   <Composition id="ProductReturnFlow" component={ProductReturnFlow}
- *     width={3840} height={2160} fps={60} durationInFrames={900} />
+ * A brand-neutral employment background-check process for HR teams,
+ * staffing firms, and training vendors: candidate consent, four records
+ * checks (identity, employment, education, criminal) with scanning sweeps,
+ * a compiled report, and the CLEARED verdict. Document/records arc only —
+ * no biometric face scanning (that duplicates produced KYCVerificationFlow).
+ * Demand-validated 2026-09-30 (PLAUSIBLE-strong).
  */
 
 import React from 'react';
@@ -22,330 +20,312 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (deep slate teal + return amber)
+// Palette (HR slate + teal, institutional)
 // ---------------------------------------------------------------------------
-const BG = '#0B1E22';
-const INK = '#EBF5F5';
-const MUTED = 'rgba(235,245,245,0.60)';
+const BG = '#080D16';
+const INK = '#EEF3FA';
+const MUTED = 'rgba(238,243,250,0.58)';
 const TEAL = '#2DD4BF';
-const TEAL_DEEP = '#0E7C6F';
+const BLUE = '#60A5FA';
+const VIOLET = '#A78BFA';
 const AMBER = '#FBBF24';
 const GREEN = '#34D399';
-const RED = '#FF6B6B';
-const PANEL = 'rgba(15,40,46,0.82)';
-const HAIRLINE = 'rgba(235,245,245,0.16)';
+const PANEL = 'rgba(10,17,29,0.94)';
+const HAIRLINE = 'rgba(238,243,250,0.15)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
 // ---------------------------------------------------------------------------
-// Timeline
+// Data
 // ---------------------------------------------------------------------------
-const LABEL_START = 60;
-const ROUTE_START = 180;
-const SCAN_START = 330;
-const INSPECT_START = 500;
-const REFUND_START = 640;
-const RESOLVE_START = 810;
+const CHECKS = [
+  {name: 'IDENTITY', records: ['SSN TRACE', 'ADDRESS HISTORY', 'NAME VARIANTS'], color: TEAL, sources: 4},
+  {name: 'EMPLOYMENT', records: ['7-YR HISTORY', 'TITLE MATCH', 'REHIRE STATUS'], color: BLUE, sources: 5},
+  {name: 'EDUCATION', records: ['DEGREE CONFIRM', 'DATES ATTENDED', 'ACCREDITATION'], color: VIOLET, sources: 3},
+  {name: 'CRIMINAL', records: ['COUNTY COURTS', 'STATE REPOS', 'FEDERAL', 'WATCHLIST'], color: AMBER, sources: 6},
+];
 
-const STAGES = ['RETURN REQUEST', 'QR LABEL', 'DROP-OFF', 'IN TRANSIT', 'INSPECT', 'REFUND'];
-const STAGE_TIMES = [LABEL_START - 20, LABEL_START, SCAN_START, ROUTE_START + 40, INSPECT_START, REFUND_START];
-
-// ---------------------------------------------------------------------------
-// Route geometry (doorstep -> warehouse, reverse of the sale)
-// ---------------------------------------------------------------------------
-const P_DOOR = {x: 3100, y: 1080};
-const P_HUB = {x: 2050, y: 700};
-const P_WARE = {x: 900, y: 1080};
-
-const routePoint = (t: number) => {
-  // quadratic-ish path through hub
-  const x = (1 - t) * (1 - t) * P_DOOR.x + 2 * (1 - t) * t * P_HUB.x + t * t * P_WARE.x;
-  const y = (1 - t) * (1 - t) * P_DOOR.y + 2 * (1 - t) * t * P_HUB.y + t * t * P_WARE.y;
-  return {x, y};
-};
+const CONSENT_START = 90;
+const CHECK_START = 240;
+const CHECK_GAP = 120;
+const REPORT_START = 700;
+const VERDICT_START = 790;
 
 // ---------------------------------------------------------------------------
 // SVG defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="prGlow" cx="50%" cy="30%" r="72%">
-      <stop offset="0%" stopColor="rgba(45,212,191,0.12)" />
-      <stop offset="55%" stopColor="rgba(45,212,191,0.035)" />
-      <stop offset="100%" stopColor="rgba(11,30,34,0)" />
+    <radialGradient id="bcGlow" cx="50%" cy="28%" r="80%">
+      <stop offset="0%" stopColor="#0F2E38" stopOpacity={0.85} />
+      <stop offset="55%" stopColor="#0B1B26" stopOpacity={0.32} />
+      <stop offset="100%" stopColor="#080D16" stopOpacity={0} />
     </radialGradient>
-    <radialGradient id="prVignette" cx="50%" cy="50%" r="76%">
-      <stop offset="60%" stopColor="rgba(4,13,15,0)" />
-      <stop offset="100%" stopColor="rgba(4,13,15,0.72)" />
+    <radialGradient id="bcVig" cx="50%" cy="50%" r="72%">
+      <stop offset="0%" stopColor="#000000" stopOpacity={0} />
+      <stop offset="78%" stopColor="#000000" stopOpacity={0} />
+      <stop offset="100%" stopColor="#02060C" stopOpacity={0.85} />
     </radialGradient>
-    <linearGradient id="prRoute" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={TEAL_DEEP} />
-      <stop offset="100%" stopColor={TEAL} />
+    <linearGradient id="bcSweep" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor="#2DD4BF" stopOpacity={0} />
+      <stop offset="50%" stopColor="#2DD4BF" stopOpacity={0.10} />
+      <stop offset="100%" stopColor="#2DD4BF" stopOpacity={0} />
     </linearGradient>
-    <filter id="prGlow14" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="14" result="blur" />
+    <filter id="bcGlow10" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation={10} result="b" />
       <feMerge>
-        <feMergeNode in="blur" />
+        <feMergeNode in="b" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
-    </filter>
-    <filter id="prShadow" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="22" stdDeviation="30" floodColor="#000000" floodOpacity="0.55" />
     </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background
+// Background: glow + vignette + drifting document shimmer + sweep
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const driftX = (frame * 0.3) % 120;
-  const driftY = (frame * 0.2) % 120;
-  const scanY = ((frame / 900) * (2160 + 300)) % (2160 + 300) - 150;
-  const dots: React.ReactElement[] = [];
-  for (let gx = 0; gx <= 33; gx++) {
-    for (let gy = 0; gy <= 19; gy++) {
-      const shimmer = 0.05 + 0.05 * Math.sin(frame * 0.075 + gx * 1.2 + gy * 0.8);
-      dots.push(
-        <circle key={`${gx}-${gy}`} cx={gx * 120 - driftX} cy={gy * 120 - driftY} r={2.2} fill="#2DD4BF" opacity={shimmer} />
-      );
-    }
+  const shards: React.ReactElement[] = [];
+  for (let i = 0; i < 70; i++) {
+    const bx = random(`bc-shard-x-${i}`) * 3840;
+    const by = random(`bc-shard-y-${i}`) * 2160;
+    const y = ((by + frame * (0.4 + random(`bc-shard-v-${i}`) * 1.0)) % 2300) - 70;
+    const w = 30 + random(`bc-shard-w-${i}`) * 90;
+    const o = 0.03 + random(`bc-shard-o-${i}`) * 0.05;
+    shards.push(<rect key={i} x={bx} y={y} width={w} height={10} rx={5} fill="#7DD3FC" opacity={o} transform={`rotate(${random(`bc-shard-r-${i}`) * 30 - 15} ${bx} ${y})`} />);
   }
+  const sweepX = interpolate(frame, [0, 900], [-500, 4340], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
   return (
-    <>
-      <AbsoluteFill style={{backgroundColor: BG}} />
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <Defs />
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#prGlow)" />
-        {dots}
-        <rect x={0} y={scanY - 80} width={3840} height={160} fill="rgba(45,212,191,0.03)" />
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#prVignette)" />
-      </svg>
-    </>
+    <svg width={3840} height={2160} style={{position: 'absolute', inset: 0}}>
+      <rect width={3840} height={2160} fill={BG} />
+      <rect width={3840} height={2160} fill="url(#bcGlow)" />
+      <g>{shards}</g>
+      <rect x={sweepX - 300} y={0} width={600} height={2160} fill="url(#bcSweep)" />
+      <rect width={3840} height={2160} fill="url(#bcVig)" />
+    </svg>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Title bar
+// Film grain
 // ---------------------------------------------------------------------------
-const TitleBar: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [0, 40], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const rise = interpolate(frame, [0, 40], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+const GRAIN_COUNT = 1100;
+
+const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
+  const rects: React.ReactElement[] = [];
+  for (let i = 0; i < GRAIN_COUNT; i++) {
+    const x = random(`bc-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`bc-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`bc-grain-o-${frame}-${i}`) * 0.045;
+    const s = 2 + random(`bc-grain-s-${frame}-${i}`) * 2.5;
+    const white = random(`bc-grain-w-${frame}-${i}`) > 0.5;
+    rects.push(
+      <rect key={i} x={x} y={y} width={s} height={s} fill={white ? '#FFFFFF' : '#000000'} opacity={o} />,
+    );
+  }
   return (
-    <div style={{position: 'absolute', top: 80 + rise, left: 200, opacity: fade}}>
-      <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 78, letterSpacing: -1.5}}>
-        The <span style={{color: TEAL}}>return journey</span>, in reverse
+    <svg width={3840} height={2160} style={{position: 'absolute', inset: 0}}>
+      {rects}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Header
+// ---------------------------------------------------------------------------
+const Header: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const p = spring({frame: Math.max(0, frame - 8), fps, config: {damping: 120, stiffness: 160}});
+  const y = interpolate(p, [0, 1], [60, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const op = interpolate(p, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  return (
+    <div style={{position: 'absolute', top: 100, left: 0, right: 0, opacity: op, transform: `translateY(${y}px)`, textAlign: 'center'}}>
+      <div style={{fontFamily: MONO, fontSize: 34, letterSpacing: 10, color: MUTED}}>PRE-EMPLOYMENT SCREENING</div>
+      <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 104, letterSpacing: 8, color: INK, marginTop: 22}}>
+        BACKGROUND <span style={{color: TEAL}}>CHECK</span>
       </div>
-      <div style={{color: MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 3, marginTop: 12}}>
-        REVERSE LOGISTICS &middot; ORDER #8841-2290
+      <div style={{fontFamily: MONO, fontSize: 34, letterSpacing: 10, color: MUTED, marginTop: 14}}>
+        CONSENT → RECORDS → REPORT → DECISION
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Stage rail
+// Consent card
 // ---------------------------------------------------------------------------
-const StageRail: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 25, fps, config: {damping: 200, stiffness: 80}});
-  if (s <= 0.001) return null;
-  const railX = 200; const railW = 3440; const railY = 340;
+const Consent: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const inn = spring({frame: Math.max(0, frame - CONSENT_START), fps, config: {damping: 110, stiffness: 160}});
+  const op = interpolate(inn, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const signed = frame >= 170;
+  const sigP = interpolate(frame, [175, 225], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const fadeOut =
+    frame > 260
+      ? interpolate(frame, [260, 300], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})
+      : 1;
+  if (op * fadeOut <= 0) return null;
   return (
-    <div style={{position: 'absolute', left: 0, top: 0, opacity: Math.min(1, s)}}>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <line x1={railX} y1={railY} x2={railX + railW} y2={railY} stroke={HAIRLINE} strokeWidth={8} strokeLinecap="round" />
-        {STAGES.map((st, i) => {
-          const active = frame >= STAGE_TIMES[i];
-          const done = i < STAGES.length - 1 ? frame >= STAGE_TIMES[i + 1] : frame >= RESOLVE_START;
-          const x = railX + (i / (STAGES.length - 1)) * railW;
-          return (
-            <g key={st}>
-              {i < STAGES.length - 1 && (() => {
-                const nx = railX + ((i + 1) / (STAGES.length - 1)) * railW;
-                const cf = interpolate(frame, [STAGE_TIMES[i], STAGE_TIMES[i + 1]], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-                return (
-                  <line x1={x} y1={railY} x2={x + (nx - x) * cf} y2={railY}
-                    stroke={done ? GREEN : TEAL} strokeWidth={8} strokeLinecap="round" filter="url(#prGlow14)" />
-                );
-              })()}
-              <circle cx={x} cy={railY} r={active ? 34 : 24}
-                fill={done ? GREEN : active ? TEAL : BG}
-                stroke={done ? GREEN : active ? TEAL : HAIRLINE} strokeWidth={6} />
-              {done && (
-                <text x={x} y={railY + 12} textAnchor="middle" fill="#0B1E22" fontSize={34} fontWeight={800}>&#10003;</text>
-              )}
-              <text x={x} y={railY + 84} textAnchor="middle"
-                fill={active ? INK : MUTED} fontSize={28} fontFamily={MONO}
-                fontWeight={active ? 800 : 500} letterSpacing={2}>{st}</text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// QR label card (left) + map with traveling box (center) + inspection (right)
-// ---------------------------------------------------------------------------
-const QRCode: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - LABEL_START, fps, config: {damping: 200, stiffness: 90}});
-  if (s <= 0.001) return null;
-  // deterministic faux-QR blocks
-  const cells: React.ReactElement[] = [];
-  for (let cx = 0; cx < 12; cx++) {
-    for (let cy = 0; cy < 12; cy++) {
-      if (random(`qr-${cx}-${cy}`) > 0.52) {
-        cells.push(<rect key={`${cx}-${cy}`} x={cx * 22} y={cy * 22} width={19} height={19} fill={INK} />);
-      }
-    }
-  }
-  return (
-    <div style={{
-      position: 'absolute', left: 200, top: 600, width: 560,
-      opacity: Math.min(1, s), transform: `scale(${0.8 + 0.2 * Math.min(1, s)})`,
-    }}>
-      <div style={{
-        background: PANEL, borderRadius: 28, padding: '44px',
-        border: `3px solid ${TEAL}`, filter: 'url(#prShadow)',
-        boxShadow: '0 0 50px rgba(45,212,191,0.3)', textAlign: 'center',
-      }}>
-        <div style={{color: TEAL, fontFamily: MONO, fontWeight: 800, fontSize: 32, letterSpacing: 3}}>
-          RETURN LABEL
+    <div style={{position: 'absolute', top: 620, left: 0, right: 0, display: 'flex', justifyContent: 'center', opacity: op * fadeOut}}>
+      <div style={{width: 1900, padding: '70px 90px', background: PANEL, border: `2px solid ${HAIRLINE}`, borderRadius: 30, position: 'relative'}}>
+        <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 8, color: TEAL}}>STEP 01 — CANDIDATE CONSENT</div>
+        <div style={{fontFamily: FONT, fontSize: 44, color: INK, marginTop: 28, lineHeight: 1.5}}>
+          I authorize a pre-employment background check, including identity,
+          employment, education, and criminal records searches.
         </div>
-        <svg width={264} height={264} viewBox="0 0 264 264" style={{margin: '24px auto 0', display: 'block'}}>
-          <rect x={0} y={0} width={264} height={264} fill="#0B1E22" rx={12} />
-          <g transform="translate(6,6)">{cells}</g>
-          <rect x={6} y={6} width={62} height={62} fill="none" stroke={TEAL} strokeWidth={8} />
-          <rect x={196} y={6} width={62} height={62} fill="none" stroke={TEAL} strokeWidth={8} />
-          <rect x={6} y={196} width={62} height={62} fill="none" stroke={TEAL} strokeWidth={8} />
+        <svg width={1720} height={120} style={{marginTop: 30}}>
+          <line x1={20} y1={85} x2={900} y2={85} stroke={HAIRLINE} strokeWidth={3} />
+          <path
+            d="M 60 70 C 180 20, 260 90, 380 45 S 560 80, 700 40 S 820 70, 880 55"
+            fill="none"
+            stroke={INK}
+            strokeWidth={7}
+            strokeLinecap="round"
+            strokeDasharray={900}
+            strokeDashoffset={900 * (1 - sigP)}
+          />
         </svg>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, marginTop: 20}}>
-          RMA-8841-2290 &middot; prepaid postage
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10}}>
+          <div style={{fontFamily: MONO, fontSize: 28, color: MUTED, letterSpacing: 4}}>CANDIDATE SIGNATURE</div>
+          <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 4, color: signed ? GREEN : AMBER, fontWeight: 700}}>
+            {signed ? '✓ CONSENT RECORDED' : 'AWAITING SIGNATURE…'}
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-const RouteMap: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - (ROUTE_START - 40), fps, config: {damping: 200, stiffness: 80}});
-  if (s <= 0.001) return null;
-
-  const t = interpolate(frame, [ROUTE_START, ROUTE_START + 300], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const pos = routePoint(t);
-  const pathD = `M ${P_DOOR.x} ${P_DOOR.y} Q ${P_HUB.x + 320} ${P_HUB.y - 120} ${P_WARE.x} ${P_WARE.y}`;
-
-  const scanned = Math.floor(interpolate(frame, [SCAN_START, SCAN_START + 200], [0, 3], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
-  const scanPts = [
-    {x: 2680, y: 940, label: 'PICKUP'},
-    {x: 2050, y: 700, label: 'HUB SORT'},
-    {x: 1340, y: 920, label: 'REGIONAL'},
-  ];
-
+// ---------------------------------------------------------------------------
+// Four records-check panels with scan sweeps
+// ---------------------------------------------------------------------------
+const Checks: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const containerFade =
+    frame > 660
+      ? interpolate(frame, [660, 700], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})
+      : 1;
+  if (containerFade <= 0) return null;
   return (
-    <div style={{position: 'absolute', left: 0, top: 0, opacity: Math.min(1, s)}}>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <path d={pathD} fill="none" stroke="rgba(235,245,245,0.14)" strokeWidth={6} strokeDasharray="18 20" />
-        <path d={pathD} fill="none" stroke="url(#prRoute)" strokeWidth={6} strokeLinecap="round"
-          pathLength={1} strokeDasharray={1} strokeDashoffset={1 - t} filter="url(#prGlow14)" />
-        {/* warehouse pin */}
-        <g transform={`translate(${P_WARE.x}, ${P_WARE.y})`}>
-          <circle r={46} fill={TEAL} opacity={0.25} />
-          <rect x={-40} y={-40} width={80} height={80} rx={14} fill={TEAL} />
-          <text x={0} y={16} textAnchor="middle" fontSize={44} fill="#0B1E22" fontWeight={800}>&#8962;</text>
-          <text x={0} y={110} textAnchor="middle" fill={MUTED} fontSize={30} fontFamily={MONO}>WAREHOUSE</text>
-        </g>
-        {/* doorstep pin */}
-        <g transform={`translate(${P_DOOR.x}, ${P_DOOR.y})`}>
-          <circle r={36} fill={AMBER} opacity={0.25} />
-          <circle r={26} fill={AMBER} />
-          <text x={0} y={92} textAnchor="middle" fill={MUTED} fontSize={30} fontFamily={MONO}>CUSTOMER</text>
-        </g>
-        {/* scan pings */}
-        {scanPts.map((p, i) => {
-          if (i >= scanned) return null;
-          const pulse = 0.5 + 0.5 * Math.sin(frame * 0.2 + i);
-          return (
-            <g key={p.label} transform={`translate(${p.x}, ${p.y})`}>
-              <circle r={20 + pulse * 16} fill="none" stroke={TEAL} strokeWidth={4} opacity={0.8 - pulse * 0.3} />
-              <circle r={10} fill={TEAL} />
-              <text x={0} y={-46} textAnchor="middle" fill={TEAL} fontSize={28} fontFamily={MONO} fontWeight={800}>
-                {p.label} &#10003;
-              </text>
-            </g>
-          );
-        })}
-        {/* the box traveling home */}
-        <g transform={`translate(${pos.x - 60}, ${pos.y - 46})`} opacity={t >= 1 ? 0 : 1}>
-          <rect x={0} y={0} width={120} height={92} rx={10} fill="#C98A3B" stroke="#8A5A22" strokeWidth={5} />
-          <line x1={60} y1={0} x2={60} y2={92} stroke="#8A5A22" strokeWidth={5} />
-          <rect x={38} y={30} width={44} height={32} fill="#0B1E22" opacity={0.85} rx={4} />
-        </g>
-      </svg>
-      <div style={{position: 'absolute', left: 1380, top: 1320, width: 1080, textAlign: 'center'}}>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>MILES TO WAREHOUSE</div>
-        <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 92, marginTop: 8}}>
-          {Math.round(842 * (1 - t))}
-        </div>
-        <div style={{color: TEAL, fontFamily: MONO, fontSize: 32, marginTop: 4}}>
-          ETA {Math.max(0, Math.round(4 * (1 - t)))} DAYS
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const Inspection: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - INSPECT_START, fps, config: {damping: 200, stiffness: 80}});
-  if (s <= 0.001) return null;
-
-  const verdict = interpolate(frame, [INSPECT_START + 60, INSPECT_START + 110], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const refund = interpolate(frame, [REFUND_START, REFUND_START + 120], [0, 189.99], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-
-  return (
-    <div style={{
-      position: 'absolute', left: 200, top: 1330, width: 980,
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 60}px)`,
-    }}>
-      <div style={{
-        background: PANEL, borderRadius: 28, padding: '40px 48px',
-        border: `2px solid ${verdict > 0.5 ? GREEN : HAIRLINE}`,
-        filter: 'url(#prShadow)', backdropFilter: 'blur(6px)',
-        boxShadow: verdict > 0.5 ? '0 0 50px rgba(52,211,153,0.25)' : 'none',
-      }}>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>WAREHOUSE INSPECTION</div>
-        <div style={{display: 'flex', gap: 24, marginTop: 24}}>
-          {['ITEM INTACT', 'TAGS ATTACHED', 'RESALABLE'].map((c, i) => {
-            const on = frame >= INSPECT_START + 20 + i * 34;
-            return (
-              <div key={c} style={{
-                flex: 1, borderRadius: 16, padding: '18px 10px', textAlign: 'center',
-                background: on ? 'rgba(52,211,153,0.10)' : 'rgba(235,245,245,0.04)',
-                border: `2px solid ${on ? GREEN : HAIRLINE}`,
-              }}>
-                <div style={{color: on ? GREEN : MUTED, fontFamily: MONO, fontWeight: 800, fontSize: 28}}>
-                  {on ? '\u2713' : '\u00B7'}
-                </div>
-                <div style={{color: on ? INK : MUTED, fontFamily: MONO, fontSize: 22, marginTop: 6}}>
-                  {c}
-                </div>
+    <div style={{position: 'absolute', top: 560, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 60, opacity: containerFade}}>
+      {CHECKS.map((c, i) => {
+        const start = CHECK_START + i * CHECK_GAP;
+        const inn = spring({frame: Math.max(0, frame - start), fps, config: {damping: 110, stiffness: 160}});
+        const op = interpolate(inn, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+        const y = interpolate(inn, [0, 1], [70, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+        if (op <= 0) return null;
+        const doneAt = start + 100;
+        const done = frame >= doneAt;
+        const scanY = interpolate(frame, [start + 20, doneAt], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+        const sourcesHit = Math.floor(interpolate(frame, [start + 20, doneAt], [0, c.sources], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
+        return (
+          <div
+            key={c.name}
+            style={{
+              width: 820,
+              padding: '50px 54px',
+              background: PANEL,
+              border: `2px solid ${done ? c.color : HAIRLINE}`,
+              borderTop: `8px solid ${c.color}`,
+              borderRadius: 26,
+              opacity: op,
+              transform: `translateY(${y}px)`,
+              boxShadow: done ? `0 0 50px ${c.color}30` : 'none',
+            }}
+          >
+            <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 46, color: INK, letterSpacing: 4}}>{c.name}</div>
+            <div style={{marginTop: 30, position: 'relative'}}>
+              {c.records.map((r, k) => {
+                const tick = frame >= start + 30 + k * 20;
+                return (
+                  <div key={r} style={{display: 'flex', justifyContent: 'space-between', padding: '14px 0', borderBottom: `1px solid ${HAIRLINE}`, opacity: tick ? 1 : 0.25}}>
+                    <span style={{fontFamily: MONO, fontSize: 29, color: tick ? INK : MUTED, letterSpacing: 2}}>{r}</span>
+                    <span style={{fontFamily: MONO, fontSize: 29, color: tick ? c.color : MUTED, fontWeight: 700}}>{tick ? '✓' : '···'}</span>
+                  </div>
+                );
+              })}
+              {!done && frame > start + 20 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    top: scanY * 220,
+                    height: 6,
+                    background: c.color,
+                    boxShadow: `0 0 30px ${c.color}`,
+                  }}
+                />
+              )}
+            </div>
+            <div style={{marginTop: 26, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+              <div style={{fontFamily: MONO, fontSize: 28, color: MUTED, letterSpacing: 3}}>
+                {done ? `${c.sources} SOURCES` : `${sourcesHit}/${c.sources} SOURCES`}
               </div>
-            );
-          })}
+              <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 4, color: done ? c.color : AMBER, fontWeight: 700}}>
+                {done ? '✓ CLEAR' : 'SEARCHING…'}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Report + verdict payoff
+// ---------------------------------------------------------------------------
+const Report: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const inn = spring({frame: Math.max(0, frame - REPORT_START), fps, config: {damping: 100, stiffness: 150}});
+  const op = interpolate(inn, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const y = interpolate(inn, [0, 1], [70, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const verdictOn = frame >= VERDICT_START;
+  const verdictP = verdictOn ? spring({frame: frame - VERDICT_START, fps, config: {damping: 60, stiffness: 300}}) : 0;
+  const pages = Math.min(18, Math.floor(interpolate(frame, [REPORT_START, VERDICT_START], [0, 18], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})));
+  if (op <= 0) return null;
+  return (
+    <div style={{position: 'absolute', top: 560, left: 0, right: 0, display: 'flex', justifyContent: 'center', opacity: op, transform: `translateY(${y}px)`}}>
+      <div style={{width: 2300, padding: '70px 90px', background: PANEL, border: `2px solid ${HAIRLINE}`, borderRadius: 30, position: 'relative'}}>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+          <div>
+            <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 8, color: TEAL}}>FINAL REPORT</div>
+            <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 60, color: INK, marginTop: 14}}>CANDIDATE SCREENING SUMMARY</div>
+          </div>
+          <div style={{textAlign: 'right'}}>
+            <div style={{fontFamily: MONO, fontSize: 28, color: MUTED, letterSpacing: 4}}>PAGES COMPILED</div>
+            <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 72, color: INK}}>{pages}</div>
+          </div>
         </div>
-        {verdict > 0.5 && (
-          <div style={{
-            marginTop: 26, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            opacity: interpolate(frame, [INSPECT_START + 60, INSPECT_START + 110], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
-          }}>
-            <span style={{color: GREEN, fontFamily: MONO, fontWeight: 800, fontSize: 36, letterSpacing: 2}}>
-              PASSED &middot; REFUND APPROVED
-            </span>
-            <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 72}}>
-              ${refund.toFixed(2)}
-            </span>
+        <div style={{marginTop: 36, display: 'flex', gap: 26}}>
+          {CHECKS.map((c) => (
+            <div key={c.name} style={{flex: 1, padding: '26px 30px', background: 'rgba(238,243,250,0.05)', borderRadius: 18, border: `2px solid ${c.color}`}}>
+              <div style={{fontFamily: MONO, fontSize: 28, letterSpacing: 4, color: c.color, fontWeight: 700}}>{c.name}</div>
+              <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 44, color: GREEN, marginTop: 10}}>✓ CLEAR</div>
+            </div>
+          ))}
+        </div>
+        <div style={{fontFamily: MONO, fontSize: 28, color: MUTED, marginTop: 30, letterSpacing: 3}}>
+          0 FLAGS · FCRA-COMPLIANT · TURNAROUND 36 HOURS
+        </div>
+        {verdictOn && (
+          <div
+            style={{
+              position: 'absolute',
+              top: -40,
+              right: 90,
+              transform: `rotate(10deg) scale(${0.5 + verdictP * 0.5})`,
+              opacity: interpolate(verdictP, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
+              border: '10px solid #34D399',
+              borderRadius: 24,
+              padding: '26px 60px',
+              background: 'rgba(52,211,153,0.08)',
+              boxShadow: '0 0 80px rgba(52,211,153,0.45)',
+            }}
+          >
+            <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 110, letterSpacing: 12, color: GREEN}}>CLEARED</div>
+            <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 8, color: MUTED, textAlign: 'center', marginTop: 8}}>READY TO HIRE</div>
           </div>
         )}
       </div>
@@ -354,74 +334,53 @@ const Inspection: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Resolve strip
+// Live records counter (per-frame motion)
 // ---------------------------------------------------------------------------
-const ResolveStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - RESOLVE_START, fps, config: {damping: 200, stiffness: 100}});
-  if (s <= 0.001) return null;
+const LiveCounter: React.FC<{frame: number}> = ({frame}) => {
+  const n = Math.floor(interpolate(frame, [240, 700], [0, 1400], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
   return (
-    <div style={{
-      position: 'absolute', bottom: 92, left: 0, width: 3840,
-      display: 'flex', justifyContent: 'center',
-      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 40}px)`,
-    }}>
-      <div style={{
-        background: 'rgba(52,211,153,0.10)', border: `2px solid ${GREEN}`,
-        borderRadius: 999, padding: '28px 90px',
-        display: 'flex', alignItems: 'center', gap: 44,
-      }}>
-        <span style={{
-          width: 58, height: 58, borderRadius: '50%', background: GREEN,
-          color: '#0B1E22', fontSize: 36, fontWeight: 800,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>&#10003;</span>
-        <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 48, letterSpacing: 2}}>
-          EASY RETURNS KEEP CUSTOMERS &middot; REFUND IN 3&ndash;5 DAYS
-        </span>
+    <div style={{position: 'absolute', top: 380, right: 240, textAlign: 'right'}}>
+      <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 6, color: MUTED}}>RECORDS SEARCHED</div>
+      <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 84, color: INK}}>{n.toLocaleString('en-US')}</div>
+      <div style={{fontFamily: MONO, fontSize: 28, letterSpacing: 4, color: MUTED, marginTop: 6}}>ACROSS 18 DATA SOURCES</div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Ticker strip
+// ---------------------------------------------------------------------------
+const STRIP = '  •  94% OF EMPLOYERS RUN BACKGROUND CHECKS ON NEW HIRES    •  ALWAYS GET WRITTEN CONSENT FIRST — IT IS THE LAW IN MOST JURISDICTIONS    •  MOST CHECKS COMPLETE IN 1–3 BUSINESS DAYS    ';
+
+const Strip: React.FC<{frame: number}> = ({frame}) => {
+  const x = -((frame * 7) % 2400);
+  return (
+    <div style={{position: 'absolute', bottom: 56, left: 0, right: 0, overflow: 'hidden', borderTop: `2px solid ${HAIRLINE}`, borderBottom: `2px solid ${HAIRLINE}`, padding: '22px 0'}}>
+      <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 5, color: MUTED, whiteSpace: 'nowrap', transform: `translateX(${x}px)`}}>
+        {STRIP.repeat(3)}
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Film grain
-// ---------------------------------------------------------------------------
-const GRAIN_COUNT = 420;
-const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
-  const dots: React.ReactElement[] = [];
-  for (let i = 0; i < GRAIN_COUNT; i++) {
-    const x = random(`pr-grain-x-${frame}-${i}`) * 3840;
-    const y = random(`pr-grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`pr-grain-o-${frame}-${i}`) * 0.04;
-    const s = 2 + random(`pr-grain-s-${frame}-${i}`) * 2.5;
-    dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
-  }
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {dots}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const ProductReturnFlow: React.FC = () => {
+export const BackgroundCheckProcess: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
+      <Defs />
       <Background frame={frame} />
-      <TitleBar frame={frame} />
-      <StageRail frame={frame} fps={fps} />
-      <RouteMap frame={frame} fps={fps} />
-      <QRCode frame={frame} fps={fps} />
-      <Inspection frame={frame} fps={fps} />
-      <ResolveStrip frame={frame} fps={fps} />
+      <Header frame={frame} fps={fps} />
+      <Consent frame={frame} fps={fps} />
+      <Checks frame={frame} fps={fps} />
+      <Report frame={frame} fps={fps} />
+      <LiveCounter frame={frame} />
+      <Strip frame={frame} />
       <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
 };
-
-export default ProductReturnFlow;
