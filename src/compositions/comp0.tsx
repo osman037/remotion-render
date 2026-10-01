@@ -177,8 +177,11 @@ const Background: React.FC<{frame: number}> = ({frame}) => {
     for (let gy = 60; gy < 2160; gy += 160) {
       const jx = (random(`ag-dot-x-${gx}-${gy}`) - 0.5) * 24;
       const jy = (random(`ag-dot-y-${gx}-${gy}`) - 0.5) * 24;
+      // per-frame shimmer: every dot breathes at its own phase so no region is static
+      const shimmer = 0.028 + 0.028 * (0.5 + 0.5 * Math.sin(frame * 0.11 + gx * 0.013 + gy * 0.017));
+      const rr = 2.0 + 1.1 * (0.5 + 0.5 * Math.sin(frame * 0.09 + gx * 0.021 - gy * 0.011));
       dots.push(
-        <circle key={`${gx}-${gy}`} cx={gx + jx} cy={gy + jy} r={2.2} fill="rgba(234,242,251,0.05)" />
+        <circle key={`${gx}-${gy}`} cx={gx + jx} cy={gy + jy} r={rr} fill="rgba(234,242,251,0.9)" opacity={shimmer} />
       );
     }
   }
@@ -189,6 +192,23 @@ const Background: React.FC<{frame: number}> = ({frame}) => {
   for (let gy = 0; gy <= 2160; gy += 480) {
     hairlines.push(<line key={`h${gy}`} x1={0} y1={gy} x2={3840} y2={gy} stroke="rgba(234,242,251,0.035)" strokeWidth={1} />);
   }
+  // traveling pulse along the grid: a bright node that walks the frame perimeter every loop
+  const pulseT = (frame / 900);
+  const per = 2 * (3840 + 2160);
+  const pd = pulseT * per;
+  let ppx = 0;
+  let ppy = 0;
+  if (pd < 3840) {
+    ppx = pd; ppy = 0;
+  } else if (pd < 3840 + 2160) {
+    ppx = 3840; ppy = pd - 3840;
+  } else if (pd < 2 * 3840 + 2160) {
+    ppx = 3840 - (pd - 3840 - 2160); ppy = 2160;
+  } else {
+    ppx = 0; ppy = 2160 - (pd - 2 * 3840 - 2160);
+  }
+  // second sweep: vertical light column drifting horizontally across the frame
+  const colX = ((frame / 900) * 1.6 - 0.3) * 3840;
   return (
     <div style={{position: 'absolute', inset: 0, backgroundColor: BG}}>
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
@@ -198,6 +218,9 @@ const Background: React.FC<{frame: number}> = ({frame}) => {
         <g transform={`translate(${drift1 * 0.4},${drift2 * 0.4})`}>{dots}</g>
         {hairlines}
         <rect x={0} y={scanY} width={3840} height={360} fill="url(#agScan)" />
+        <rect x={colX - 130} y={0} width={260} height={2160} fill="url(#agScan)" opacity={0.55} transform={`rotate(8 ${colX} 1080)`} />
+        <circle cx={ppx} cy={ppy} r={26} fill="rgba(45,212,191,0.5)" filter="url(#agBlur14)" />
+        <circle cx={ppx} cy={ppy} r={7} fill="rgba(103,232,249,0.85)" />
         <rect width={3840} height={2160} fill="url(#agVignette)" />
       </svg>
     </div>
@@ -614,6 +637,18 @@ const BurndownPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => 
           stroke={HAIRLINE}
           strokeWidth={1.5}
         />
+        <rect
+          x={2746}
+          y={446}
+          width={868}
+          height={508}
+          rx={16}
+          fill="none"
+          stroke="rgba(45,212,191,0.35)"
+          strokeWidth={2}
+          strokeDasharray="26 34"
+          strokeDashoffset={-frame * 1.4}
+        />
         {[0, 12, 24, 36].map((p) => (
           <g key={p}>
             <line x1={BURNDOWN.x0} y1={ptsY(p)} x2={BURNDOWN.x1} y2={ptsY(p)} stroke="rgba(234,242,251,0.07)" strokeWidth={1.5} />
@@ -654,6 +689,18 @@ const BurndownPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => 
           COMMITS {commits} · PRs {prs} · DEPLOYS {deploys}
         </text>
         <rect x={2740} y={1090} width={880} height={380} rx={20} fill={PANEL} stroke={HAIRLINE} strokeWidth={1.5} />
+        <rect
+          x={2746}
+          y={1096}
+          width={868}
+          height={368}
+          rx={16}
+          fill="none"
+          stroke="rgba(103,232,249,0.30)"
+          strokeWidth={2}
+          strokeDasharray="22 40"
+          strokeDashoffset={frame * 1.1}
+        />
         <text x={2780} y={1150} fill={TEAL} fontSize={32} fontFamily={MONO} letterSpacing={8}>
           THROUGHPUT / DAY
         </text>
@@ -858,16 +905,132 @@ const PayoffBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Film grain (full-frame, re-seeded every frame)
+// Ambient particle field: full-frame drifting motes, every region alive
 // ---------------------------------------------------------------------------
-const GRAIN_COUNT = 900;
+const AmbientParticles: React.FC<{frame: number}> = ({frame}) => {
+  const parts: React.ReactElement[] = [];
+  for (let i = 0; i < 220; i++) {
+    const bx = random(`ag-amb-x-${i}`) * 3840;
+    const by = random(`ag-amb-y-${i}`) * 2160;
+    const spd = 0.4 + random(`ag-amb-s-${i}`) * 1.4;
+    const ang = random(`ag-amb-a-${i}`) * Math.PI * 2;
+    const drift = ((frame * spd) % 2400) - 200;
+    const px = (bx + Math.cos(ang) * drift + 3840) % 3840;
+    const py = (by + Math.sin(ang) * drift * 0.6 + 2160) % 2160;
+    const tw = 0.10 + 0.22 * (0.5 + 0.5 * Math.sin(frame * 0.14 + i * 1.7));
+    const sz = 3 + random(`ag-amb-z-${i}`) * 6;
+    const col = i % 4 === 0 ? CYAN : i % 4 === 1 ? TEAL : 'rgba(234,242,251,0.9)';
+    parts.push(<circle key={i} cx={px} cy={py} r={sz} fill={col} opacity={tw} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {parts}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Fine dither layer: tiny per-frame jittered specks (second noise octave)
+// ---------------------------------------------------------------------------
+const FineDither: React.FC<{frame: number}> = ({frame}) => {
+  const specks: React.ReactElement[] = [];
+  for (let i = 0; i < 2600; i++) {
+    const bx = random(`ag-dth-x-${i}`) * 3840;
+    const by = random(`ag-dth-y-${i}`) * 2160;
+    // per-frame jitter so the layer never sits still
+    const jx = (random(`ag-dth-jx-${frame}-${i}`) - 0.5) * 9;
+    const jy = (random(`ag-dth-jy-${frame}-${i}`) - 0.5) * 9;
+    const o = 0.015 + random(`ag-dth-o-${frame}-${i}`) * 0.035;
+    const s = 1.5 + random(`ag-dth-s-${i}`) * 2;
+    specks.push(
+      <rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#CFE9FF" opacity={o} />
+    );
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {specks}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Ticker tape: scrolling sprint-metrics strip along the bottom edge
+// ---------------------------------------------------------------------------
+const TICKER_ITEMS = [
+  'VELOCITY 36/36 PTS', 'ZERO CARRYOVER', '214 COMMITS', '46 PRS MERGED', '12 DEPLOYS',
+  'LEAD TIME 2.1D', 'MTTR 38MIN', 'SPRINT 14 · 14 DAYS', '8/8 STORIES DONE', 'UPTIME 99.98%',
+];
+const TickerTape: React.FC<{frame: number}> = ({frame}) => {
+  const unit = TICKER_ITEMS.join('   ◆   ') + '   ◆   ';
+  const unitW = unit.length * 21;
+  const x = -((frame * 7) % unitW);
+  const reps: React.ReactElement[] = [];
+  for (let r = 0; r < Math.ceil(3840 / unitW) + 1; r++) {
+    reps.push(
+      <text key={r} x={x + r * unitW} y={44} fill="rgba(103,232,249,0.55)" fontSize={30} fontFamily={MONO} letterSpacing={4}>
+        {unit}
+      </text>
+    );
+  }
+  return (
+    <div style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: 72, overflow: 'hidden', backgroundColor: 'rgba(3,7,14,0.72)', borderTop: `1px solid ${HAIRLINE}`}}>
+      <svg width={3840} height={72} style={{position: 'absolute', top: 0, left: 0}}>
+        {reps}
+      </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Corner HUD: framing brackets + live micro-labels
+// ---------------------------------------------------------------------------
+const CornerHud: React.FC<{frame: number}> = ({frame}) => {
+  const blink = 0.55 + 0.45 * Math.sin((frame / 60) * Math.PI * 2);
+  const corners = [
+    {x: 60, y: 60, sx: 1, sy: 1, label: 'AGILE-OPS · 4K60'},
+    {x: 3780, y: 60, sx: -1, sy: 1, label: 'REC ●'},
+    {x: 60, y: 2100, sx: 1, sy: -1, label: `F ${String(frame).padStart(4, '0')} / 0900`},
+    {x: 3780, y: 2100, sx: -1, sy: -1, label: '15.0S LOOP'},
+  ];
+  return (
+    <div style={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        {corners.map((c, i) => (
+          <g key={i} transform={`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}>
+            <path d="M 0 64 L 0 0 L 64 0" fill="none" stroke="rgba(45,212,191,0.55)" strokeWidth={5} />
+            <circle cx={0} cy={0} r={6} fill={TEAL} opacity={blink} />
+            <text x={c.sx === 1 ? 24 : -24} y={c.sy === 1 ? 108 : -84} fill="rgba(234,242,251,0.5)" fontSize={26} fontFamily={MONO} letterSpacing={3} textAnchor={c.sx === 1 ? 'start' : 'end'}>
+              {c.label}
+            </text>
+          </g>
+        ))}
+        {/* side rulers with per-frame marching ticks */}
+        {Array.from({length: 24}, (_, k) => {
+          const yy = 240 + k * 70;
+          const on = ((frame >> 2) + k) % 8 === 0;
+          return <rect key={`rl${k}`} x={28} y={yy} width={on ? 34 : 18} height={3} fill={on ? TEAL : 'rgba(234,242,251,0.18)'} opacity={on ? 0.9 : 0.5} />;
+        })}
+        {Array.from({length: 48}, (_, k) => {
+          const xx = 240 + k * 70;
+          const on = ((frame >> 2) + k) % 8 === 4;
+          return <rect key={`rt${k}`} x={xx} y={2062} width={3} height={on ? 30 : 16} fill={on ? TEAL : 'rgba(234,242,251,0.18)'} opacity={on ? 0.9 : 0.5} />;
+        })}
+      </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Film grain (full-frame, re-seeded every frame) — 7000 rects, cinematic
+// ---------------------------------------------------------------------------
+const GRAIN_COUNT = 7000;
 const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
   const dots: React.ReactElement[] = [];
   for (let i = 0; i < GRAIN_COUNT; i++) {
     const x = random(`ag-grain-x-${frame}-${i}`) * 3840;
     const y = random(`ag-grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`ag-grain-o-${frame}-${i}`) * 0.04;
-    const s = 2 + random(`ag-grain-s-${frame}-${i}`) * 2.5;
+    const o = 0.02 + random(`ag-grain-o-${frame}-${i}`) * 0.06;
+    const s = 2 + random(`ag-grain-s-${frame}-${i}`) * 3;
     dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
   }
   return (
@@ -894,6 +1057,10 @@ export const AgileSprintCycle: React.FC = () => {
       <StandupFeed frame={frame} fps={fps} />
       <Checkpoints frame={frame} fps={fps} />
       <PayoffBanner frame={frame} fps={fps} />
+      <AmbientParticles frame={frame} />
+      <FineDither frame={frame} />
+      <TickerTape frame={frame} />
+      <CornerHud frame={frame} />
       <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
