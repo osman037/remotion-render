@@ -1,15 +1,14 @@
 /**
- * EmployeeOnboardingJourney.tsx
+ * InventoryReplenishmentCycle.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * A warm, brand-neutral ONBOARDING visual for HR teams, people-ops decks and
- * corporate comms: a six-stage journey rail (offer -> paperwork -> IT setup ->
- * training -> mentor -> 30/60/90 check-ins) draws itself left to right, each
- * stage lights up with live metrics, a readiness ring fills, day/task counters
- * tick, and the last two seconds stamp "FULLY RAMPED" with a glow payoff.
- * Deterministic seeded randomness only (remotion `random`).
+ * A cinematic small-business-ops visual for POS/inventory SaaS brands,
+ * retail consultants and small-biz educators: a stock-level gauge drains
+ * with live sales ticks, hits the reorder line, fires a purchase order,
+ * rides a shipping-transit arc, and restocks the shelf — landing on a
+ * never-out-of-stock guard payoff. Deterministic seeded randomness only.
  *
  * Register in Root.tsx:
- *   <Composition id="EmployeeOnboardingJourney" component={EmployeeOnboardingJourney}
+ *   <Composition id="InventoryReplenishmentCycle" component={InventoryReplenishmentCycle}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
@@ -24,839 +23,695 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (warm corporate: espresso bg, amber/gold accent, copper + teal)
+// Palette (warehouse cinematic: deep slate, stock amber, restock green)
 // ---------------------------------------------------------------------------
-const BG = '#0C0906';
-const INK = '#F7EFE2';
-const MUTED = 'rgba(247,239,226,0.60)';
-const FAINT = 'rgba(247,239,226,0.34)';
-const AMBER = '#F59E0B';
-const GOLD = '#FBBF24';
-const COPPER = '#C2703D';
-const TEAL = '#2DD4BF';
+const BG = '#080B13';
+const INK = '#F2F5FA';
+const MUTED = 'rgba(242,245,250,0.60)';
+const FAINT = 'rgba(242,245,250,0.32)';
+const AMBER = '#FBBF24';
+const ORANGE = '#FB923C';
 const GREEN = '#34D399';
-const PANEL = 'rgba(22,15,10,0.92)';
-const HAIRLINE = 'rgba(247,239,226,0.14)';
+const GREEN_DEEP = '#065F46';
+const TEAL = '#2DD4BF';
+const CYAN = '#67E8F9';
+const RED = '#F87171';
+const PANEL = 'rgba(9,13,23,0.90)';
+const HAIRLINE = 'rgba(242,245,250,0.14)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
-const clamp01 = {
-  extrapolateLeft: 'clamp' as const,
-  extrapolateRight: 'clamp' as const,
-};
+const clamp01 = {extrapolateLeft: 'clamp' as const, extrapolateRight: 'clamp' as const};
 
 // ---------------------------------------------------------------------------
 // Timeline (frames at 60 fps) -> 900 frames = 15 s
 // ---------------------------------------------------------------------------
-const NODE_START = 110; // first stage lights up
-const NODE_STEP = 100; // frames between stage activations
-const CONNECT_START = 60; // connector starts drawing
-const CONNECT_END = 700; // connector fully drawn
-const RING_END = 790; // readiness ring complete
-const PAYOFF_START = 780; // final banner (last ~2 s)
+const DRAIN_START = 60;
+const REORDER_AT = 470;   // stock hits the reorder line
+const PO_AT = 490;        // purchase order fires
+const TRANSIT_START = 530;
+const DELIVERY_AT = 700;  // truck arrives, restock begins
+const RESTOCK_END = 780;
+const PAYOFF_START = 812;
+
+const MAX_UNITS = 1200;
+const REORDER_LINE = 300;
+
+const unitsAt = (f: number): number => {
+  if (f < DRAIN_START) return MAX_UNITS;
+  if (f < REORDER_AT) return MAX_UNITS - 2.2 * (f - DRAIN_START);
+  if (f < DELIVERY_AT) return REORDER_LINE - 2 - 0.5 * (f - REORDER_AT);
+  if (f < RESTOCK_END) {
+    const low = REORDER_LINE - 2 - 0.5 * (DELIVERY_AT - REORDER_AT);
+    return low + (MAX_UNITS - low) * ((f - DELIVERY_AT) / (RESTOCK_END - DELIVERY_AT));
+  }
+  return MAX_UNITS - 1.2 * (f - RESTOCK_END);
+};
+const dailyRateAt = (f: number) => 132 + 9 * Math.sin(f * 0.06) + 4 * Math.sin(f * 0.23);
+const fmtN = (v: number) =>
+  Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 // ---------------------------------------------------------------------------
-// Data: 6 onboarding stages
+// Layout
 // ---------------------------------------------------------------------------
-interface Stage {
-  key: string;
-  label: string;
-  day: string;
-  tasks: number;
-  metric1: string;
-  metric2: string;
-  color: string;
-}
-const STAGES: Stage[] = [
-  {key: 'offer', label: 'OFFER', day: 'DAY 0', tasks: 4, metric1: 'offer letter e-signed · 2 days', metric2: 'acceptance rate 100%', color: GOLD},
-  {key: 'paperwork', label: 'PAPERWORK', day: 'DAY 1', tasks: 6, metric1: '6 forms completed · 0 errors', metric2: 'ID verification passed', color: AMBER},
-  {key: 'it', label: 'IT SETUP', day: 'DAY 2', tasks: 8, metric1: 'laptop provisioned · 12 apps', metric2: 'access checklist 8/8', color: COPPER},
-  {key: 'training', label: 'TRAINING', day: 'WEEK 1', tasks: 7, metric1: '5 modules finished · quiz 94%', metric2: 'role certification issued', color: TEAL},
-  {key: 'mentor', label: 'MENTOR', day: 'WEEK 2', tasks: 5, metric1: 'buddy assigned · 8 sessions', metric2: 'satisfaction 4.8 / 5', color: GOLD},
-  {key: 'checkins', label: 'CHECK-INS', day: '30 · 60 · 90', tasks: 4, metric1: 'reviews on schedule · 3/3', metric2: 'goals tracking 9/10', color: GREEN},
-];
-const TOTAL_TASKS = STAGES.reduce((a, s) => a + s.tasks, 0);
-
-// ---------------------------------------------------------------------------
-// Geometry: horizontal stage rail
-// ---------------------------------------------------------------------------
-const RAIL_X0 = 300;
-const RAIL_X1 = 3540;
-const RAIL_Y = 940;
-const RAIL_W = RAIL_X1 - RAIL_X0;
-const nodeX = (i: number) => RAIL_X0 + (i / (STAGES.length - 1)) * RAIL_W;
-const nodeFrame = (i: number) => NODE_START + i * NODE_STEP;
+const GX = 220;        // gauge x
+const GW = 400;        // gauge width
+const GY = 480;        // gauge top
+const GH = 1180;       // gauge height
+const gaugeY = (units: number) => GY + GH - (units / MAX_UNITS) * GH;
+const reorderY = GY + GH - (REORDER_LINE / MAX_UNITS) * GH;
 
 // ---------------------------------------------------------------------------
 // SVG defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="obGlow" cx="42%" cy="30%" r="80%">
-      <stop offset="0%" stopColor="rgba(245,158,11,0.14)" />
-      <stop offset="55%" stopColor="rgba(194,112,61,0.05)" />
-      <stop offset="100%" stopColor="rgba(12,9,6,0)" />
+    <radialGradient id="irGlow" cx="38%" cy="28%" r="80%">
+      <stop offset="0%" stopColor="rgba(251,191,36,0.10)" />
+      <stop offset="45%" stopColor="rgba(45,212,191,0.05)" />
+      <stop offset="100%" stopColor="rgba(8,11,19,0)" />
     </radialGradient>
-    <radialGradient id="obVignette" cx="50%" cy="50%" r="76%">
-      <stop offset="60%" stopColor="rgba(4,3,2,0)" />
-      <stop offset="100%" stopColor="rgba(3,2,1,0.78)" />
+    <radialGradient id="irVignette" cx="50%" cy="50%" r="76%">
+      <stop offset="58%" stopColor="rgba(3,5,10,0)" />
+      <stop offset="100%" stopColor="rgba(1,2,6,0.80)" />
     </radialGradient>
-    <linearGradient id="obScan" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="irScan" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stopColor="rgba(251,191,36,0)" />
-      <stop offset="50%" stopColor="rgba(251,191,36,0.13)" />
+      <stop offset="50%" stopColor="rgba(251,191,36,0.12)" />
       <stop offset="100%" stopColor="rgba(251,191,36,0)" />
     </linearGradient>
-    <linearGradient id="obRail" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={GOLD} />
-      <stop offset="50%" stopColor={AMBER} />
-      <stop offset="100%" stopColor={GREEN} />
+    <linearGradient id="irStock" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor={AMBER} />
+      <stop offset="100%" stopColor={ORANGE} />
     </linearGradient>
-    <linearGradient id="obBar" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={COPPER} />
-      <stop offset="100%" stopColor={GOLD} />
+    <linearGradient id="irPayoff" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={GREEN} />
+      <stop offset="55%" stopColor={TEAL} />
+      <stop offset="100%" stopColor={CYAN} />
     </linearGradient>
-    <pattern id="obDots" width="110" height="110" patternUnits="userSpaceOnUse">
-      <circle cx={55} cy={55} r={2.6} fill="rgba(247,239,226,0.10)" />
-    </pattern>
-    <filter id="obBlur60" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="60" />
+    <filter id="irBlur70" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="70" />
     </filter>
-    <filter id="obBlur9" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="9" />
+    <filter id="irBlur16" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="16" />
     </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background: warm layered, drifting, never flat
+// Background
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const drift1 = Math.sin((frame / 900) * Math.PI * 2) * 80;
-  const drift2 = Math.cos((frame / 900) * Math.PI * 2) * 60;
-  const scanY = (frame / 900) * 2400 - 240;
+  const drift = Math.sin((frame / 900) * Math.PI * 2) * 90;
+  const scanY = (frame / 900) * 2500 - 300;
   const orbs: React.ReactElement[] = [];
-  for (let i = 0; i < 5; i++) {
-    const ox = random(`ob-orb-x-${i}`) * 3840;
-    const oy = random(`ob-orb-y-${i}`) * 2160;
-    const r = 240 + random(`ob-orb-r-${i}`) * 300;
+  for (let i = 0; i < 6; i++) {
+    const ox = random(`ir-orb-x-${i}`) * 3840;
+    const oy = random(`ir-orb-y-${i}`) * 2160;
+    const r = 260 + random(`ir-orb-r-${i}`) * 320;
     const hue =
       i % 3 === 0
-        ? 'rgba(245,158,11,0.10)'
+        ? 'rgba(251,191,36,0.07)'
         : i % 3 === 1
-          ? 'rgba(194,112,61,0.08)'
-          : 'rgba(45,212,191,0.05)';
-    const mx = Math.sin((frame / 900) * Math.PI * 2 + i * 1.9) * 110;
-    const my = Math.cos((frame / 900) * Math.PI * 2 + i * 2.4) * 80;
-    orbs.push(
-      <circle key={i} cx={ox + mx} cy={oy + my} r={r} fill={hue} filter="url(#obBlur60)" />
-    );
+        ? 'rgba(45,212,191,0.06)'
+        : 'rgba(52,211,153,0.05)';
+    const mx = Math.sin((frame / 900) * Math.PI * 2 + i * 1.9) * 120;
+    const my = Math.cos((frame / 900) * Math.PI * 2 + i * 2.1) * 90;
+    orbs.push(<circle key={i} cx={ox + mx} cy={oy + my} r={r} fill={hue} filter="url(#irBlur70)" />);
   }
-  const grid: React.ReactElement[] = [];
-  for (let gx = 0; gx <= 3840; gx += 240) {
-    grid.push(
-      <line key={`v${gx}`} x1={gx} y1={0} x2={gx} y2={2160} stroke="rgba(247,239,226,0.038)" strokeWidth={1} />
-    );
+  const dots: React.ReactElement[] = [];
+  for (let gx = 70; gx < 3840; gx += 175) {
+    for (let gy = 70; gy < 2160; gy += 175) {
+      const jx = (random(`ir-dot-x-${gx}-${gy}`) - 0.5) * 26;
+      const jy = (random(`ir-dot-y-${gx}-${gy}`) - 0.5) * 26;
+      dots.push(
+        <circle key={`${gx}-${gy}`} cx={gx + jx} cy={gy + jy} r={2.2} fill="rgba(242,245,250,0.05)" />
+      );
+    }
   }
-  for (let gy = 0; gy <= 2160; gy += 240) {
-    grid.push(
-      <line key={`h${gy}`} x1={0} y1={gy} x2={3840} y2={gy} stroke="rgba(247,239,226,0.038)" strokeWidth={1} />
-    );
+  // conveyor slats streaming (per-frame motion)
+  const slats: React.ReactElement[] = [];
+  for (let i = 0; i < 12; i++) {
+    const sx = ((random(`ir-slat-x-${i}`) * 4200 + frame * 9) % 4400 + 4400) % 4400 - 300;
+    slats.push(<rect key={i} x={sx} y={1990} width={180} height={12} rx={6} fill="rgba(242,245,250,0.06)" />);
   }
   return (
     <div style={{position: 'absolute', inset: 0, backgroundColor: BG}}>
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs />
-        <rect width={3840} height={2160} fill="url(#obGlow)" transform={`translate(${drift1},${drift2})`} />
+        <rect width={3840} height={2160} fill="url(#irGlow)" transform={`translate(${drift},${-drift * 0.6})`} />
         {orbs}
-        {grid}
-        <rect
-          width={3840}
-          height={2160}
-          fill="url(#obDots)"
-          transform={`translate(${drift1 * 0.3},${drift2 * 0.3})`}
-        />
-        <rect x={0} y={scanY} width={3840} height={300} fill="url(#obScan)" />
-        <rect width={3840} height={2160} fill="url(#obVignette)" />
+        <g transform={`translate(${drift * 0.4},0)`}>{dots}</g>
+        {slats}
+        <rect x={0} y={scanY} width={3840} height={340} fill="url(#irScan)" />
+        <rect width={3840} height={2160} fill="url(#irVignette)" />
       </svg>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Drifting dust particles (per-frame motion, always alive)
-// ---------------------------------------------------------------------------
-const Particles: React.FC<{frame: number}> = ({frame}) => {
-  const dots: React.ReactElement[] = [];
-  for (let i = 0; i < 46; i++) {
-    const bx = random(`ob-p-x-${i}`) * 3840;
-    const by = random(`ob-p-y-${i}`) * 2160;
-    const r = 2 + random(`ob-p-r-${i}`) * 4;
-    const px = bx + Math.sin(frame * 0.012 + i * 2.1) * 130;
-    const py = by + Math.cos(frame * 0.009 + i * 1.4) * 90 - (frame / 900) * 120;
-    const o = 0.10 + 0.10 * Math.sin(frame * 0.03 + i);
-    const col = i % 4 === 0 ? TEAL : i % 4 === 1 ? COPPER : GOLD;
-    dots.push(
-      <circle key={i} cx={px} cy={py} r={r} fill={col} opacity={Math.max(0.04, o)} />
-    );
-  }
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {dots}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Title bar + live clock ticker
+// Title bar
 // ---------------------------------------------------------------------------
 const TitleBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
   const rise = spring({frame, fps, config: {damping: 200, stiffness: 90, mass: 1}});
-  const y = interpolate(rise, [0, 1], [60, 0], clamp01);
-  const opacity = interpolate(rise, [0, 1], [0, 1], clamp01);
-  const pulse = 0.70 + 0.30 * Math.sin((frame / 60) * Math.PI * 2);
-  const elapsed = interpolate(frame, [0, 899], [0, 15], clamp01);
-  const mm = Math.floor(elapsed / 60);
-  const ss = Math.floor(elapsed % 60);
-  const clock = `T+${mm}:${ss < 10 ? '0' : ''}${ss}`;
+  const y = interpolate(rise, [0, 1], [70, 0]);
+  const opacity = interpolate(rise, [0, 1], [0, 1]);
+  const blink = 0.6 + 0.4 * Math.sin((frame / 60) * Math.PI * 2);
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 110,
-        left: 220,
-        right: 220,
-        opacity,
-        transform: `translateY(${y}px)`,
-      }}
-    >
-      <div style={{fontFamily: MONO, fontSize: 42, letterSpacing: 14, color: AMBER}}>
-        PEOPLE OPS &nbsp;·&nbsp; NEW-HIRE JOURNEY
-      </div>
-      <div
-        style={{
-          fontFamily: FONT,
-          fontWeight: 800,
-          fontSize: 148,
-          color: INK,
-          marginTop: 16,
-          letterSpacing: -2,
-          textShadow: '0 6px 60px rgba(245,158,11,0.25)',
-        }}
-      >
-        Employee Onboarding Journey
-      </div>
-      <div style={{display: 'flex', alignItems: 'center', marginTop: 26, gap: 28}}>
-        <div
-          style={{
-            width: 22,
-            height: 22,
-            borderRadius: 11,
-            backgroundColor: GREEN,
-            opacity: pulse,
-            boxShadow: `0 0 30px ${GREEN}`,
-          }}
-        />
-        <div style={{fontFamily: MONO, fontSize: 40, color: MUTED}}>
-          6 STAGES &nbsp;·&nbsp; {TOTAL_TASKS} TASKS &nbsp;·&nbsp; JOURNEY ACTIVE
+    <div style={{position: 'absolute', top: 118, left: 220, right: 220, opacity, transform: `translateY(${y}px)`}}>
+      <div style={{display: 'flex', alignItems: 'flex-start'}}>
+        <div>
+          <div style={{fontFamily: MONO, fontSize: 44, letterSpacing: 14, color: AMBER}}>
+            RETAIL OPS &nbsp;·&nbsp; INVENTORY CONTROL
+          </div>
+          <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 148, color: INK, marginTop: 16, letterSpacing: -2}}>
+            Inventory Replenishment
+          </div>
+          <div style={{fontFamily: FONT, fontSize: 40, color: MUTED, marginTop: 14}}>
+            Drain, reorder, restock — the cycle that never lets a shelf go empty
+          </div>
         </div>
-        <div
-          style={{
-            marginLeft: 'auto',
-            fontFamily: MONO,
-            fontSize: 40,
-            color: GOLD,
-            border: `2px solid ${GOLD}`,
-            borderRadius: 12,
-            padding: '10px 26px',
-            backgroundColor: 'rgba(251,191,36,0.06)',
-          }}
-        >
-          {clock}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Stage icons (line-drawn, vendor-neutral)
-// ---------------------------------------------------------------------------
-const Icon: React.FC<{kind: string; x: number; y: number; s: number; color: string}> = ({
-  kind,
-  x,
-  y,
-  s,
-  color,
-}) => {
-  const st = {stroke: color, strokeWidth: s * 0.09, fill: 'none', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const};
-  const h = s / 2;
-  let body: React.ReactElement | null = null;
-  if (kind === 'offer') {
-    body = (
-      <g>
-        <rect x={x - h * 0.8} y={y - h * 0.5} width={h * 1.6} height={h} rx={h * 0.12} {...st} />
-        <path d={`M ${x - h * 0.8} ${y - h * 0.32} L ${x} ${y + h * 0.16} L ${x + h * 0.8} ${y - h * 0.32}`} {...st} />
-      </g>
-    );
-  } else if (kind === 'paperwork') {
-    body = (
-      <g>
-        <rect x={x - h * 0.55} y={y - h * 0.62} width={h * 1.1} height={h * 1.3} rx={h * 0.1} {...st} />
-        <rect x={x - h * 0.3} y={y - h * 0.78} width={h * 0.6} height={h * 0.26} rx={h * 0.08} {...st} />
-        <line x1={x - h * 0.34} y1={y - h * 0.2} x2={x + h * 0.34} y2={y - h * 0.2} {...st} />
-        <line x1={x - h * 0.34} y1={y + h * 0.06} x2={x + h * 0.34} y2={y + h * 0.06} {...st} />
-        <line x1={x - h * 0.34} y1={y + h * 0.32} x2={x + h * 0.1} y2={y + h * 0.32} {...st} />
-      </g>
-    );
-  } else if (kind === 'it') {
-    body = (
-      <g>
-        <rect x={x - h * 0.62} y={y - h * 0.5} width={h * 1.24} height={h * 0.78} rx={h * 0.08} {...st} />
-        <path d={`M ${x - h * 0.85} ${y + h * 0.5} L ${x + h * 0.85} ${y + h * 0.5} L ${x + h * 0.68} ${y + h * 0.28} L ${x - h * 0.68} ${y + h * 0.28} Z`} {...st} />
-        <line x1={x - h * 0.12} y1={y + h * 0.5} x2={x + h * 0.12} y2={y + h * 0.5} {...st} />
-      </g>
-    );
-  } else if (kind === 'training') {
-    body = (
-      <g>
-        <path d={`M ${x - h * 0.85} ${y - h * 0.28} L ${x} ${y - h * 0.72} L ${x + h * 0.85} ${y - h * 0.28} L ${x + h * 0.85} ${y - h * 0.12} L ${x} ${y - h * 0.56} L ${x - h * 0.85} ${y - h * 0.12} Z`} {...st} />
-        <line x1={x + h * 0.85} y1={y - h * 0.12} x2={x + h * 0.85} y2={y + h * 0.5} {...st} />
-        <circle cx={x + h * 0.85} cy={y + h * 0.62} r={h * 0.1} fill={color} />
-      </g>
-    );
-  } else if (kind === 'mentor') {
-    body = (
-      <g>
-        <circle cx={x - h * 0.32} cy={y - h * 0.28} r={h * 0.28} {...st} />
-        <path d={`M ${x - h * 0.78} ${y + h * 0.55} A ${h * 0.46} ${h * 0.46} 0 0 1 ${x + h * 0.14} ${y + h * 0.55}`} {...st} />
-        <circle cx={x + h * 0.42} cy={y - h * 0.34} r={h * 0.22} {...st} />
-        <path d={`M ${x + h * 0.06} ${y + h * 0.55} A ${h * 0.38} ${h * 0.38} 0 0 1 ${x + h * 0.82} ${y + h * 0.55}`} {...st} />
-      </g>
-    );
-  } else {
-    body = (
-      <g>
-        <line x1={x - h * 0.4} y1={y - h * 0.75} x2={x - h * 0.4} y2={y + h * 0.75} {...st} />
-        <path d={`M ${x - h * 0.4} ${y - h * 0.75} L ${x + h * 0.7} ${y - h * 0.5} L ${x - h * 0.4} ${y - h * 0.25} Z`} {...st} />
-      </g>
-    );
-  }
-  return <g>{body}</g>;
-};
-
-// ---------------------------------------------------------------------------
-// Stage rail: tick marks, base hairline, self-drawing connector, nodes
-// ---------------------------------------------------------------------------
-const StageRail: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const fade = interpolate(frame, [20, 80], [0, 1], clamp01);
-  const prog = interpolate(frame, [CONNECT_START, CONNECT_END], [0, 1], clamp01);
-  const frontX = RAIL_X0 + prog * RAIL_W;
-  const frontPulse = 0.55 + 0.45 * Math.sin(frame * 0.22);
-  const ticks: React.ReactElement[] = [];
-  for (let i = 0; i <= 54; i++) {
-    const tx = RAIL_X0 + (i / 54) * RAIL_W;
-    const tall = i % 9 === 0;
-    ticks.push(
-      <line
-        key={i}
-        x1={tx}
-        y1={RAIL_Y + 118}
-        x2={tx}
-        y2={RAIL_Y + (tall ? 152 : 136)}
-        stroke={tall ? 'rgba(251,191,36,0.5)' : 'rgba(247,239,226,0.18)'}
-        strokeWidth={tall ? 4 : 2}
-      />
-    );
-  }
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <Defs />
-      <g opacity={fade}>
-        {ticks}
-        {/* day axis labels */}
-        {STAGES.map((st, i) => (
-          <text
-            key={st.key}
-            x={nodeX(i)}
-            y={RAIL_Y + 218}
-            fill={FAINT}
-            fontSize={30}
-            fontFamily={MONO}
-            fontWeight={700}
-            letterSpacing={3}
-            textAnchor="middle"
-          >
-            {st.day}
-          </text>
-        ))}
-        {/* base hairline */}
-        <line x1={RAIL_X0} y1={RAIL_Y} x2={RAIL_X1} y2={RAIL_Y} stroke={HAIRLINE} strokeWidth={4} />
-        {/* drawn connector */}
-        <g clipPath="url(#obRailClip)">
-          <line x1={RAIL_X0} y1={RAIL_Y} x2={RAIL_X1} y2={RAIL_Y} stroke="url(#obRail)" strokeWidth={10} strokeLinecap="round" filter="url(#obBlur9)" />
-          <line x1={RAIL_X0} y1={RAIL_Y} x2={RAIL_X1} y2={RAIL_Y} stroke="url(#obRail)" strokeWidth={4} strokeLinecap="round" />
-        </g>
-        <clipPath id="obRailClip">
-          <rect x={RAIL_X0 - 8} y={RAIL_Y - 40} width={prog * RAIL_W + 16} height={80} />
-        </clipPath>
-        {/* travelling pulse at the drawing front */}
-        {prog > 0.004 && prog < 0.995 && (
-          <g>
-            <circle cx={frontX} cy={RAIL_Y} r={30 * frontPulse + 14} fill={GOLD} opacity={0.22} />
-            <circle cx={frontX} cy={RAIL_Y} r={14} fill="#FFF7E6" style={{filter: `drop-shadow(0 0 18px ${GOLD})`}} />
-          </g>
-        )}
-        {/* nodes */}
-        {STAGES.map((st, i) => {
-          const s = spring({
-            frame: frame - nodeFrame(i),
-            fps,
-            config: {damping: 200, stiffness: 95, mass: 1},
-          });
-          if (s <= 0.001) return null;
-          const cx = nodeX(i);
-          const done = frame >= nodeFrame(i) + 70;
-          const ring = 64 * s;
-          const halo = done ? 0 : 0.5 + 0.5 * Math.sin(frame * 0.12 + i);
-          return (
-            <g key={st.key} opacity={Math.min(1, s)}>
-              <g transform={`translate(0, ${(1 - s) * 40})`}>
-                {/* halo while active */}
-                {!done && (
-                  <circle cx={cx} cy={RAIL_Y} r={ring + 34} fill="none" stroke={st.color} strokeWidth={3} opacity={halo * 0.7} />
-                )}
-                {/* node disc */}
-                <circle cx={cx} cy={RAIL_Y} r={ring + 26} fill={PANEL} opacity={0.55} />
-                <circle cx={cx} cy={RAIL_Y} r={ring} fill={BG} stroke={st.color} strokeWidth={done ? 5 : 8} />
-                <circle cx={cx} cy={RAIL_Y} r={ring} fill="none" stroke={st.color} strokeWidth={2} opacity={0.35} filter="url(#obBlur9)" />
-                <Icon kind={st.key} x={cx} y={RAIL_Y} s={72 * s} color={st.color} />
-                {/* completion check */}
-                {done && (
-                  <g>
-                    <circle cx={cx + 44} cy={RAIL_Y - 44} r={26} fill={GREEN} />
-                    <text x={cx + 44} y={RAIL_Y - 26} fill="#06281C" fontSize={34} fontFamily={FONT} fontWeight={800} textAnchor="middle">
-                      ✓
-                    </text>
-                  </g>
-                )}
-                {/* stage label above */}
-                <text
-                  x={cx}
-                  y={RAIL_Y - 128}
-                  fill={INK}
-                  fontSize={46}
-                  fontFamily={FONT}
-                  fontWeight={800}
-                  letterSpacing={2}
-                  textAnchor="middle"
-                >
-                  {st.label}
-                </text>
-                {/* step number below label */}
-                <text
-                  x={cx}
-                  y={RAIL_Y + 96}
-                  fill={st.color}
-                  fontSize={34}
-                  fontFamily={MONO}
-                  fontWeight={700}
-                  textAnchor="middle"
-                >
-                  STEP {i + 1}/6
-                </text>
-              </g>
-            </g>
-          );
-        })}
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Stage detail cards under the rail
-// ---------------------------------------------------------------------------
-const StageCards: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const cardW = 500;
-  const gap = 48;
-  const x0 = RAIL_X0;
-  const y = 1230;
-  return (
-    <div style={{position: 'absolute', top: y, left: 0, width: 3840}}>
-      {STAGES.map((st, i) => {
-        const s = spring({
-          frame: frame - (nodeFrame(i) + 34),
-          fps,
-          config: {damping: 200, stiffness: 100, mass: 1},
-        });
-        if (s <= 0.001) return null;
-        const cx = nodeX(i);
-        const left = cx - cardW / 2;
-        const taskDone = interpolate(frame, [nodeFrame(i), nodeFrame(i) + 80], [0, st.tasks], clamp01);
-        const tick1 = frame >= nodeFrame(i) + 40;
-        const tick2 = frame >= nodeFrame(i) + 80;
-        const barW = interpolate(taskDone / st.tasks, [0, 1], [0, 100], clamp01);
-        return (
-          <div
-            key={st.key}
-            style={{
-              position: 'absolute',
-              left,
-              top: 0,
-              width: cardW,
-              borderRadius: 22,
-              background: `linear-gradient(165deg, rgba(245,158,11,0.10), rgba(245,158,11,0.02) 55%, rgba(247,239,226,0.02))`,
-              border: `1.5px solid ${HAIRLINE}`,
-              borderTop: `4px solid ${st.color}`,
-              padding: '30px 36px',
-              opacity: Math.min(1, s),
-              transform: `translateY(${(1 - s) * 50}px)`,
-              boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
-            }}
-          >
-            <div style={{display: 'flex', alignItems: 'center', gap: 16}}>
-              <div
-                style={{
-                  fontFamily: MONO,
-                  fontSize: 28,
-                  letterSpacing: 2,
-                  color: st.color,
-                  border: `1px solid ${st.color}`,
-                  borderRadius: 8,
-                  padding: '4px 14px',
-                }}
-              >
-                {st.day}
-              </div>
-              <div style={{marginLeft: 'auto', fontFamily: MONO, fontSize: 30, color: FAINT}}>
-                {Math.round(taskDone)}/{st.tasks} TASKS
-              </div>
-            </div>
-            <div style={{fontFamily: FONT, fontWeight: 750, fontSize: 44, color: INK, marginTop: 14}}>
-              {st.label}
-            </div>
-            <div style={{height: 12, backgroundColor: 'rgba(247,239,226,0.10)', borderRadius: 6, marginTop: 18, overflow: 'hidden'}}>
-              <div
-                style={{
-                  width: `${barW}%`,
-                  height: '100%',
-                  background: 'linear-gradient(90deg,#C2703D,#FBBF24)',
-                  borderRadius: 6,
-                }}
-              />
-            </div>
-            <div style={{marginTop: 20}}>
-              <div style={{display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12}}>
-                <div
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 15,
-                    backgroundColor: tick1 ? GREEN : 'rgba(247,239,226,0.12)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: FONT,
-                    fontWeight: 800,
-                    fontSize: 20,
-                    color: '#06281C',
-                  }}
-                >
-                  {tick1 ? '✓' : ''}
-                </div>
-                <div style={{fontFamily: FONT, fontSize: 31, color: tick1 ? INK : MUTED}}>{st.metric1}</div>
-              </div>
-              <div style={{display: 'flex', alignItems: 'center', gap: 16}}>
-                <div
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 15,
-                    backgroundColor: tick2 ? GREEN : 'rgba(247,239,226,0.12)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: FONT,
-                    fontWeight: 800,
-                    fontSize: 20,
-                    color: '#06281C',
-                  }}
-                >
-                  {tick2 ? '✓' : ''}
-                </div>
-                <div style={{fontFamily: FONT, fontSize: 31, color: tick2 ? INK : MUTED}}>{st.metric2}</div>
-              </div>
+        <div style={{marginLeft: 'auto', textAlign: 'right'}}>
+          <div style={{display: 'inline-flex', alignItems: 'center', gap: 22, border: `2px solid ${TEAL}`, borderRadius: 16, padding: '14px 32px', backgroundColor: 'rgba(5,12,11,0.6)'}}>
+            <div style={{width: 24, height: 24, borderRadius: 12, backgroundColor: TEAL, opacity: blink, boxShadow: `0 0 26px ${TEAL}`}} />
+            <div style={{fontFamily: MONO, fontSize: 40, fontWeight: 700, color: INK, letterSpacing: 4}}>
+              REORDER-POINT SYSTEM
             </div>
           </div>
-        );
-      })}
-      <div style={{display: 'none'}}>{x0}{gap}</div>
+          <div style={{fontFamily: MONO, fontSize: 32, color: FAINT, marginTop: 14}}>
+            SKU-4471 · WIDGET PRO · LEAD TIME 6 DAYS
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Bottom panel: readiness ring, day + task counters, milestones, sparkline
+// Stock gauge (left): draining tank, reorder line, safety zone, sale chips
 // ---------------------------------------------------------------------------
-const RING_CX = 460;
-const RING_CY = 1880;
-const RING_R = 190;
-const RING_C = 2 * Math.PI * RING_R;
+const StockGauge: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 40, fps, config: {damping: 200, stiffness: 80}});
+  const units = unitsAt(frame);
+  const fy = gaugeY(units);
+  const low = units < REORDER_LINE;
+  const reorderS = spring({frame: frame - REORDER_AT, fps, config: {damping: 200, stiffness: 120}});
 
-const SPARK_N = 64;
-const SPARK: number[] = [];
-for (let i = 0; i < SPARK_N; i++) {
-  SPARK.push(0.35 + 0.6 * (i / (SPARK_N - 1)) + (random(`ob-spark-${i}`) - 0.5) * 0.22);
-}
-
-const BottomPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const fade = interpolate(frame, [60, 130], [0, 1], clamp01);
-  const ringP = interpolate(frame, [CONNECT_START, RING_END], [0, 1], clamp01);
-  const pct = Math.round(ringP * 100);
-  const day = Math.round(interpolate(frame, [CONNECT_START, RING_END], [0, 90], clamp01));
-  const tasksDone = Math.round(
-    STAGES.reduce(
-      (a, st, i) => a + interpolate(frame, [nodeFrame(i), nodeFrame(i) + 80], [0, st.tasks], clamp01),
-      0
-    )
-  );
-  const ringRot = -90;
-  const dashOff = RING_C * (1 - ringP);
-  const glowPulse = 0.6 + 0.4 * Math.sin(frame * 0.08);
-
-  const sparkProg = interpolate(frame, [40, 880], [0, 1], clamp01);
-  const sx0 = 2560;
-  const sx1 = 3620;
-  const sy0 = 1990;
-  const sy1 = 1770;
-  const sparkPath = SPARK.map(
-    (v, i) =>
-      `${i === 0 ? 'M' : 'L'} ${(sx0 + (i / (SPARK_N - 1)) * (sx1 - sx0)).toFixed(1)} ${(sy1 + (1 - Math.min(1, Math.max(0, v))) * (sy0 - sy1)).toFixed(1)}`
-  ).join(' ');
-
-  const ms = [
-    {d: 30, label: 'DAY 30 · role clarity'},
-    {d: 60, label: 'DAY 60 · full ownership'},
-    {d: 90, label: 'DAY 90 · ramped & reviewed'},
-  ];
-
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <g opacity={fade}>
-        {/* divider hairline */}
-        <line x1={220} y1={1670} x2={3620} y2={1670} stroke={HAIRLINE} strokeWidth={2} />
-        <text x={220} y={1728} fill={FAINT} fontSize={30} fontFamily={MONO} letterSpacing={6}>
-          READINESS DASHBOARD
+  // sale chips popping off the gauge surface
+  const chips: React.ReactElement[] = [];
+  for (let k = 0; k < 30; k++) {
+    const ek = 80 + k * 26;
+    const age = frame - ek;
+    if (age < 0 || age > 70 || frame > DELIVERY_AT) continue;
+    const t = age / 70;
+    const n = 2 + Math.floor(random(`ir-sale-n-${k}`) * 5);
+    const cx = GX + GW + 30 + t * 260;
+    const cy = fy - 40 - t * 190;
+    chips.push(
+      <g key={k} opacity={1 - t}>
+        <rect x={cx} y={cy} width={190} height={58} rx={12} fill="rgba(251,146,60,0.14)" stroke={ORANGE} strokeWidth={2} />
+        <text x={cx + 95} y={cy + 40} fill={ORANGE} fontSize={32} fontFamily={MONO} fontWeight={700} textAnchor="middle">
+          SALE −{n}
         </text>
-
-        {/* progress ring */}
-        <circle cx={RING_CX} cy={RING_CY} r={RING_R} fill="none" stroke="rgba(247,239,226,0.10)" strokeWidth={26} />
-        <circle
-          cx={RING_CX}
-          cy={RING_CY}
-          r={RING_R}
-          fill="none"
-          stroke="url(#obBar)"
-          strokeWidth={26}
-          strokeLinecap="round"
-          strokeDasharray={RING_C}
-          strokeDashoffset={dashOff}
-          transform={`rotate(${ringRot} ${RING_CX} ${RING_CY})`}
-          style={{filter: `drop-shadow(0 0 ${18 * glowPulse}px rgba(251,191,36,0.6))`}}
-        />
-        <text x={RING_CX} y={RING_CY - 18} fill={INK} fontSize={120} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-          {pct}%
-        </text>
-        <text x={RING_CX} y={RING_CY + 56} fill={MUTED} fontSize={36} fontFamily={MONO} letterSpacing={6} textAnchor="middle">
-          RAMP-UP
-        </text>
-
-        {/* day counter */}
-        <text x={800} y={1800} fill={MUTED} fontSize={40} fontFamily={MONO} letterSpacing={6}>
-          ONBOARDING DAY
-        </text>
-        <text x={800} y={1960} fill={INK} fontSize={190} fontFamily={MONO} fontWeight={800} style={{textShadow: '0 0 40px rgba(251,191,36,0.35)'}}>
-          {day}
-        </text>
-        <text x={1060} y={1960} fill={FAINT} fontSize={70} fontFamily={MONO} textAnchor="start">
-          / 90
-        </text>
-
-        {/* tasks counter */}
-        <text x={1420} y={1800} fill={MUTED} fontSize={40} fontFamily={MONO} letterSpacing={6}>
-          TASKS COMPLETED
-        </text>
-        <text x={1420} y={1960} fill={GOLD} fontSize={190} fontFamily={MONO} fontWeight={800} style={{textShadow: '0 0 40px rgba(251,191,36,0.35)'}}>
-          {tasksDone}
-        </text>
-        <text x={1660} y={1960} fill={FAINT} fontSize={70} fontFamily={MONO}>
-          / {TOTAL_TASKS}
-        </text>
-
-        {/* 30/60/90 milestone badges */}
-        {ms.map((m, i) => {
-          const hit = day >= m.d;
-          const bx = 2120;
-          const by = 1800 + i * 86;
-          return (
-            <g key={m.d} opacity={hit ? 1 : 0.38}>
-              <circle cx={bx} cy={by} r={24} fill={hit ? GREEN : 'rgba(247,239,226,0.12)'} />
-              {hit && (
-                <text x={bx} y={by + 12} fill="#06281C" fontSize={30} fontFamily={FONT} fontWeight={800} textAnchor="middle">
-                  ✓
-                </text>
-              )}
-              <text x={bx + 52} y={by + 13} fill={hit ? INK : FAINT} fontSize={40} fontFamily={MONO} fontWeight={hit ? 700 : 400}>
-                {m.label}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* engagement sparkline */}
-        <text x={sx0} y={sy1 - 44} fill={FAINT} fontSize={30} fontFamily={MONO} letterSpacing={6}>
-          ENGAGEMENT TREND
-        </text>
-        <g clipPath="url(#obSparkClip)">
-          <path d={sparkPath} fill="none" stroke={TEAL} strokeWidth={6} strokeLinecap="round" style={{filter: 'drop-shadow(0 0 12px rgba(45,212,191,0.7))'}} />
-        </g>
-        <clipPath id="obSparkClip">
-          <rect x={sx0} y={sy1 - 60} width={sparkProg * (sx1 - sx0)} height={sy0 - sy1 + 120} />
-        </clipPath>
-        <line x1={sx0} y1={sy0} x2={sx1} y2={sy0} stroke={HAIRLINE} strokeWidth={2} />
-        {/* sparkline head dot */}
-        {sparkProg > 0.01 && sparkProg < 0.999 && (
-          <circle
-            cx={sx0 + sparkProg * (sx1 - sx0)}
-            cy={sy1 + (1 - Math.min(1, Math.max(0, SPARK[Math.min(SPARK_N - 1, Math.floor(sparkProg * SPARK_N))])) * (sy0 - sy1))}
-            r={12}
-            fill={TEAL}
-            style={{filter: 'drop-shadow(0 0 14px rgba(45,212,191,0.9))'}}
-          />
-        )}
       </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Bottom ticker tape (seamless loop, always moving)
-// ---------------------------------------------------------------------------
-const TICKER_ITEMS = [
-  'offer accepted',
-  'docs e-signed',
-  'laptop shipped',
-  'accounts provisioned',
-  'buddy matched',
-  'week-1 training live',
-  'day-30 review booked',
-  'goals set',
-  'day-60 check-in',
-  'feedback collected',
-  'day-90 review',
-  'fully ramped',
-];
-const TickerTape: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [120, 200], [0, 1], clamp01);
-  const unitW = 640;
-  const loopW = TICKER_ITEMS.length * unitW;
-  const off = -((frame * 5) % unitW);
-  const cols: React.ReactElement[] = [];
-  for (let r = 0; r < 2; r++) {
-    for (let i = 0; i < TICKER_ITEMS.length; i++) {
-      const x = off + r * loopW + i * unitW;
-      cols.push(
-        <g key={`${r}-${i}`}>
-          <circle cx={x + 40} cy={2095} r={9} fill={AMBER} opacity={0.8} />
-          <text x={x + 72} y={2110} fill={FAINT} fontSize={34} fontFamily={MONO} letterSpacing={3}>
-            {TICKER_ITEMS[i].toUpperCase()}
-          </text>
-        </g>
-      );
-    }
+    );
   }
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      <g opacity={fade * 0.9}>
-        <line x1={0} y1={2062} x2={3840} y2={2062} stroke={HAIRLINE} strokeWidth={1.5} />
-        {cols}
+
+  // measurement ticks
+  const ticks: React.ReactElement[] = [];
+  for (let u = 0; u <= MAX_UNITS; u += 150) {
+    const ty = gaugeY(u);
+    ticks.push(
+      <g key={u}>
+        <line x1={GX - 34} y1={ty} x2={GX - 12} y2={ty} stroke="rgba(242,245,250,0.30)" strokeWidth={3} />
+        <text x={GX - 52} y={ty + 11} fill={FAINT} fontSize={26} fontFamily={MONO} textAnchor="end">
+          {u}
+        </text>
       </g>
-    </svg>
+    );
+  }
+
+  return (
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
+      <div style={{position: 'absolute', left: GX, top: GY - 150}}>
+        <div style={{fontFamily: MONO, fontSize: 36, letterSpacing: 8, color: MUTED}}>UNITS ON HAND</div>
+        <div
+          style={{
+            fontFamily: MONO,
+            fontWeight: 800,
+            fontSize: 120,
+            color: low ? ORANGE : INK,
+            textShadow: low ? '0 0 40px rgba(251,146,60,0.6)' : 'none',
+          }}
+        >
+          {fmtN(units)}
+        </div>
+      </div>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        {/* tank */}
+        <rect x={GX} y={GY} width={GW} height={GH} rx={24} fill="rgba(242,245,250,0.05)" stroke={HAIRLINE} strokeWidth={2.5} />
+        {/* safety-stock zone (bottom 10%) */}
+        <rect x={GX} y={GY + GH * 0.9} width={GW} height={GH * 0.1} fill="rgba(248,113,113,0.10)" />
+        {/* fill */}
+        <rect x={GX + 14} y={fy} width={GW - 28} height={GY + GH - 14 - fy} fill="url(#irStock)" opacity={0.92} />
+        <rect x={GX + 14} y={fy} width={GW - 28} height={10} fill="#FFE9B8" opacity={0.9} filter="url(#irBlur16)" />
+        {ticks}
+        {/* reorder line */}
+        <line x1={GX - 60} y1={reorderY} x2={GX + GW + 60} y2={reorderY} stroke={RED} strokeWidth={5} strokeDasharray="18 12" />
+        <text x={GX + GW + 80} y={reorderY + 13} fill={RED} fontSize={34} fontFamily={MONO} fontWeight={800} letterSpacing={2}>
+          REORDER {REORDER_LINE}
+        </text>
+        {chips}
+        {/* reorder alarm */}
+        {low && reorderS > 0.02 && (
+          <g opacity={Math.min(1, reorderS)} transform={`scale(${Math.min(1, reorderS)})`}>
+            <rect x={GX - 10} y={GY - 120} width={GW + 20} height={80} rx={14} fill="rgba(60,10,10,0.92)" stroke={RED} strokeWidth={3.5} />
+            <text x={GX + GW / 2} y={GY - 66} fill={RED} fontSize={36} fontFamily={MONO} fontWeight={800} textAnchor="middle" letterSpacing={3}>
+              ⚠ REORDER TRIGGERED
+            </text>
+          </g>
+        )}
+      </svg>
+    </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Payoff banner (final ~2 s)
+// Live sales ticker (center-top strip, per-frame updates)
 // ---------------------------------------------------------------------------
-const PayoffBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - PAYOFF_START, fps, config: {damping: 200, stiffness: 70, mass: 1}});
-  if (s <= 0.001) return null;
-  const opacity = interpolate(s, [0, 1], [0, 1], clamp01);
-  const scale = interpolate(s, [0, 1], [0.9, 1], clamp01);
-  const sweep = interpolate(frame, [PAYOFF_START + 10, PAYOFF_START + 70], [-600, 3400], clamp01);
-  const ringR = interpolate(frame, [PAYOFF_START, PAYOFF_START + 60], [120, 700], clamp01);
-  const ringO = interpolate(frame, [PAYOFF_START + 20, PAYOFF_START + 70], [0.8, 0], clamp01);
+const SALE_LINES = Array.from({length: 14}).map((_, i) => {
+  const n = 1 + Math.floor(random(`ir-tick-n-${i}`) * 6);
+  const amt = n * (24 + Math.floor(random(`ir-tick-p-${i}`) * 40));
+  const ch = ['WEB', 'POS-2', 'POS-1', 'APP'][Math.floor(random(`ir-tick-c-${i}`) * 4)];
+  return `SALE #${88410 + i * 7} · WIDGET PRO ×${n} · $${amt} · ${ch}`;
+});
+const SalesTicker: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 90, fps, config: {damping: 200, stiffness: 90}});
+  const head = Math.floor(frame / 26) % SALE_LINES.length;
+  const live = 0.6 + 0.4 * Math.sin((frame / 60) * Math.PI * 2);
+  const rate = dailyRateAt(frame);
   return (
     <div
       style={{
         position: 'absolute',
-        inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity,
-        transform: `scale(${scale})`,
-        pointerEvents: 'none',
+        left: 800,
+        top: 480,
+        width: 1640,
+        opacity: Math.min(1, enter),
+        backgroundColor: PANEL,
+        border: `1px solid ${HAIRLINE}`,
+        borderRadius: 20,
+        padding: '30px 44px',
       }}
     >
+      <div style={{display: 'flex', alignItems: 'center', gap: 22}}>
+        <div style={{width: 20, height: 20, borderRadius: 10, backgroundColor: ORANGE, opacity: live, boxShadow: `0 0 24px ${ORANGE}`}} />
+        <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 8, color: ORANGE}}>LIVE SALES</div>
+        <div style={{marginLeft: 'auto', fontFamily: MONO, fontSize: 32, color: MUTED}}>
+          RATE <span style={{color: INK, fontWeight: 700}}>{rate.toFixed(0)}/DAY</span>
+        </div>
+      </div>
+      <div style={{marginTop: 18}}>
+        {[0, 1].map((k) => {
+          const line = SALE_LINES[(head + k) % SALE_LINES.length];
+          return (
+            <div
+              key={`${head}-${k}`}
+              style={{
+                fontFamily: MONO,
+                fontSize: 33,
+                color: k === 0 ? INK : MUTED,
+                opacity: k === 0 ? 1 : 0.5,
+                marginTop: k === 0 ? 0 : 12,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {line}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Transit map: PO card fires, truck rides the supplier -> warehouse arc
+// ---------------------------------------------------------------------------
+const P0 = {x: 1010, y: 1090};
+const PC = {x: 1620, y: 770};
+const P1 = {x: 2230, y: 1090};
+const bez = (t: number) => ({
+  x: (1 - t) * (1 - t) * P0.x + 2 * (1 - t) * t * PC.x + t * t * P1.x,
+  y: (1 - t) * (1 - t) * P0.y + 2 * (1 - t) * t * PC.y + t * t * P1.y,
+});
+
+const TransitMap: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 150, fps, config: {damping: 200, stiffness: 80}});
+  const poS = spring({frame: frame - PO_AT, fps, config: {damping: 200, stiffness: 100}});
+  const poFade = 1 - interpolate(frame, [TRANSIT_START, TRANSIT_START + 50], [0, 1], clamp01);
+  const t = interpolate(frame, [TRANSIT_START, DELIVERY_AT], [0, 1], clamp01);
+  const arcDraw = interpolate(frame, [PO_AT, TRANSIT_START + 30], [0, 1], clamp01);
+  const truck = bez(t);
+  const day = Math.min(6, 1 + Math.floor(t * 6));
+  const delivered = frame >= DELIVERY_AT;
+  const delS = spring({frame: frame - DELIVERY_AT, fps, config: {damping: 200, stiffness: 120}});
+  const arcD = `M ${P0.x} ${P0.y} Q ${PC.x} ${PC.y} ${P1.x} ${P1.y}`;
+  return (
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <circle cx={1920} cy={1080} r={ringR} fill="none" stroke={GOLD} strokeWidth={6} opacity={ringO} />
-        <circle cx={1920} cy={1080} r={ringR * 0.72} fill="none" stroke={AMBER} strokeWidth={3} opacity={ringO * 0.8} />
+        <Defs />
+        <rect x={800} y={700} width={1640} height={560} rx={22} fill={PANEL} stroke={HAIRLINE} strokeWidth={2} />
+        <text x={844} y={772} fill={TEAL} fontSize={32} fontFamily={MONO} letterSpacing={8}>
+          REPLENISHMENT IN MOTION
+        </text>
+        {/* arc */}
+        <path d={arcD} fill="none" stroke="rgba(242,245,250,0.14)" strokeWidth={6} strokeDasharray="16 14" />
+        <path
+          d={arcD}
+          fill="none"
+          stroke={TEAL}
+          strokeWidth={7}
+          strokeLinecap="round"
+          pathLength={1}
+          strokeDasharray={1}
+          strokeDashoffset={1 - arcDraw}
+          style={{filter: 'drop-shadow(0 0 12px rgba(45,212,191,0.6))'}}
+        />
+        {/* supplier + warehouse nodes */}
+        <circle cx={P0.x} cy={P0.y} r={44} fill="#131A28" stroke={AMBER} strokeWidth={5} />
+        <text x={P0.x} y={P0.y + 13} fill={AMBER} fontSize={36} fontFamily={MONO} fontWeight={800} textAnchor="middle">S</text>
+        <text x={P0.x} y={P0.y + 96} fill={MUTED} fontSize={30} fontFamily={MONO} textAnchor="middle">SUPPLIER</text>
+        <circle cx={P1.x} cy={P1.y} r={44} fill="#131A28" stroke={delivered ? GREEN : FAINT} strokeWidth={5} />
+        <text x={P1.x} y={P1.y + 13} fill={delivered ? GREEN : FAINT} fontSize={36} fontFamily={MONO} fontWeight={800} textAnchor="middle">W</text>
+        <text x={P1.x} y={P1.y + 96} fill={MUTED} fontSize={30} fontFamily={MONO} textAnchor="middle">WAREHOUSE</text>
+        {/* truck */}
+        {t > 0.001 && t < 0.999 && (
+          <g>
+            <circle cx={truck.x} cy={truck.y} r={40} fill="rgba(45,212,191,0.18)" />
+            <rect x={truck.x - 46} y={truck.y - 26} width={92} height={52} rx={12} fill={TEAL} style={{filter: 'drop-shadow(0 0 18px rgba(45,212,191,0.8))'}} />
+            <rect x={truck.x - 46} y={truck.y - 26} width={30} height={52} rx={12} fill="#0B3B36" />
+            <text x={truck.x} y={truck.y - 52} fill={TEAL} fontSize={32} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+              DAY {day}/6
+            </text>
+          </g>
+        )}
+        {/* PO card */}
+        {poS > 0.02 && poFade > 0.01 && (
+          <g opacity={Math.min(1, poS) * poFade} transform={`translate(1180,820) scale(${Math.min(1, poS)})`}>
+            <rect x={-260} y={-90} width={520} height={180} rx={18} fill="rgba(8,20,18,0.95)" stroke={TEAL} strokeWidth={4} style={{filter: 'drop-shadow(0 0 30px rgba(45,212,191,0.5))'}} />
+            <text x={0} y={-34} fill={TEAL} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="middle" letterSpacing={3}>
+              PURCHASE ORDER
+            </text>
+            <text x={0} y={22} fill={INK} fontSize={44} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+              PO-8841 · 1,200 UNITS
+            </text>
+            <text x={0} y={64} fill={MUTED} fontSize={28} fontFamily={MONO} textAnchor="middle">
+              SENT TO SUPPLIER ✓
+            </text>
+          </g>
+        )}
+        {/* delivered stamp */}
+        {delivered && delS > 0.02 && (
+          <g opacity={Math.min(1, delS)} transform={`translate(${P1.x - 130},${P1.y - 190}) scale(${Math.min(1, delS)}) rotate(-8)`}>
+            <rect x={0} y={0} width={260} height={76} rx={14} fill="rgba(6,40,28,0.94)" stroke={GREEN} strokeWidth={4} />
+            <text x={130} y={52} fill={GREEN} fontSize={38} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+              DELIVERED ✓
+            </text>
+          </g>
+        )}
       </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Shelf grid: 12 facings empty and refill with the stock level
+// ---------------------------------------------------------------------------
+const ShelfGrid: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 200, fps, config: {damping: 200, stiffness: 80}});
+  const units = unitsAt(frame);
+  const filled = Math.round(12 * (units / MAX_UNITS));
+  const slots: React.ReactElement[] = [];
+  for (let i = 0; i < 12; i++) {
+    const col = i % 6;
+    const row = Math.floor(i / 6);
+    const sx = 800 + col * 268;
+    const sy = 1360 + row * 180;
+    const isFilled = i < filled;
+    slots.push(
+      <g key={i}>
+        {isFilled ? (
+          <g>
+            <rect x={sx} y={sy} width={240} height={150} rx={16} fill="url(#irStock)" opacity={0.9} />
+            <rect x={sx} y={sy} width={240} height={44} rx={16} fill="#FFE9B8" opacity={0.55} />
+            <text x={sx + 120} y={sy + 100} fill="#3A2404" fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+              PRO
+            </text>
+          </g>
+        ) : (
+          <rect x={sx} y={sy} width={240} height={150} rx={16} fill="none" stroke="rgba(242,245,250,0.22)" strokeWidth={3} strokeDasharray="12 10" />
+        )}
+      </g>
+    );
+  }
+  return (
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <text x={800} y={1320} fill={AMBER} fontSize={32} fontFamily={MONO} letterSpacing={8}>
+          SHELF AVAILABILITY · {filled}/12 FACINGS
+        </text>
+        {slots}
+      </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Metrics panel (right column)
+// ---------------------------------------------------------------------------
+const MetricsPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 120, fps, config: {damping: 200, stiffness: 80}});
+  const units = unitsAt(frame);
+  const rate = dailyRateAt(frame);
+  const cover = units / rate;
+  const PX = 2620;
+  const rows = [
+    {label: 'UNITS ON HAND', value: fmtN(units), color: units < REORDER_LINE ? ORANGE : INK},
+    {label: 'DAILY SALES RATE', value: `${rate.toFixed(0)}/DAY`, color: INK},
+    {label: 'DAYS OF COVER', value: cover.toFixed(1), color: cover < 3 ? RED : cover < 6 ? AMBER : GREEN},
+    {label: 'REORDER POINT', value: fmtN(REORDER_LINE), color: MUTED},
+    {label: 'STOCKOUTS', value: '0', color: GREEN},
+  ];
+  return (
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <rect x={PX} y={480} width={980} height={920} rx={22} fill={PANEL} stroke={HAIRLINE} strokeWidth={2} />
+        <text x={PX + 44} y={552} fill={TEAL} fontSize={32} fontFamily={MONO} letterSpacing={8}>
+          INVENTORY METRICS
+        </text>
+        {rows.map((r, i) => {
+          const s = spring({frame: frame - (120 + i * 26), fps, config: {damping: 200, stiffness: 120}});
+          if (s <= 0.001) return null;
+          const ry = 640 + i * 150;
+          return (
+            <g key={r.label} opacity={Math.min(1, s)}>
+              <text x={PX + 44} y={ry} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={4}>
+                {r.label}
+              </text>
+              <text x={PX + 936} y={ry + 66} fill={r.color} fontSize={72} fontFamily={MONO} fontWeight={800} textAnchor="end">
+                {r.value}
+              </text>
+              <line x1={PX + 44} y1={ry + 100} x2={PX + 936} y2={ry + 100} stroke="rgba(242,245,250,0.08)" strokeWidth={1.5} />
+            </g>
+          );
+        })}
+      </svg>
+      <div style={{position: 'absolute', left: PX, top: 1440, width: 980, backgroundColor: PANEL, border: `1px solid ${HAIRLINE}`, borderRadius: 20, padding: '34px 44px'}}>
+        <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 6, color: TEAL}}>REORDER POLICY</div>
+        <div style={{fontFamily: MONO, fontSize: 34, color: MUTED, marginTop: 18, lineHeight: 1.7}}>
+          REORDER POINT <span style={{color: INK, fontWeight: 700}}>300 UNITS</span>
+          <br />
+          SAFETY STOCK <span style={{color: INK, fontWeight: 700}}>120 UNITS</span> · LEAD TIME <span style={{color: INK, fontWeight: 700}}>6 DAYS</span>
+          <br />
+          ORDER QUANTITY <span style={{color: GREEN, fontWeight: 700}}>1,200 UNITS</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Payoff banner: NEVER OUT OF STOCK guard
+// ---------------------------------------------------------------------------
+const PayoffBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - PAYOFF_START, fps, config: {damping: 200, stiffness: 70}});
+  if (enter <= 0.001) return null;
+  const opacity = interpolate(enter, [0, 1], [0, 1]);
+  const flash = interpolate(frame, [PAYOFF_START + 20, PAYOFF_START + 80], [0, 1], clamp01);
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 60,
+        left: 0,
+        right: 0,
+        display: 'flex',
+        justifyContent: 'center',
+        opacity,
+        transform: `scale(${0.94 + enter * 0.06})`,
+      }}
+    >
       <div
         style={{
-          position: 'relative',
-          backgroundColor: 'rgba(10,7,4,0.94)',
-          border: `3px solid ${GOLD}`,
-          borderRadius: 34,
-          padding: '70px 160px',
+          backgroundColor: 'rgba(4,11,9,0.95)',
+          border: `3px solid ${GREEN}`,
+          borderRadius: 26,
+          padding: '44px 90px',
           textAlign: 'center',
-          overflow: 'hidden',
-          boxShadow: `0 0 140px rgba(251,191,36,0.45), 0 30px 90px rgba(0,0,0,0.6)`,
+          boxShadow: `0 0 140px rgba(52,211,153,${0.25 + flash * 0.35})`,
         }}
       >
-        <div
-          style={{
-            position: 'absolute',
-            top: -40,
-            bottom: -40,
-            left: sweep - 150,
-            width: 300,
-            background: 'linear-gradient(105deg, rgba(251,191,36,0) 0%, rgba(251,191,36,0.35) 50%, rgba(251,191,36,0) 100%)',
-            transform: 'skewX(-18deg)',
-          }}
-        />
-        <div style={{fontFamily: MONO, fontSize: 44, letterSpacing: 18, color: GOLD}}>
-          ONBOARDING COMPLETE
-        </div>
+        <div style={{fontFamily: MONO, fontSize: 42, letterSpacing: 14, color: GREEN}}>0 STOCKOUTS · 98.7% FILL RATE</div>
         <div
           style={{
             fontFamily: FONT,
             fontWeight: 800,
-            fontSize: 190,
-            color: INK,
-            marginTop: 24,
+            fontSize: 100,
+            marginTop: 8,
+            background: 'linear-gradient(90deg,#34D399,#2DD4BF,#67E8F9)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
             letterSpacing: 4,
-            textShadow: `0 0 70px rgba(251,191,36,0.75)`,
           }}
         >
-          FULLY RAMPED
+          NEVER OUT OF STOCK
         </div>
-        <div style={{fontFamily: MONO, fontSize: 42, color: MUTED, marginTop: 26, letterSpacing: 4}}>
-          90 DAYS &nbsp;·&nbsp; 6 STAGES &nbsp;·&nbsp; {TOTAL_TASKS} TASKS DONE
+        <div style={{fontFamily: MONO, fontSize: 36, color: MUTED, marginTop: 12}}>
+          REORDER AT 300 → PO-8841 → 6-DAY TRANSIT → SHELF RESTOCKED
         </div>
       </div>
+    </div>
+  );
+};
+
+
+// ---------------------------------------------------------------------------
+// Texture overlays: ambient particles, fine dither, top ticker, corner HUD.
+// Full-frame per-frame motion + cinematic grain support. Self-contained.
+// ---------------------------------------------------------------------------
+const MONO_ir = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
+const TEAL_ir = '#2DD4BF';
+const CYAN_ir = '#67E8F9';
+
+const AmbientParticles_ir: React.FC<{frame: number}> = ({frame}) => {
+  const parts: React.ReactElement[] = [];
+  for (let i = 0; i < 220; i++) {
+    const bx = random(`ir-amb-x-${i}`) * 3840;
+    const by = random(`ir-amb-y-${i}`) * 2160;
+    const spd = 0.4 + random(`ir-amb-s-${i}`) * 1.4;
+    const ang = random(`ir-amb-a-${i}`) * Math.PI * 2;
+    const drift = ((frame * spd) % 2400) - 200;
+    const px = (bx + Math.cos(ang) * drift + 3840) % 3840;
+    const py = (by + Math.sin(ang) * drift * 0.6 + 2160) % 2160;
+    const tw = 0.10 + 0.22 * (0.5 + 0.5 * Math.sin(frame * 0.14 + i * 1.7));
+    const sz = 3 + random(`ir-amb-z-${i}`) * 6;
+    const col = i % 4 === 0 ? CYAN_ir : i % 4 === 1 ? TEAL_ir : 'rgba(234,242,251,0.9)';
+    parts.push(<circle key={i} cx={px} cy={py} r={sz} fill={col} opacity={tw} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {parts}
+    </svg>
+  );
+};
+
+const FineDither_ir: React.FC<{frame: number}> = ({frame}) => {
+  const specks: React.ReactElement[] = [];
+  for (let i = 0; i < 2600; i++) {
+    const bx = random(`ir-dth-x-${i}`) * 3840;
+    const by = random(`ir-dth-y-${i}`) * 2160;
+    const jx = (random(`ir-dth-jx-${frame}-${i}`) - 0.5) * 9;
+    const jy = (random(`ir-dth-jy-${frame}-${i}`) - 0.5) * 9;
+    const o = 0.015 + random(`ir-dth-o-${frame}-${i}`) * 0.035;
+    const s = 1.5 + random(`ir-dth-s-${i}`) * 2;
+    specks.push(
+      <rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#CFE9FF" opacity={o} />
+    );
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {specks}
+    </svg>
+  );
+};
+
+const TICKER_ITEMS_ir = [
+  'REORDER POINT HIT',
+  'DAYS OF COVER 14',
+  '0 STOCKOUTS',
+  'POS-1 · POS-2 SYNCED',
+  'UNITS ON HAND 8,400',
+  'DAILY SALES RATE 212',
+  'SAFETY STOCK OK',
+  'LEAD TIME 6 DAYS'
+];
+const TickerTape_ir: React.FC<{frame: number}> = ({frame}) => {
+  const unit = TICKER_ITEMS_ir.join('   \u25C6   ') + '   \u25C6   ';
+  const unitW = unit.length * 20;
+  const x = -((frame * 7) % unitW);
+  const reps: React.ReactElement[] = [];
+  for (let r = 0; r < Math.ceil(3840 / unitW) + 1; r++) {
+    reps.push(
+      <text key={r} x={x + r * unitW} y={38} fill="rgba(103,232,249,0.60)" fontSize={27} fontFamily={MONO_ir} letterSpacing={4}>
+        {unit}
+      </text>
+    );
+  }
+  return (
+    <div style={{position: 'absolute', left: 0, right: 0, top: 0, height: 56, overflow: 'hidden', backgroundColor: 'rgba(3,7,14,0.66)', borderBottom: '1px solid rgba(234,242,251,0.14)'}}>
+      <svg width={3840} height={56} style={{position: 'absolute', top: 0, left: 0}}>
+        {reps}
+      </svg>
+    </div>
+  );
+};
+
+const CornerHud_ir: React.FC<{frame: number}> = ({frame}) => {
+  const blink = 0.55 + 0.45 * Math.sin((frame / 60) * Math.PI * 2);
+  const corners = [
+    {x: 60, y: 92, sx: 1, sy: 1},
+    {x: 3780, y: 92, sx: -1, sy: 1},
+    {x: 60, y: 2068, sx: 1, sy: -1},
+    {x: 3780, y: 2068, sx: -1, sy: -1},
+  ];
+  return (
+    <div style={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        {corners.map((c, i) => (
+          <g key={i} transform={`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}>
+            <path d="M 0 56 L 0 0 L 56 0" fill="none" stroke="rgba(45,212,191,0.55)" strokeWidth={5} />
+            <circle cx={0} cy={0} r={6} fill={TEAL_ir} opacity={blink} />
+          </g>
+        ))}
+        {Array.from({length: 24}, (_, k) => {
+          const yy = 280 + k * 68;
+          const on = ((frame >> 2) + k) % 8 === 0;
+          return <rect key={`rl${k}`} x={28} y={yy} width={on ? 32 : 17} height={3} fill={on ? TEAL_ir : 'rgba(234,242,251,0.18)'} opacity={on ? 0.9 : 0.5} />;
+        })}
+        {Array.from({length: 46}, (_, k) => {
+          const xx = 280 + k * 68;
+          const on = ((frame >> 2) + k) % 8 === 4;
+          return <rect key={`rt${k}`} x={xx} y={2036} width={3} height={on ? 28 : 15} fill={on ? TEAL_ir : 'rgba(234,242,251,0.18)'} opacity={on ? 0.9 : 0.5} />;
+        })}
+      </svg>
     </div>
   );
 };
@@ -864,14 +719,14 @@ const PayoffBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 // ---------------------------------------------------------------------------
 // Film grain (full-frame, re-seeded every frame)
 // ---------------------------------------------------------------------------
-const GRAIN_COUNT = 900;
+const GRAIN_COUNT = 7000;
 const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
   const dots: React.ReactElement[] = [];
   for (let i = 0; i < GRAIN_COUNT; i++) {
-    const x = random(`ob-grain-x-${frame}-${i}`) * 3840;
-    const y = random(`ob-grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`ob-grain-o-${frame}-${i}`) * 0.04;
-    const s = 2 + random(`ob-grain-s-${frame}-${i}`) * 2.5;
+    const x = random(`ir-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`ir-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`ir-grain-o-${frame}-${i}`) * 0.06;
+    const s = 2 + random(`ir-grain-s-${frame}-${i}`) * 3;
     dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
   }
   return (
@@ -884,20 +739,24 @@ const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const EmployeeOnboardingJourney: React.FC = () => {
+export const InventoryReplenishmentCycle: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
-      <Particles frame={frame} />
       <TitleBar frame={frame} fps={fps} />
-      <StageRail frame={frame} fps={fps} />
-      <StageCards frame={frame} fps={fps} />
-      <BottomPanel frame={frame} fps={fps} />
-      <TickerTape frame={frame} />
+      <StockGauge frame={frame} fps={fps} />
+      <SalesTicker frame={frame} fps={fps} />
+      <TransitMap frame={frame} fps={fps} />
+      <ShelfGrid frame={frame} fps={fps} />
+      <MetricsPanel frame={frame} fps={fps} />
       <PayoffBanner frame={frame} fps={fps} />
+      <AmbientParticles_ir frame={frame} />
+      <FineDither_ir frame={frame} />
+      <TickerTape_ir frame={frame} />
+      <CornerHud_ir frame={frame} />
       <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
