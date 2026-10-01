@@ -1,15 +1,15 @@
 /**
- * PriorAuthorizationFlow.tsx
+ * VehicleMaintenanceSchedule.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * A consumer-friendly medical prior-authorization explainer for the Adobe
- * Stock "Science" category: a coverage request is submitted, clinical
- * documents are gathered one by one, an insurer-review clock ticks down a
- * 72-hour window, an APPROVED stamp slams onto the decision node (plus a
- * brief denied -> appealed -> overturned mini-arc), and a payoff banner
- * closes the story. Deterministic seeded randomness only.
+ * A cinematic automotive visual for parts brands, service chains and
+ * insurers: a mechanical odometer rolls from 42,000 to 92,000 miles while
+ * four service lanes (oil, tires, brakes, inspection) tick off their
+ * mileage gates with green service stamps. Per-service health gauges feed
+ * an overall vehicle-health score that lands on a "HEALTHY CAR" payoff.
+ * Deterministic seeded randomness only.
  *
  * Register in Root.tsx:
- *   <Composition id="PriorAuthorizationFlow" component={PriorAuthorizationFlow}
+ *   <Composition id="VehicleMaintenanceSchedule" component={VehicleMaintenanceSchedule}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
@@ -24,1277 +24,647 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (clean medical blue / teal on deep clinical navy)
+// Palette (garage cinematic: asphalt navy, service amber, healthy green)
 // ---------------------------------------------------------------------------
-const BG = '#06101C';
-const INK = '#EAF2FA';
-const MUTED = 'rgba(234,242,250,0.60)';
-const FAINT = 'rgba(234,242,250,0.34)';
-const TEAL = '#2DD4BF';
-const BLUE = '#38BDF8';
-const GREEN = '#34D399';
+const BG = '#080B12';
+const INK = '#F1F5FA';
+const MUTED = 'rgba(241,245,250,0.60)';
+const FAINT = 'rgba(241,245,250,0.32)';
 const AMBER = '#FBBF24';
-const RED = '#F87171';
-const PANEL = 'rgba(9,20,36,0.88)';
-const HAIRLINE = 'rgba(234,242,250,0.14)';
+const ORANGE = '#FB923C';
+const GREEN = '#34D399';
+const GREEN_DEEP = '#065F46';
+const CYAN = '#67E8F9';
+const STEEL = '#94A3B8';
+const PANEL = 'rgba(9,13,22,0.90)';
+const HAIRLINE = 'rgba(241,245,250,0.14)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
-const clamp01 = {
-  extrapolateLeft: 'clamp' as const,
-  extrapolateRight: 'clamp' as const,
-};
+const clamp01 = {extrapolateLeft: 'clamp' as const, extrapolateRight: 'clamp' as const};
 
 // ---------------------------------------------------------------------------
 // Timeline (frames at 60 fps) -> 900 frames = 15 s
 // ---------------------------------------------------------------------------
-const INTRO_AT = 20; // title rises in
-const DOCS_START = 150; // document gathering begins
-const DOC_GAP = 44; // frames between document check-offs
-const REVIEW_START = 430; // insurer-review clock begins
-const REVIEW_END = 640; // review window drains to zero
-const STAMP_AT = 648; // APPROVED stamp slams down
-const DENY_1 = 600; // mini-arc: denied card
-const DENY_2 = 650; // mini-arc: appeal filed card
-const DENY_3 = 702; // mini-arc: overturned -> approved card
-const PAYOFF_START = 800; // final payoff banner (last ~2 s)
+const ODO_START = 60;
+const ODO_END = 800;
+const MILE_START = 42000;
+const MILE_END = 92000;
+const RAIL_LO = 40000;
+const RAIL_HI = 95000;
+const PAYOFF_START = 812;
 
-// ---------------------------------------------------------------------------
-// Flow stations (x positions on the central pipeline)
-// ---------------------------------------------------------------------------
-interface Node {
-  x: number;
-  label: string;
-  sub: string;
-  icon: string;
-  at: number;
-}
-const NODES: Node[] = [
-  {x: 500, label: 'REQUEST', sub: 'Request submitted', icon: '\u270E', at: 30},
-  {x: 1427, label: 'DOCUMENTS', sub: 'Records gathered', icon: '\u2630', at: 150},
-  {x: 2353, label: 'REVIEW', sub: 'Under review', icon: '\u25F7', at: 430},
-  {x: 3280, label: 'DECISION', sub: 'Pending', icon: '?', at: 640},
-];
-const PIPE_Y = 980;
-const PIPE_R = 130;
+const milesAt = (frame: number) =>
+  MILE_START + (MILE_END - MILE_START) * interpolate(frame, [ODO_START, ODO_END], [0, 1], clamp01);
+const frameOfMile = (mi: number) =>
+  ODO_START + ((mi - MILE_START) / (MILE_END - MILE_START)) * (ODO_END - ODO_START);
 
-// ---------------------------------------------------------------------------
-// Clinical documents (consumer-accessible language, no jargon)
-// ---------------------------------------------------------------------------
-interface Doc {
+interface Service {
   name: string;
-  detail: string;
+  interval: string;
+  miles: number;   // service interval in miles
+  gates: number[];
+  color: string;
 }
-const DOCS: Doc[] = [
-  {name: "Doctor's referral note", detail: '4 pages'},
-  {name: 'Diagnosis summary', detail: '2 pages'},
-  {name: 'Treatment plan', detail: '6 pages'},
-  {name: 'Lab results', detail: '9 panels'},
-  {name: 'Prior visit records', detail: '3 visits'},
-  {name: 'Imaging report', detail: '3 series'},
+const SERVICES: Service[] = [
+  {name: 'ENGINE OIL', interval: 'EVERY 7,500 MI', miles: 7500, gates: [45000, 52500, 60000, 67500, 75000, 82500, 90000], color: AMBER},
+  {name: 'TIRE ROTATION', interval: 'EVERY 15,000 MI', miles: 15000, gates: [45000, 60000, 75000, 90000], color: ORANGE},
+  {name: 'BRAKE SERVICE', interval: 'EVERY 30,000 MI', miles: 30000, gates: [60000, 90000], color: CYAN},
+  {name: 'FULL INSPECTION', interval: 'EVERY 30,000 MI', miles: 30000, gates: [60000, 90000], color: GREEN},
 ];
+// Health: 100 at last service, decays toward 60 at the next gate
+const healthAt = (s: Service, miles: number) => {
+  const done = s.gates.filter((g) => g <= miles);
+  const last = done.length > 0 ? done[done.length - 1] : MILE_START;
+  const upcoming = s.gates.filter((g) => g > miles);
+  const next = upcoming.length > 0 ? upcoming[0] : last + s.miles;
+  const t = (miles - last) / Math.max(1, next - last);
+  return 100 - 40 * Math.min(1, Math.max(0, t));
+};
+const fmtMi = (v: number) =>
+  Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 // ---------------------------------------------------------------------------
-// Audit ticker lines (cycle through the run)
+// Layout
 // ---------------------------------------------------------------------------
-const AUDIT = [
-  'REQ-22941 \u00B7 referral note verified \u00B7 4/4 pages',
-  'REQ-22941 \u00B7 diagnosis summary matched \u00B7 code set OK',
-  'REQ-22941 \u00B7 treatment plan attached \u00B7 6/6 pages',
-  'REQ-22941 \u00B7 lab results synced \u00B7 9/9 panels',
-  'REQ-22941 \u00B7 prior visit records linked \u00B7 3 visits',
-  'REQ-22941 \u00B7 imaging report attached \u00B7 3/3 series',
-  'REVIEW QUEUE \u00B7 position 14 \u2192 3',
-  'CLINICAL TEAM B \u00B7 reviewer assigned',
-  'POLICY CHECK \u00B7 medical-necessity criteria met',
-  'DECISION FINALIZED \u00B7 approval issued to provider',
-];
+const LANE_X0 = 220;
+const LANE_X1 = 2400;
+const laneY = (i: number) => 720 + i * 230;
+const railX = (mi: number) => LANE_X0 + ((mi - RAIL_LO) / (RAIL_HI - RAIL_LO)) * (LANE_X1 - LANE_X0);
 
 // ---------------------------------------------------------------------------
 // SVG defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="paGlow" cx="42%" cy="30%" r="80%">
-      <stop offset="0%" stopColor="rgba(45,212,191,0.13)" />
-      <stop offset="52%" stopColor="rgba(56,189,248,0.05)" />
-      <stop offset="100%" stopColor="rgba(6,16,28,0)" />
+    <radialGradient id="vmGlow" cx="40%" cy="28%" r="80%">
+      <stop offset="0%" stopColor="rgba(251,191,36,0.10)" />
+      <stop offset="45%" stopColor="rgba(103,232,249,0.05)" />
+      <stop offset="100%" stopColor="rgba(8,11,18,0)" />
     </radialGradient>
-    <radialGradient id="paVignette" cx="50%" cy="50%" r="76%">
-      <stop offset="58%" stopColor="rgba(3,8,15,0)" />
-      <stop offset="100%" stopColor="rgba(1,5,10,0.78)" />
+    <radialGradient id="vmVignette" cx="50%" cy="50%" r="76%">
+      <stop offset="58%" stopColor="rgba(3,5,10,0)" />
+      <stop offset="100%" stopColor="rgba(1,2,6,0.80)" />
     </radialGradient>
-    <linearGradient id="paScan" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="rgba(45,212,191,0)" />
-      <stop offset="50%" stopColor="rgba(45,212,191,0.14)" />
-      <stop offset="100%" stopColor="rgba(45,212,191,0)" />
+    <linearGradient id="vmScan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="rgba(251,191,36,0)" />
+      <stop offset="50%" stopColor="rgba(251,191,36,0.12)" />
+      <stop offset="100%" stopColor="rgba(251,191,36,0)" />
     </linearGradient>
-    <linearGradient id="paPipe" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={BLUE} />
-      <stop offset="60%" stopColor={TEAL} />
-      <stop offset="100%" stopColor={GREEN} />
+    <linearGradient id="vmPayoff" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={GREEN} />
+      <stop offset="55%" stopColor={CYAN} />
+      <stop offset="100%" stopColor={AMBER} />
     </linearGradient>
-    <linearGradient id="paBar" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={TEAL} />
-      <stop offset="100%" stopColor={BLUE} />
-    </linearGradient>
-    <filter id="paBlur60" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="60" />
+    <filter id="vmBlur70" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="70" />
     </filter>
-    <filter id="paBlur18" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="18" />
+    <filter id="vmBlur16" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="16" />
     </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background: layered glow, drifting dot grid, orbs, scan sweep, vignette
+// Background: asphalt texture, drifting orbs, road-line sweep
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const scanY = (frame / 900) * 2500 - 250;
+  const drift = Math.sin((frame / 900) * Math.PI * 2) * 90;
+  const scanY = (frame / 900) * 2500 - 300;
   const orbs: React.ReactElement[] = [];
   for (let i = 0; i < 6; i++) {
-    const ox = random(`pa-orb-x-${i}`) * 3840;
-    const oy = random(`pa-orb-y-${i}`) * 2160;
-    const r = 240 + random(`pa-orb-r-${i}`) * 340;
+    const ox = random(`vm-orb-x-${i}`) * 3840;
+    const oy = random(`vm-orb-y-${i}`) * 2160;
+    const r = 260 + random(`vm-orb-r-${i}`) * 320;
     const hue =
-      i % 2 === 0 ? 'rgba(45,212,191,0.09)' : 'rgba(56,189,248,0.08)';
-    const mx = Math.sin((frame / 900) * Math.PI * 2 + i * 1.9) * 130;
-    const my = Math.cos((frame / 900) * Math.PI * 2 + i * 2.4) * 95;
-    orbs.push(
-      <circle
-        key={i}
-        cx={ox + mx}
-        cy={oy + my}
-        r={r}
-        fill={hue}
-        filter="url(#paBlur60)"
-      />
-    );
+      i % 3 === 0
+        ? 'rgba(251,191,36,0.07)'
+        : i % 3 === 1
+        ? 'rgba(103,232,249,0.06)'
+        : 'rgba(52,211,153,0.05)';
+    const mx = Math.sin((frame / 900) * Math.PI * 2 + i * 2.0) * 120;
+    const my = Math.cos((frame / 900) * Math.PI * 2 + i * 1.6) * 90;
+    orbs.push(<circle key={i} cx={ox + mx} cy={oy + my} r={r} fill={hue} filter="url(#vmBlur70)" />);
   }
-  // fine drifting dot grid (high-frequency texture for bitrate)
   const dots: React.ReactElement[] = [];
-  const dx = (frame * 0.35) % 120;
-  const dy = (frame * 0.22) % 120;
-  for (let gx = -120; gx <= 3840 + 120; gx += 120) {
-    for (let gy = -120; gy <= 2160 + 120; gy += 120) {
+  for (let gx = 70; gx < 3840; gx += 175) {
+    for (let gy = 70; gy < 2160; gy += 175) {
+      const jx = (random(`vm-dot-x-${gx}-${gy}`) - 0.5) * 26;
+      const jy = (random(`vm-dot-y-${gx}-${gy}`) - 0.5) * 26;
       dots.push(
-        <circle
-          key={`${gx}-${gy}`}
-          cx={gx + dx}
-          cy={gy + dy}
-          r={2.6}
-          fill="rgba(234,242,250,0.055)"
-        />
+        <circle key={`${gx}-${gy}`} cx={gx + jx} cy={gy + jy} r={2.2} fill="rgba(241,245,250,0.05)" />
       );
     }
   }
-  // hairline cross grid
-  const lines: React.ReactElement[] = [];
-  for (let gx = 0; gx <= 3840; gx += 480) {
-    lines.push(
-      <line
-        key={`v${gx}`}
-        x1={gx}
-        y1={0}
-        x2={gx}
-        y2={2160}
-        stroke="rgba(234,242,250,0.035)"
-        strokeWidth={1}
-      />
-    );
-  }
-  for (let gy = 0; gy <= 2160; gy += 480) {
-    lines.push(
-      <line
-        key={`h${gy}`}
-        x1={0}
-        y1={gy}
-        x2={3840}
-        y2={gy}
-        stroke="rgba(234,242,250,0.035)"
-        strokeWidth={1}
-      />
-    );
+  // road dashes streaming left (per-frame motion)
+  const dashes: React.ReactElement[] = [];
+  for (let i = 0; i < 14; i++) {
+    const dy = 1900 + (i % 2) * 60;
+    const dx = ((random(`vm-dash-x-${i}`) * 4200 - frame * 26) % 4400 + 4400) % 4400 - 300;
+    dashes.push(<rect key={i} x={dx} y={dy} width={150} height={14} rx={7} fill="rgba(241,245,250,0.08)" />);
   }
   return (
     <div style={{position: 'absolute', inset: 0, backgroundColor: BG}}>
-      <svg
-        width={3840}
-        height={2160}
-        style={{position: 'absolute', top: 0, left: 0}}
-      >
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs />
+        <rect width={3840} height={2160} fill="url(#vmGlow)" transform={`translate(${drift},${-drift * 0.6})`} />
         {orbs}
-        {dots}
-        {lines}
-        <rect x={0} y={scanY} width={3840} height={300} fill="url(#paScan)" />
-        <rect width={3840} height={2160} fill="url(#paVignette)" />
+        <g transform={`translate(${drift * 0.4},0)`}>{dots}</g>
+        {dashes}
+        <rect x={0} y={scanY} width={3840} height={340} fill="url(#vmScan)" />
+        <rect width={3840} height={2160} fill="url(#vmVignette)" />
       </svg>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Drifting particles (per-frame motion, never static)
-// ---------------------------------------------------------------------------
-const Particles: React.FC<{frame: number}> = ({frame}) => {
-  const parts: React.ReactElement[] = [];
-  for (let i = 0; i < 44; i++) {
-    const bx = random(`pa-p-x-${i}`) * 3840;
-    const by = random(`pa-p-y-${i}`) * 2160;
-    const spd = 0.4 + random(`pa-p-s-${i}`) * 0.9;
-    const x = bx + Math.sin(frame * 0.008 * spd + i * 2.1) * 160;
-    const y = by - (frame * spd * 0.55) % 2400;
-    const yy = y < -40 ? y + 2400 : y;
-    const r = 3 + random(`pa-p-r-${i}`) * 7;
-    const tw = 0.35 + 0.65 * Math.abs(Math.sin(frame * 0.02 + i * 1.3));
-    const col = i % 3 === 0 ? TEAL : i % 3 === 1 ? BLUE : INK;
-    parts.push(
-      <circle
-        key={i}
-        cx={x}
-        cy={yy}
-        r={r}
-        fill={col}
-        opacity={0.10 * tw}
-      />
-    );
-  }
-  return (
-    <svg
-      width={3840}
-      height={2160}
-      style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}
-    >
-      {parts}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Title bar with live claims ticker
+// Title bar
 // ---------------------------------------------------------------------------
 const TitleBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const rise = spring({
-    frame: frame - INTRO_AT,
-    fps,
-    config: {damping: 200, stiffness: 90, mass: 1},
-  });
-  const y = interpolate(rise, [0, 1], [64, 0]);
+  const rise = spring({frame, fps, config: {damping: 200, stiffness: 90, mass: 1}});
+  const y = interpolate(rise, [0, 1], [70, 0]);
   const opacity = interpolate(rise, [0, 1], [0, 1]);
-  const pulse = 0.7 + 0.3 * Math.sin((frame / 60) * Math.PI * 2);
-  const claims = 24517 + Math.floor(frame / 15);
-  const claimsStr = claims.toLocaleString('en-US');
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 110,
-        left: 220,
-        right: 220,
-        opacity,
-        transform: `translateY(${y}px)`,
-      }}
-    >
-      <div
-        style={{
-          fontFamily: MONO,
-          fontSize: 42,
-          letterSpacing: 14,
-          color: TEAL,
-        }}
-      >
-        HEALTH COVERAGE &nbsp;&middot;&nbsp; PRIOR AUTHORIZATION
-      </div>
-      <div
-        style={{
-          fontFamily: FONT,
-          fontWeight: 800,
-          fontSize: 148,
-          color: INK,
-          marginTop: 16,
-          letterSpacing: -2,
-        }}
-      >
-        Approval, Explained
-      </div>
-      <div style={{display: 'flex', alignItems: 'center', marginTop: 24, gap: 30}}>
-        <div
-          style={{
-            width: 22,
-            height: 22,
-            borderRadius: 11,
-            backgroundColor: TEAL,
-            opacity: pulse,
-            boxShadow: `0 0 30px ${TEAL}`,
-          }}
-        />
-        <div style={{fontFamily: MONO, fontSize: 38, color: MUTED}}>
-          REQ-22941 &nbsp;&middot;&nbsp; MRI SCAN REQUEST &nbsp;&middot;&nbsp;
-          NETWORK LIVE
-        </div>
-        <div
-          style={{
-            marginLeft: 'auto',
-            fontFamily: MONO,
-            fontSize: 38,
-            color: INK,
-            border: `2px solid ${TEAL}`,
-            borderRadius: 12,
-            padding: '10px 26px',
-            backgroundColor: 'rgba(45,212,191,0.07)',
-          }}
-        >
-          CLAIMS TODAY&nbsp;&nbsp;
-          <span style={{color: TEAL, fontWeight: 700}}>{claimsStr}</span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Central flow: stations, connecting pipe, traveling packet, status labels
-// ---------------------------------------------------------------------------
-const FlowDiagram: React.FC<{frame: number; fps: number}> = ({
-  frame,
-  fps,
-}) => {
-  const x0 = NODES[0].x;
-  const x1 = NODES[NODES.length - 1].x;
-  const totalW = x1 - x0;
-  const fill = interpolate(frame, [30, STAMP_AT + 20], [0, 1], clamp01);
-  const fillX = x0 + fill * totalW;
-
-  return (
-    <svg
-      width={3840}
-      height={2160}
-      style={{position: 'absolute', top: 0, left: 0}}
-    >
-      {/* baseline pipe */}
-      <line
-        x1={x0}
-        y1={PIPE_Y}
-        x2={x1}
-        y2={PIPE_Y}
-        stroke="rgba(234,242,250,0.16)"
-        strokeWidth={10}
-        strokeLinecap="round"
-      />
-      {/* progress fill */}
-      <line
-        x1={x0}
-        y1={PIPE_Y}
-        x2={fillX}
-        y2={PIPE_Y}
-        stroke="url(#paPipe)"
-        strokeWidth={10}
-        strokeLinecap="round"
-        style={{filter: 'drop-shadow(0 0 12px rgba(45,212,191,0.6))'}}
-      />
-      {/* traveling data packet on the fill front */}
-      {frame >= 30 && frame < STAMP_AT + 40 && (
-        <g>
-          <circle cx={fillX} cy={PIPE_Y} r={30} fill={TEAL} opacity={0.25} />
-          <circle
-            cx={fillX}
-            cy={PIPE_Y}
-            r={13}
-            fill="#FFFFFF"
-            style={{filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.9))'}}
-          />
-        </g>
-      )}
-
-      {NODES.map((n, i) => {
-        const enter = spring({
-          frame: frame - n.at,
-          fps,
-          config: {damping: 200, stiffness: 95, mass: 1},
-        });
-        if (enter <= 0.001) return null;
-        const nextAt = i < NODES.length - 1 ? NODES[i + 1].at : STAMP_AT + 20;
-        const active = frame >= n.at && frame < nextAt;
-        const isDecision = i === NODES.length - 1;
-        const approved = isDecision && frame >= STAMP_AT;
-        const ringPhase = (frame - n.at) % 70;
-        const ringR = PIPE_R + 14 + (ringPhase / 70) * 46;
-        const ringO = active ? 0.5 * (1 - ringPhase / 70) : 0;
-        const fill_col = approved
-          ? GREEN
-          : active
-            ? TEAL
-            : 'rgba(12,26,44,0.92)';
-        const strokeCol = approved
-          ? GREEN
-          : active
-            ? TEAL
-            : 'rgba(234,242,250,0.35)';
-        const label = approved ? 'APPROVED' : n.label;
-        const sub = approved ? 'Coverage confirmed' : n.sub;
-        const icon = approved ? '\u2713' : n.icon;
-        return (
-          <g
-            key={n.label}
-            opacity={interpolate(enter, [0, 1], [0, 1], clamp01)}
-          >
-            {ringO > 0 && (
-              <circle
-                cx={n.x}
-                cy={PIPE_Y}
-                r={ringR}
-                fill="none"
-                stroke={TEAL}
-                strokeWidth={3}
-                opacity={ringO}
-              />
-            )}
-            <circle
-              cx={n.x}
-              cy={PIPE_Y}
-              r={PIPE_R}
-              fill={fill_col}
-              stroke={strokeCol}
-              strokeWidth={6}
-              style={{
-                filter: approved
-                  ? `drop-shadow(0 0 34px ${GREEN}88)`
-                  : active
-                    ? `drop-shadow(0 0 26px ${TEAL}77)`
-                    : 'none',
-              }}
-            />
-            <text
-              x={n.x}
-              y={PIPE_Y + 28}
-              fill={approved || active ? '#06231F' : MUTED}
-              fontSize={86}
-              fontFamily={FONT}
-              fontWeight={800}
-              textAnchor="middle"
-            >
-              {icon}
-            </text>
-            <text
-              x={n.x}
-              y={PIPE_Y - PIPE_R - 44}
-              fill={approved ? GREEN : active ? TEAL : MUTED}
-              fontSize={46}
-              fontFamily={MONO}
-              fontWeight={700}
-              letterSpacing={6}
-              textAnchor="middle"
-            >
-              {label}
-            </text>
-            <text
-              x={n.x}
-              y={PIPE_Y + PIPE_R + 66}
-              fill={INK}
-              fontSize={44}
-              fontFamily={FONT}
-              fontWeight={650}
-              textAnchor="middle"
-            >
-              {sub}
-            </text>
-            {isDecision && approved && (
-              <text
-                x={n.x}
-                y={PIPE_Y + PIPE_R + 118}
-                fill={GREEN}
-                fontSize={34}
-                fontFamily={MONO}
-                textAnchor="middle"
-              >
-                treatment may begin
-              </text>
-            )}
-          </g>
-        );
-      })}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Document checklist panel (left)
-// ---------------------------------------------------------------------------
-const DocsPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const enter = spring({
-    frame: frame - 60,
-    fps,
-    config: {damping: 200, stiffness: 90, mass: 1},
-  });
-  const doneCount = DOCS.filter(
-    (_, i) => frame >= DOCS_START + i * DOC_GAP
-  ).length;
-  const barW = interpolate(
-    frame,
-    [DOCS_START, DOCS_START + (DOCS.length - 1) * DOC_GAP + 30],
-    [0, 1],
-    clamp01
-  );
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 420,
-        left: 220,
-        width: 920,
-        opacity: interpolate(enter, [0, 1], [0, 1], clamp01),
-        transform: `translateX(${interpolate(enter, [0, 1], [-60, 0], clamp01)}px)`,
-      }}
-    >
-      <div
-        style={{
-          fontFamily: MONO,
-          fontSize: 38,
-          letterSpacing: 10,
-          color: BLUE,
-          marginBottom: 8,
-        }}
-      >
-        CLINICAL DOCUMENTS
-      </div>
-      <div
-        style={{
-          fontFamily: MONO,
-          fontSize: 34,
-          color: MUTED,
-          marginBottom: 18,
-        }}
-      >
-        ATTACHED{' '}
-        <span style={{color: TEAL, fontWeight: 700}}>
-          {doneCount}/{DOCS.length}
-        </span>
-      </div>
-      <div
-        style={{
-          height: 14,
-          backgroundColor: 'rgba(234,242,250,0.10)',
-          borderRadius: 7,
-          overflow: 'hidden',
-          marginBottom: 26,
-        }}
-      >
-        <div
-          style={{
-            width: `${barW * 100}%`,
-            height: '100%',
-            background: 'linear-gradient(90deg,#2DD4BF,#38BDF8)',
-            borderRadius: 7,
-          }}
-        />
-      </div>
-      {DOCS.map((d, i) => {
-        const checkAt = DOCS_START + i * DOC_GAP;
-        const s = spring({
-          frame: frame - checkAt,
-          fps,
-          config: {damping: 200, stiffness: 110, mass: 1},
-        });
-        const done = frame >= checkAt;
-        return (
-          <div
-            key={d.name}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 26,
-              padding: '17px 26px',
-              marginBottom: 12,
-              backgroundColor: done
-                ? 'rgba(45,212,191,0.08)'
-                : 'rgba(9,20,36,0.70)',
-              border: `1px solid ${done ? 'rgba(45,212,191,0.45)' : HAIRLINE}`,
-              borderRadius: 14,
-              opacity: interpolate(s, [0, 1], [0.45, 1], clamp01),
-              transform: `scale(${interpolate(s, [0, 1], [0.97, 1], clamp01)})`,
-            }}
-          >
-            <div
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: 26,
-                border: `3px solid ${done ? GREEN : 'rgba(234,242,250,0.30)'}`,
-                backgroundColor: done ? GREEN : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontFamily: FONT,
-                fontWeight: 800,
-                fontSize: 34,
-                color: '#06231F',
-                boxShadow: done ? `0 0 22px ${GREEN}88` : 'none',
-                transform: `scale(${interpolate(s, [0, 1], [0.6, 1], clamp01)})`,
-              }}
-            >
-              {done ? '\u2713' : ''}
-            </div>
-            <div style={{flex: 1}}>
-              <div
-                style={{
-                  fontFamily: FONT,
-                  fontWeight: 650,
-                  fontSize: 40,
-                  color: done ? INK : MUTED,
-                }}
-              >
-                {d.name}
-              </div>
-              <div
-                style={{fontFamily: MONO, fontSize: 30, color: FAINT, marginTop: 4}}
-              >
-                {d.detail}
-              </div>
-            </div>
-            <div
-              style={{
-                fontFamily: MONO,
-                fontSize: 30,
-                color: done ? GREEN : FAINT,
-                letterSpacing: 3,
-              }}
-            >
-              {done ? 'ATTACHED' : 'PENDING'}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Live network panel (right): claims counter, approval rate, sparkline
-// ---------------------------------------------------------------------------
-const LivePanel: React.FC<{frame: number; fps: number}> = ({
-  frame,
-  fps,
-}) => {
-  const enter = spring({
-    frame: frame - 90,
-    fps,
-    config: {damping: 200, stiffness: 90, mass: 1},
-  });
-  const opacity = interpolate(enter, [0, 1], [0, 1], clamp01);
-  const x = interpolate(enter, [0, 1], [60, 0], clamp01);
-  const claims = 24517 + Math.floor(frame / 15);
-  const rate = interpolate(frame, [REVIEW_START, REVIEW_END], [0, 87.2], clamp01);
-  // per-frame sparkline: seeded random walk of "requests per minute"
-  const pts: string[] = [];
-  const NW = 740;
-  const NH = 170;
-  const NP = 72;
-  for (let i = 0; i < NP; i++) {
-    const v =
-      0.52 +
-      0.26 * Math.sin(i * 0.31 + frame * 0.09) +
-      0.22 * (random(`pa-sp-${frame}-${i}`) - 0.5);
-    const px = 40 + (i / (NP - 1)) * NW;
-    const py = 20 + (1 - Math.min(0.98, Math.max(0.02, v))) * NH;
-    pts.push(`${i === 0 ? 'M' : 'L'} ${px.toFixed(1)} ${py.toFixed(1)}`);
-  }
-  const sparkPath = pts.join(' ');
-  const areaPath = `${sparkPath} L ${(40 + NW).toFixed(1)} ${(20 + NH).toFixed(1)} L 40 ${(20 + NH).toFixed(1)} Z`;
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 420,
-        right: 220,
-        width: 920,
-        opacity,
-        transform: `translateX(${x}px)`,
-        backgroundColor: PANEL,
-        border: `1px solid ${HAIRLINE}`,
-        borderRadius: 22,
-        padding: '40px 48px',
-      }}
-    >
-      <div
-        style={{
-          fontFamily: MONO,
-          fontSize: 38,
-          letterSpacing: 10,
-          color: TEAL,
-          marginBottom: 26,
-        }}
-      >
-        LIVE NETWORK
-      </div>
-      <div style={{fontFamily: MONO, fontSize: 32, color: MUTED, letterSpacing: 4}}>
-        REQUESTS PROCESSED
-      </div>
-      <div
-        style={{
-          fontFamily: MONO,
-          fontWeight: 800,
-          fontSize: 108,
-          color: INK,
-          lineHeight: 1.1,
-          textShadow: '0 0 30px rgba(56,189,248,0.35)',
-        }}
-      >
-        {claims.toLocaleString('en-US')}
-      </div>
-      <div
-        style={{
-          fontFamily: MONO,
-          fontSize: 32,
-          color: MUTED,
-          letterSpacing: 4,
-          marginTop: 30,
-        }}
-      >
-        APPROVAL RATE
-      </div>
-      <div style={{display: 'flex', alignItems: 'baseline', gap: 20}}>
-        <div
-          style={{
-            fontFamily: MONO,
-            fontWeight: 800,
-            fontSize: 84,
-            color: GREEN,
-            textShadow: `0 0 26px ${GREEN}55`,
-          }}
-        >
-          {rate.toFixed(1)}%
-        </div>
-        <div style={{fontFamily: MONO, fontSize: 30, color: FAINT}}>
-          of requests cleared
-        </div>
-      </div>
-      <div
-        style={{
-          height: 16,
-          backgroundColor: 'rgba(234,242,250,0.10)',
-          borderRadius: 8,
-          overflow: 'hidden',
-          marginTop: 14,
-        }}
-      >
-        <div
-          style={{
-            width: `${(rate / 100) * 100}%`,
-            height: '100%',
-            background: 'linear-gradient(90deg,#34D399,#2DD4BF)',
-            borderRadius: 8,
-          }}
-        />
-      </div>
-      <div
-        style={{
-          fontFamily: MONO,
-          fontSize: 32,
-          color: MUTED,
-          letterSpacing: 4,
-          marginTop: 34,
-          marginBottom: 8,
-        }}
-      >
-        REQUESTS / MINUTE
-      </div>
-      <svg width={820} height={210}>
-        <path d={areaPath} fill="rgba(56,189,248,0.14)" />
-        <path
-          d={sparkPath}
-          fill="none"
-          stroke={BLUE}
-          strokeWidth={5}
-          strokeLinecap="round"
-          style={{filter: 'drop-shadow(0 0 10px rgba(56,189,248,0.7))'}}
-        />
-      </svg>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Insurer-review clock: 72-hour window drains with tick marks and readout
-// ---------------------------------------------------------------------------
-const ReviewClock: React.FC<{frame: number; fps: number}> = ({
-  frame,
-  fps,
-}) => {
-  const enter = spring({
-    frame: frame - (REVIEW_START - 40),
-    fps,
-    config: {damping: 200, stiffness: 90, mass: 1},
-  });
-  if (enter <= 0.001) return null;
-  const y = interpolate(enter, [0, 1], [50, 0], clamp01);
-  const opacity = interpolate(enter, [0, 1], [0, 1], clamp01);
-  const hoursLeft = interpolate(frame, [REVIEW_START, REVIEW_END], [72, 0], clamp01);
-  const BX = 220;
-  const BW = 3400;
-  const BY = 1370;
-  const fillW = (hoursLeft / 72) * BW;
-  const reviewing = frame < REVIEW_END;
-  const pulse = 0.65 + 0.35 * Math.sin((frame / 60) * Math.PI * 2);
-  const ticks: React.ReactElement[] = [];
-  for (let h = 0; h <= 72; h += 6) {
-    const tx = BX + (h / 72) * BW;
-    const major = h % 24 === 0;
-    ticks.push(
-      <line
-        key={h}
-        x1={tx}
-        y1={BY + 46}
-        x2={tx}
-        y2={BY + (major ? 84 : 68)}
-        stroke={major ? 'rgba(234,242,250,0.55)' : 'rgba(234,242,250,0.28)'}
-        strokeWidth={major ? 3 : 2}
-      />
-    );
-    if (major) {
-      ticks.push(
-        <text
-          key={`t${h}`}
-          x={tx}
-          y={BY + 118}
-          fill={FAINT}
-          fontSize={30}
-          fontFamily={MONO}
-          textAnchor="middle"
-        >
-          {h === 0 ? '72h' : `${72 - h}h`}
-        </text>
-      );
-    }
-  }
-  return (
-    <svg
-      width={3840}
-      height={2160}
-      style={{position: 'absolute', top: 0, left: 0}}
-    >
-      <g opacity={opacity} transform={`translate(0, ${y})`}>
-        <text
-          x={BX}
-          y={BY - 46}
-          fill={MUTED}
-          fontSize={38}
-          fontFamily={MONO}
-          letterSpacing={10}
-        >
-          INSURER REVIEW WINDOW
-        </text>
-        {/* status pill */}
-        <g
-          transform={`translate(${BX + BW - 560}, ${BY - 108})`}
-          opacity={reviewing ? pulse : 1}
-        >
-          <rect
-            x={0}
-            y={0}
-            width={560}
-            height={72}
-            rx={36}
-            fill={reviewing ? 'rgba(251,191,36,0.10)' : 'rgba(52,211,153,0.10)'}
-            stroke={reviewing ? AMBER : GREEN}
-            strokeWidth={2.5}
-          />
-          <text
-            x={280}
-            y={48}
-            fill={reviewing ? AMBER : GREEN}
-            fontSize={36}
-            fontFamily={MONO}
-            fontWeight={700}
-            letterSpacing={5}
-            textAnchor="middle"
-          >
-            {reviewing ? 'UNDER REVIEW' : 'DECISION READY'}
-          </text>
-        </g>
-        {/* track */}
-        <rect
-          x={BX}
-          y={BY}
-          width={BW}
-          height={46}
-          rx={23}
-          fill="rgba(234,242,250,0.08)"
-          stroke="rgba(234,242,250,0.18)"
-          strokeWidth={2}
-        />
-        <rect
-          x={BX}
-          y={BY}
-          width={Math.max(0, fillW)}
-          height={46}
-          rx={23}
-          fill="url(#paBar)"
-          opacity={0.85}
-        />
-        {/* needle at the drain front */}
-        {reviewing && (
-          <g>
-            <line
-              x1={BX + fillW}
-              y1={BY - 26}
-              x2={BX + fillW}
-              y2={BY + 72}
-              stroke="#FFFFFF"
-              strokeWidth={5}
-              style={{filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.8))'}}
-            />
-            <circle cx={BX + fillW} cy={BY + 23} r={14} fill="#FFFFFF" />
-          </g>
-        )}
-        {ticks}
-        <text
-          x={BX + BW}
-          y={BY + 118}
-          fill={INK}
-          fontSize={44}
-          fontFamily={MONO}
-          fontWeight={700}
-          textAnchor="end"
-        >
-          {reviewing ? `${hoursLeft.toFixed(1)}h left` : '0.0h \u00B7 window closed'}
-        </text>
-      </g>
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Deny -> appeal mini-arc (the alternate path, quickly resolved to approved)
-// ---------------------------------------------------------------------------
-const DenyStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const enter = spring({
-    frame: frame - (DENY_1 - 40),
-    fps,
-    config: {damping: 200, stiffness: 90, mass: 1},
-  });
-  if (enter <= 0.001) return null;
-  const opacity = interpolate(enter, [0, 1], [0, 1], clamp01);
-  const cards = [
-    {at: DENY_1, title: 'FIRST ANSWER', big: 'DENIED', color: RED, sub: 'needs more records'},
-    {at: DENY_2, title: 'NEXT STEP', big: 'APPEAL FILED', color: AMBER, sub: 'doctor adds letter'},
-    {at: DENY_3, title: 'FINAL ANSWER', big: 'APPROVED', color: GREEN, sub: 'overturned on appeal'},
-  ];
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 1500,
-        left: 220,
-        opacity,
-      }}
-    >
-      <div
-        style={{
-          fontFamily: MONO,
-          fontSize: 32,
-          letterSpacing: 8,
-          color: FAINT,
-          marginBottom: 16,
-        }}
-      >
-        IF DENIED, YOU CAN APPEAL
-      </div>
-      <div style={{display: 'flex', alignItems: 'center', gap: 44}}>
-        {cards.map((c, i) => {
-          const s = spring({
-            frame: frame - c.at,
-            fps,
-            config: {damping: 200, stiffness: 110, mass: 1},
-          });
-          const vis = interpolate(s, [0, 1], [0, 1], clamp01);
-          return (
-            <React.Fragment key={c.big}>
-              {i > 0 && (
-                <div
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 54,
-                    color: vis > 0.5 ? TEAL : FAINT,
-                    opacity: vis,
-                  }}
-                >
-                  {'\u2192'}
-                </div>
-              )}
-              <div
-                style={{
-                  width: 470,
-                  padding: '26px 34px',
-                  backgroundColor: PANEL,
-                  border: `2px solid ${vis > 0.5 ? c.color : HAIRLINE}`,
-                  borderRadius: 16,
-                  opacity: vis,
-                  transform: `translateY(${interpolate(s, [0, 1], [30, 0], clamp01)}px)`,
-                  boxShadow:
-                    vis > 0.5 ? `0 0 34px ${c.color}44` : 'none',
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 28,
-                    letterSpacing: 5,
-                    color: FAINT,
-                  }}
-                >
-                  {c.title}
-                </div>
-                <div
-                  style={{
-                    fontFamily: FONT,
-                    fontWeight: 800,
-                    fontSize: 52,
-                    color: vis > 0.5 ? c.color : FAINT,
-                    marginTop: 8,
-                  }}
-                >
-                  {c.big}
-                </div>
-                <div
-                  style={{fontFamily: MONO, fontSize: 28, color: MUTED, marginTop: 6}}
-                >
-                  {c.sub}
-                </div>
-              </div>
-            </React.Fragment>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// APPROVED stamp: slams onto the decision node with shockwave rings
-// ---------------------------------------------------------------------------
-const ApprovedStamp: React.FC<{frame: number; fps: number}> = ({
-  frame,
-  fps,
-}) => {
-  const s = spring({
-    frame: frame - STAMP_AT,
-    fps,
-    config: {damping: 200, stiffness: 95, mass: 1},
-  });
-  if (s <= 0.001) return null;
-  const scale = interpolate(s, [0, 1], [1.75, 1], clamp01);
-  const opacity = interpolate(s, [0, 1], [0, 1], clamp01);
-  const cx = NODES[NODES.length - 1].x;
-  const cy = PIPE_Y;
-  // shockwave rings
-  const ring1 = interpolate(frame, [STAMP_AT, STAMP_AT + 55], [80, 460], clamp01);
-  const ring1o = interpolate(frame, [STAMP_AT, STAMP_AT + 55], [0.7, 0], clamp01);
-  const ring2 = interpolate(frame, [STAMP_AT + 8, STAMP_AT + 70], [60, 380], clamp01);
-  const ring2o = interpolate(frame, [STAMP_AT + 8, STAMP_AT + 70], [0.55, 0], clamp01);
-  return (
-    <div style={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        {ring1o > 0 && (
-          <circle
-            cx={cx}
-            cy={cy}
-            r={ring1}
-            fill="none"
-            stroke={GREEN}
-            strokeWidth={7}
-            opacity={ring1o}
-          />
-        )}
-        {ring2o > 0 && (
-          <circle
-            cx={cx}
-            cy={cy}
-            r={ring2}
-            fill="none"
-            stroke={TEAL}
-            strokeWidth={4}
-            opacity={ring2o}
-          />
-        )}
-      </svg>
-      <div
-        style={{
-          position: 'absolute',
-          left: cx - 470,
-          top: cy - 210,
-          width: 940,
-          height: 420,
-          opacity,
-          transform: `rotate(-9deg) scale(${scale})`,
-          transformOrigin: 'center center',
-        }}
-      >
-        <div
-          style={{
-            width: '100%',
-            height: '100%',
-            border: `10px solid ${GREEN}`,
-            borderRadius: 30,
-            backgroundColor: 'rgba(6,35,28,0.82)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: `0 0 90px ${GREEN}66, inset 0 0 60px rgba(52,211,153,0.18)`,
-          }}
-        >
-          <div
-            style={{
-              border: `4px solid ${GREEN}`,
-              borderRadius: 20,
-              padding: '34px 60px',
-            }}
-          >
-            <div
-              style={{
-                fontFamily: FONT,
-                fontWeight: 800,
-                fontSize: 150,
-                letterSpacing: 14,
-                color: GREEN,
-                textShadow: `0 0 44px ${GREEN}99`,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              APPROVED
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Audit ticker (bottom-left, cycles through the run)
-// ---------------------------------------------------------------------------
-const AuditTicker: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [100, 150], [0, 1], clamp01);
-  if (fade <= 0) return null;
-  const idx = Math.min(AUDIT.length - 1, Math.floor((frame - 100) / 72));
   const blink = 0.6 + 0.4 * Math.sin((frame / 60) * Math.PI * 2);
   return (
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 42,
-        left: 220,
-        opacity: fade,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 22,
-      }}
-    >
-      <div
-        style={{
-          width: 16,
-          height: 16,
-          borderRadius: 8,
-          backgroundColor: TEAL,
-          opacity: blink,
-          boxShadow: `0 0 18px ${TEAL}`,
-        }}
-      />
-      <div style={{fontFamily: MONO, fontSize: 32, color: MUTED, letterSpacing: 2}}>
-        {AUDIT[idx]}
+    <div style={{position: 'absolute', top: 118, left: 220, right: 220, opacity, transform: `translateY(${y}px)`}}>
+      <div style={{display: 'flex', alignItems: 'flex-start'}}>
+        <div>
+          <div style={{fontFamily: MONO, fontSize: 44, letterSpacing: 14, color: AMBER}}>
+            AUTOMOTIVE &nbsp;·&nbsp; PREVENTIVE CARE
+          </div>
+          <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 148, color: INK, marginTop: 16, letterSpacing: -2}}>
+            Vehicle Maintenance
+          </div>
+          <div style={{fontFamily: FONT, fontSize: 40, color: MUTED, marginTop: 14}}>
+            The odometer never lies — service every interval, on the mile
+          </div>
+        </div>
+        <div style={{marginLeft: 'auto', textAlign: 'right'}}>
+          <div style={{display: 'inline-flex', alignItems: 'center', gap: 22, border: `2px solid ${AMBER}`, borderRadius: 16, padding: '14px 32px', backgroundColor: 'rgba(12,9,4,0.6)'}}>
+            <div style={{width: 24, height: 24, borderRadius: 12, backgroundColor: AMBER, opacity: blink, boxShadow: `0 0 26px ${AMBER}`}} />
+            <div style={{fontFamily: MONO, fontSize: 40, fontWeight: 700, color: INK, letterSpacing: 4}}>
+              SERVICE SCHEDULE
+            </div>
+          </div>
+          <div style={{fontFamily: MONO, fontSize: 32, color: FAINT, marginTop: 14}}>
+            4 SYSTEMS · 15 GATES · 50,000 MI
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Payoff banner (last ~2 s)
+// Rolling mechanical odometer (top-right hero)
 // ---------------------------------------------------------------------------
-const PayoffBanner: React.FC<{frame: number; fps: number}> = ({
-  frame,
-  fps,
-}) => {
-  const enter = spring({
-    frame: frame - PAYOFF_START,
-    fps,
-    config: {damping: 200, stiffness: 70, mass: 1},
-  });
-  if (enter <= 0.001) return null;
-  const opacity = interpolate(enter, [0, 1], [0, 1], clamp01);
-  const scale = interpolate(enter, [0, 1], [0.94, 1], clamp01);
-  const barW = interpolate(frame, [PAYOFF_START, PAYOFF_START + 55], [0, 1], clamp01);
-  const glowPulse = 0.28 + 0.12 * Math.sin((frame / 60) * Math.PI * 2);
+const DH = 170;
+const Odometer: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 30, fps, config: {damping: 200, stiffness: 80}});
+  const miles = milesAt(frame);
+  const drums: React.ReactElement[] = [];
+  for (let k = 5; k >= 0; k--) {
+    const dv = miles / Math.pow(10, k);
+    const d = Math.floor(dv) % 10;
+    const frac = dv - Math.floor(dv);
+    const digits: React.ReactElement[] = [];
+    for (let n = 0; n <= 10; n++) {
+      digits.push(
+        <div key={n} style={{height: DH, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+          {n % 10}
+        </div>
+      );
+    }
+    drums.push(
+      <div
+        key={k}
+        style={{
+          width: 128,
+          height: DH,
+          overflow: 'hidden',
+          backgroundColor: '#0B0F18',
+          border: `2px solid ${HAIRLINE}`,
+          borderRadius: 14,
+        }}
+      >
+        <div style={{transform: `translateY(${-(d + Math.min(0.999, frac)) * DH}px)`}}>{digits}</div>
+      </div>
+    );
+  }
+  return (
+    <div style={{position: 'absolute', right: 220, top: 400, opacity: Math.min(1, enter), textAlign: 'right'}}>
+      <div style={{fontFamily: MONO, fontSize: 38, letterSpacing: 10, color: MUTED, marginBottom: 18}}>
+        ODOMETER · MI
+      </div>
+      <div style={{display: 'flex', gap: 14, justifyContent: 'flex-end', fontFamily: MONO, fontWeight: 800, fontSize: 148, color: INK}}>
+        {drums}
+      </div>
+      <div style={{fontFamily: MONO, fontSize: 34, color: FAINT, marginTop: 16}}>
+        TRIP {fmtMi(miles - MILE_START)} MI THIS CYCLE
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Service lanes: mileage rail + gate nodes that stamp green when passed
+// ---------------------------------------------------------------------------
+const ServiceLanes: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const miles = milesAt(frame);
+  const cursorX = railX(miles);
+  return (
+    <div style={{position: 'absolute', inset: 0}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <text x={LANE_X0} y={660} fill={AMBER} fontSize={32} fontFamily={MONO} letterSpacing={8}>
+          MILEAGE GATES · {fmtMi(RAIL_LO)}–{fmtMi(RAIL_HI)} MI
+        </text>
+        {SERVICES.map((s, i) => {
+          const enter = spring({frame: frame - (50 + i * 30), fps, config: {damping: 200, stiffness: 100}});
+          if (enter <= 0.001) return null;
+          const y = laneY(i);
+          const h = healthAt(s, miles);
+          return (
+            <g key={s.name} opacity={Math.min(1, enter)}>
+              {/* lane header */}
+              <text x={LANE_X0} y={y - 78} fill={INK} fontSize={44} fontFamily={FONT} fontWeight={750}>
+                {s.name}
+              </text>
+              <text x={LANE_X0 + 560} y={y - 78} fill={FAINT} fontSize={30} fontFamily={MONO} letterSpacing={4}>
+                {s.interval}
+              </text>
+              <text x={LANE_X1} y={y - 74} fill={h >= 85 ? GREEN : h >= 70 ? AMBER : ORANGE} fontSize={44} fontFamily={MONO} fontWeight={800} textAnchor="end">
+                {Math.round(h)}%
+              </text>
+              {/* health micro-bar */}
+              <rect x={LANE_X1 - 320} y={y - 40} width={320} height={16} rx={8} fill="rgba(241,245,250,0.08)" />
+              <rect x={LANE_X1 - 320} y={y - 40} width={320 * (h / 100)} height={16} rx={8} fill={h >= 85 ? GREEN : h >= 70 ? AMBER : ORANGE} />
+              {/* rail */}
+              <line x1={LANE_X0} y1={y} x2={LANE_X1} y2={y} stroke="rgba(241,245,250,0.16)" strokeWidth={8} strokeLinecap="round" />
+              <line x1={LANE_X0} y1={y} x2={Math.min(cursorX, LANE_X1)} y2={y} stroke={s.color} strokeWidth={8} strokeLinecap="round" opacity={0.85} />
+              {/* 10k ruler ticks */}
+              {Array.from({length: 6}).map((_, k) => {
+                const rm = 40000 + k * 10000 + 5000;
+                if (rm > RAIL_HI) return null;
+                const rx = railX(rm);
+                return (
+                  <g key={k}>
+                    <line x1={rx} y1={y - 14} x2={rx} y2={y + 14} stroke="rgba(241,245,250,0.22)" strokeWidth={3} />
+                    <text x={rx} y={y + 52} fill={FAINT} fontSize={24} fontFamily={MONO} textAnchor="middle">
+                      {rm / 1000}K
+                    </text>
+                  </g>
+                );
+              })}
+              {/* gate nodes */}
+              {s.gates.map((g) => {
+                const gx = railX(g);
+                const done = miles >= g;
+                const dueSoon = !done && g - miles < 1500;
+                const stS = spring({frame: frame - frameOfMile(g), fps, config: {damping: 200, stiffness: 130}});
+                const pulse = dueSoon ? 0.55 + 0.45 * Math.sin((frame / 60) * Math.PI * 2) : 1;
+                return (
+                  <g key={g}>
+                    <circle cx={gx} cy={y} r={done ? 24 : 17} fill={done ? GREEN : dueSoon ? AMBER : '#131A28'} stroke={done ? GREEN : dueSoon ? AMBER : STEEL} strokeWidth={4} opacity={pulse} />
+                    {done && (
+                      <text x={gx} y={y + 12} fill="#06281C" fontSize={28} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+                        ✓
+                      </text>
+                    )}
+                    {done && stS > 0.02 && (
+                      <g opacity={Math.min(1, stS)} transform={`translate(${gx - 110},${y - 108}) scale(${Math.min(1, stS)})`}>
+                        <rect x={0} y={0} width={220} height={64} rx={12} fill="rgba(6,40,28,0.94)" stroke={GREEN} strokeWidth={3} />
+                        <text x={110} y={44} fill={GREEN} fontSize={32} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+                          {(g / 1000).toFixed(g % 1000 === 0 ? 0 : 1)}K ✓
+                        </text>
+                      </g>
+                    )}
+                    {dueSoon && (
+                      <text x={gx} y={y - 40} fill={AMBER} fontSize={28} fontFamily={MONO} fontWeight={700} textAnchor="middle" opacity={pulse}>
+                        DUE
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })}
+        {/* odometer cursor across all lanes */}
+        <g opacity={interpolate(frame, [ODO_START, ODO_START + 30], [0, 1], clamp01)}>
+          <line x1={cursorX} y1={640} x2={cursorX} y2={1620} stroke={AMBER} strokeWidth={4} strokeDasharray="16 12" opacity={0.75} />
+          <circle cx={cursorX} cy={640} r={14} fill={AMBER} style={{filter: 'drop-shadow(0 0 14px rgba(251,191,36,0.9))'}} />
+          <text x={cursorX} y={618} fill={AMBER} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+            {fmtMi(miles)} MI
+          </text>
+        </g>
+      </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Vehicle health dashboard (right column): overall ring + per-system bars
+// ---------------------------------------------------------------------------
+const HealthDashboard: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 140, fps, config: {damping: 200, stiffness: 80}});
+  const miles = milesAt(frame);
+  const PX = 2620;
+  const overall = SERVICES.reduce((a, s) => a + healthAt(s, miles), 0) / SERVICES.length;
+  const RC = 150;
+  const circ = 2 * Math.PI * RC;
+  const dash = (overall / 100) * circ;
+  const done = SERVICES.flatMap((s) => s.gates).filter((g) => miles >= g).length;
+  return (
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <rect x={PX} y={700} width={980} height={940} rx={22} fill={PANEL} stroke={HAIRLINE} strokeWidth={2} />
+        <text x={PX + 44} y={772} fill={GREEN} fontSize={32} fontFamily={MONO} letterSpacing={8}>
+          VEHICLE HEALTH
+        </text>
+        {/* overall ring */}
+        <circle cx={PX + 490} cy={1020} r={RC} fill="none" stroke="rgba(241,245,250,0.08)" strokeWidth={30} />
+        <circle
+          cx={PX + 490}
+          cy={1020}
+          r={RC}
+          fill="none"
+          stroke={overall >= 85 ? GREEN : AMBER}
+          strokeWidth={30}
+          strokeLinecap="round"
+          pathLength={1}
+          strokeDasharray={1}
+          strokeDashoffset={1 - overall / 100}
+          transform={`rotate(-90 ${PX + 490} 1020)`}
+          style={{filter: `drop-shadow(0 0 18px ${overall >= 85 ? 'rgba(52,211,153,0.6)' : 'rgba(251,191,36,0.6)'})`}}
+        />
+        <text x={PX + 490} y={1000} fill={INK} fontSize={110} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+          {Math.round(overall)}
+        </text>
+        <text x={PX + 490} y={1058} fill={MUTED} fontSize={32} fontFamily={MONO} textAnchor="middle">
+          / 100
+        </text>
+        {/* per-system bars */}
+        {SERVICES.map((s, i) => {
+          const h = healthAt(s, miles);
+          const by = 1240 + i * 84;
+          return (
+            <g key={s.name}>
+              <text x={PX + 44} y={by + 6} fill={MUTED} fontSize={28} fontFamily={MONO} letterSpacing={2}>
+                {s.name}
+              </text>
+              <rect x={PX + 420} y={by - 22} width={516} height={26} rx={13} fill="rgba(241,245,250,0.08)" />
+              <rect x={PX + 420} y={by - 22} width={516 * (h / 100)} height={26} rx={13} fill={s.color} opacity={0.92} />
+              <text x={PX + 44} y={by + 42} fill={FAINT} fontSize={24} fontFamily={MONO}>
+                NEXT {fmtMi(s.gates.find((g) => g > miles) ?? s.gates[s.gates.length - 1] + s.miles)} MI
+              </text>
+            </g>
+          );
+        })}
+        <text x={PX + 44} y={1600} fill={FAINT} fontSize={26} fontFamily={MONO} letterSpacing={2} opacity={0}>
+          {done}
+        </text>
+      </svg>
+      <div style={{position: 'absolute', left: PX + 44, top: 1560, fontFamily: MONO, fontSize: 32, color: GREEN}}>
+        {done} / 15 SERVICES COMPLETED · 0 OVERDUE
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Service log: last completed events (bottom-right strip)
+// ---------------------------------------------------------------------------
+const LOG_LINES = [
+  'OIL CHANGE · 45,000 MI ✓',
+  'TIRE ROTATION · 45,000 MI ✓',
+  'OIL CHANGE · 52,500 MI ✓',
+  'OIL · TIRES · BRAKES · INSPECTION · 60,000 MI ✓',
+  'OIL CHANGE · 67,500 MI ✓',
+  'OIL · TIRE ROTATION · 75,000 MI ✓',
+  'OIL CHANGE · 82,500 MI ✓',
+  'OIL · TIRES · BRAKES · INSPECTION · 90,000 MI ✓',
+];
+const LOG_AT = [45000, 45000, 52500, 60000, 67500, 75000, 82500, 90000];
+const ServiceLog: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 220, fps, config: {damping: 200, stiffness: 80}});
+  const miles = milesAt(frame);
+  const shown = LOG_LINES.filter((_, i) => miles >= LOG_AT[i]);
+  const last3 = shown.slice(-3);
+  const live = 0.55 + 0.45 * Math.sin((frame / 60) * Math.PI * 2);
   return (
     <div
       style={{
         position: 'absolute',
-        bottom: 120,
+        left: 2620,
+        top: 1660,
+        width: 980,
+        opacity: Math.min(1, enter),
+        backgroundColor: PANEL,
+        border: `1px solid ${HAIRLINE}`,
+        borderRadius: 20,
+        padding: '30px 40px',
+      }}
+    >
+      <div style={{display: 'flex', alignItems: 'center', gap: 20}}>
+        <div style={{width: 20, height: 20, borderRadius: 10, backgroundColor: GREEN, opacity: live, boxShadow: `0 0 24px ${GREEN}`}} />
+        <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 8, color: GREEN}}>SERVICE LOG</div>
+      </div>
+      <div style={{marginTop: 20, minHeight: 150}}>
+        {last3.map((line, k) => (
+          <div
+            key={`${shown.length}-${k}`}
+            style={{
+              fontFamily: MONO,
+              fontSize: 32,
+              color: k === last3.length - 1 ? INK : MUTED,
+              marginTop: k === 0 ? 0 : 12,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {line}
+          </div>
+        ))}
+        {last3.length === 0 && (
+          <div style={{fontFamily: MONO, fontSize: 32, color: FAINT}}>AWAITING FIRST SERVICE…</div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Payoff banner: HEALTHY CAR
+// ---------------------------------------------------------------------------
+const PayoffBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - PAYOFF_START, fps, config: {damping: 200, stiffness: 70}});
+  if (enter <= 0.001) return null;
+  const opacity = interpolate(enter, [0, 1], [0, 1]);
+  const flash = interpolate(frame, [PAYOFF_START + 20, PAYOFF_START + 80], [0, 1], clamp01);
+  const health = Math.round(SERVICES.reduce((a, s) => a + healthAt(s, MILE_END), 0) / SERVICES.length);
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 60,
         left: 0,
         right: 0,
         display: 'flex',
         justifyContent: 'center',
         opacity,
-        transform: `scale(${scale})`,
+        transform: `scale(${0.94 + enter * 0.06})`,
       }}
     >
       <div
         style={{
-          backgroundColor: 'rgba(5,15,27,0.94)',
-          border: `3px solid ${TEAL}`,
-          borderRadius: 30,
-          padding: '52px 110px',
+          backgroundColor: 'rgba(4,10,8,0.95)',
+          border: `3px solid ${GREEN}`,
+          borderRadius: 26,
+          padding: '44px 90px',
           textAlign: 'center',
-          boxShadow: `0 0 110px rgba(45,212,191,${glowPulse})`,
+          boxShadow: `0 0 140px rgba(52,211,153,${0.25 + flash * 0.35})`,
         }}
       >
-        <div
-          style={{
-            fontFamily: MONO,
-            fontSize: 42,
-            letterSpacing: 14,
-            color: TEAL,
-          }}
-        >
-          PRIOR AUTHORIZATION COMPLETE
+        <div style={{fontFamily: MONO, fontSize: 42, letterSpacing: 16, color: GREEN}}>
+          VEHICLE HEALTH {health} / 100
         </div>
         <div
           style={{
             fontFamily: FONT,
             fontWeight: 800,
-            fontSize: 118,
-            color: INK,
-            marginTop: 14,
-            letterSpacing: -1,
+            fontSize: 108,
+            marginTop: 8,
+            background: 'linear-gradient(90deg,#34D399,#67E8F9,#FBBF24)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            letterSpacing: 6,
           }}
         >
-          APPROVED{' '}
-          <span style={{color: GREEN, textShadow: `0 0 40px ${GREEN}88`}}>
-            &middot; CARE CLEARED
-          </span>
+          HEALTHY CAR
         </div>
-        <div
-          style={{
-            width: `${barW * 100}%`,
-            height: 12,
-            background: 'linear-gradient(90deg,#2DD4BF,#38BDF8,#34D399)',
-            borderRadius: 6,
-            margin: '30px auto 0',
-          }}
-        />
-        <div
-          style={{
-            fontFamily: MONO,
-            fontSize: 36,
-            color: MUTED,
-            marginTop: 24,
-            letterSpacing: 3,
-          }}
-        >
-          coverage confirmed &nbsp;&middot;&nbsp; treatment may begin
+        <div style={{fontFamily: MONO, fontSize: 36, color: MUTED, marginTop: 12}}>
+          15/15 SERVICES ON TIME · 0 OVERDUE · 50,000 MI COVERED
         </div>
       </div>
+    </div>
+  );
+};
+
+
+// ---------------------------------------------------------------------------
+// Texture overlays: ambient particles, fine dither, top ticker, corner HUD.
+// Full-frame per-frame motion + cinematic grain support. Self-contained.
+// ---------------------------------------------------------------------------
+const MONO_vm = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
+const TEAL_vm = '#2DD4BF';
+const CYAN_vm = '#67E8F9';
+
+const AmbientParticles_vm: React.FC<{frame: number}> = ({frame}) => {
+  const parts: React.ReactElement[] = [];
+  for (let i = 0; i < 220; i++) {
+    const bx = random(`vm-amb-x-${i}`) * 3840;
+    const by = random(`vm-amb-y-${i}`) * 2160;
+    const spd = 0.4 + random(`vm-amb-s-${i}`) * 1.4;
+    const ang = random(`vm-amb-a-${i}`) * Math.PI * 2;
+    const drift = ((frame * spd) % 2400) - 200;
+    const px = (bx + Math.cos(ang) * drift + 3840) % 3840;
+    const py = (by + Math.sin(ang) * drift * 0.6 + 2160) % 2160;
+    const tw = 0.10 + 0.22 * (0.5 + 0.5 * Math.sin(frame * 0.14 + i * 1.7));
+    const sz = 3 + random(`vm-amb-z-${i}`) * 6;
+    const col = i % 4 === 0 ? CYAN_vm : i % 4 === 1 ? TEAL_vm : 'rgba(234,242,251,0.9)';
+    parts.push(<circle key={i} cx={px} cy={py} r={sz} fill={col} opacity={tw} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {parts}
+    </svg>
+  );
+};
+
+const FineDither_vm: React.FC<{frame: number}> = ({frame}) => {
+  const specks: React.ReactElement[] = [];
+  for (let i = 0; i < 2600; i++) {
+    const bx = random(`vm-dth-x-${i}`) * 3840;
+    const by = random(`vm-dth-y-${i}`) * 2160;
+    const jx = (random(`vm-dth-jx-${frame}-${i}`) - 0.5) * 9;
+    const jy = (random(`vm-dth-jy-${frame}-${i}`) - 0.5) * 9;
+    const o = 0.015 + random(`vm-dth-o-${frame}-${i}`) * 0.035;
+    const s = 1.5 + random(`vm-dth-s-${i}`) * 2;
+    specks.push(
+      <rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#CFE9FF" opacity={o} />
+    );
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {specks}
+    </svg>
+  );
+};
+
+const TICKER_ITEMS_vm = [
+  'ENGINE OIL 5W-30',
+  'TIRE ROTATION 10K KM',
+  'BRAKE SERVICE OK',
+  'FULL INSPECTION 21 PTS',
+  'NEXT SERVICE 90 DAYS',
+  '0 FAULT CODES',
+  'BATTERY 12.6V',
+  'WARRANTY ACTIVE'
+];
+const TickerTape_vm: React.FC<{frame: number}> = ({frame}) => {
+  const unit = TICKER_ITEMS_vm.join('   \u25C6   ') + '   \u25C6   ';
+  const unitW = unit.length * 20;
+  const x = -((frame * 7) % unitW);
+  const reps: React.ReactElement[] = [];
+  for (let r = 0; r < Math.ceil(3840 / unitW) + 1; r++) {
+    reps.push(
+      <text key={r} x={x + r * unitW} y={38} fill="rgba(103,232,249,0.60)" fontSize={27} fontFamily={MONO_vm} letterSpacing={4}>
+        {unit}
+      </text>
+    );
+  }
+  return (
+    <div style={{position: 'absolute', left: 0, right: 0, top: 0, height: 56, overflow: 'hidden', backgroundColor: 'rgba(3,7,14,0.66)', borderBottom: '1px solid rgba(234,242,251,0.14)'}}>
+      <svg width={3840} height={56} style={{position: 'absolute', top: 0, left: 0}}>
+        {reps}
+      </svg>
+    </div>
+  );
+};
+
+const CornerHud_vm: React.FC<{frame: number}> = ({frame}) => {
+  const blink = 0.55 + 0.45 * Math.sin((frame / 60) * Math.PI * 2);
+  const corners = [
+    {x: 60, y: 92, sx: 1, sy: 1},
+    {x: 3780, y: 92, sx: -1, sy: 1},
+    {x: 60, y: 2068, sx: 1, sy: -1},
+    {x: 3780, y: 2068, sx: -1, sy: -1},
+  ];
+  return (
+    <div style={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        {corners.map((c, i) => (
+          <g key={i} transform={`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}>
+            <path d="M 0 56 L 0 0 L 56 0" fill="none" stroke="rgba(45,212,191,0.55)" strokeWidth={5} />
+            <circle cx={0} cy={0} r={6} fill={TEAL_vm} opacity={blink} />
+          </g>
+        ))}
+        {Array.from({length: 24}, (_, k) => {
+          const yy = 280 + k * 68;
+          const on = ((frame >> 2) + k) % 8 === 0;
+          return <rect key={`rl${k}`} x={28} y={yy} width={on ? 32 : 17} height={3} fill={on ? TEAL_vm : 'rgba(234,242,251,0.18)'} opacity={on ? 0.9 : 0.5} />;
+        })}
+        {Array.from({length: 46}, (_, k) => {
+          const xx = 280 + k * 68;
+          const on = ((frame >> 2) + k) % 8 === 4;
+          return <rect key={`rt${k}`} x={xx} y={2036} width={3} height={on ? 28 : 15} fill={on ? TEAL_vm : 'rgba(234,242,251,0.18)'} opacity={on ? 0.9 : 0.5} />;
+        })}
+      </svg>
     </div>
   );
 };
@@ -1302,24 +672,18 @@ const PayoffBanner: React.FC<{frame: number; fps: number}> = ({
 // ---------------------------------------------------------------------------
 // Film grain (full-frame, re-seeded every frame)
 // ---------------------------------------------------------------------------
-const GRAIN_COUNT = 900;
+const GRAIN_COUNT = 7000;
 const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
   const dots: React.ReactElement[] = [];
   for (let i = 0; i < GRAIN_COUNT; i++) {
-    const x = random(`pa-grain-x-${frame}-${i}`) * 3840;
-    const y = random(`pa-grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`pa-grain-o-${frame}-${i}`) * 0.04;
-    const sz = 2 + random(`pa-grain-s-${frame}-${i}`) * 2.5;
-    dots.push(
-      <rect key={i} x={x} y={y} width={sz} height={sz} fill="#FFFFFF" opacity={o} />
-    );
+    const x = random(`vm-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`vm-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`vm-grain-o-${frame}-${i}`) * 0.06;
+    const s = 2 + random(`vm-grain-s-${frame}-${i}`) * 3;
+    dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
   }
   return (
-    <svg
-      width={3840}
-      height={2160}
-      style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}
-    >
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
       {dots}
     </svg>
   );
@@ -1328,23 +692,23 @@ const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const PriorAuthorizationFlow: React.FC = () => {
+export const VehicleMaintenanceSchedule: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
-      <Particles frame={frame} />
       <TitleBar frame={frame} fps={fps} />
-      <DocsPanel frame={frame} fps={fps} />
-      <LivePanel frame={frame} fps={fps} />
-      <FlowDiagram frame={frame} fps={fps} />
-      <ReviewClock frame={frame} fps={fps} />
-      <DenyStrip frame={frame} fps={fps} />
-      <ApprovedStamp frame={frame} fps={fps} />
-      <AuditTicker frame={frame} />
+      <Odometer frame={frame} fps={fps} />
+      <ServiceLanes frame={frame} fps={fps} />
+      <HealthDashboard frame={frame} fps={fps} />
+      <ServiceLog frame={frame} fps={fps} />
       <PayoffBanner frame={frame} fps={fps} />
+      <AmbientParticles_vm frame={frame} />
+      <FineDither_vm frame={frame} />
+      <TickerTape_vm frame={frame} />
+      <CornerHud_vm frame={frame} />
       <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
