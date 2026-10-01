@@ -28,6 +28,20 @@ name: 🎬 Remotion Universal Renderer
 #     `adobe_stock=true`, which re-encodes with
 #     -b:v 40M -minrate 35M -maxrate 50M -bufsize 100M -profile:v high -pix_fmt yuv420p,
 #     or pass video_bitrate=40M and advanced_args='--max-rate=50M --buffer-size=100M'.
+#
+#     POLICY VARIABLES — set server-side, cannot be dropped by a dispatcher and
+#     need no input slot. Repo Settings -> Secrets and variables -> Actions ->
+#     Variables:
+#       ADOBE_STOCK = true   always apply the Adobe spec (40 Mbps H.264, silent)
+#       MIN_MBPS    = 20     bitrate floor for every video render (0 = disabled)
+#
+#     DISPATCHING FROM AN API — inputs must be in the JSON BODY. GitHub silently
+#     ignores unknown/misspelled inputs and there is no query-parameter form:
+#       POST /repos/{owner}/{repo}/actions/workflows/render.yml/dispatches
+#       Authorization: Bearer <token>   Content-Type: application/json
+#       {"ref":"main","inputs":{"adobe_stock":"true","composition_id":"MyComp"}}
+#     The first step of the render job echoes the inputs that actually arrived,
+#     so a dropped field shows up in the run log instead of in your deliverables.
 # ─────────────────────────────────────────────────────────────────────────────
 on:
   workflow_dispatch:
@@ -130,7 +144,7 @@ on:
 
       # ── Adobe Stock post-processing ──────────────────────────────────────────
       adobe_stock:
-        description: 'true = re-encode to Adobe Stock spec (40 Mbps H264, no audio) after render'
+        description: 'true = re-encode to Adobe Stock spec (40 Mbps H264, no audio) after render. Accepts true/1/yes/on; the ADOBE_STOCK repository variable forces it on too'
         required: false
         default: 'false'
 
@@ -217,6 +231,64 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: 🧾 Effective settings (dispatch echo + policy)
+        env:
+          DISPATCH_INPUTS: ${{ toJSON(github.event.inputs) }}
+          INPUT_ADOBE: ${{ github.event.inputs.adobe_stock }}
+          POLICY_ADOBE: ${{ vars.ADOBE_STOCK }}
+          CODEC: ${{ github.event.inputs.codec || 'h264' }}
+        run: |
+          echo "Received dispatch inputs:"
+          printf '%s\n' "$DISPATCH_INPUTS"
+          echo
+
+          # Accepts true/1/yes/on in any casing, so a sloppy dispatcher cannot
+          # silently turn the Adobe spec off.
+          is_true() {
+            case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+              true|1|yes|on)
+                return 0
+                ;;
+              *)
+                return 1
+                ;;
+            esac
+          }
+
+          ADOBE=false
+          if is_true "$INPUT_ADOBE"; then
+            ADOBE=true
+            echo "Adobe Stock spec: ON (from the adobe_stock input)"
+          elif is_true "$POLICY_ADOBE"; then
+            ADOBE=true
+            echo "Adobe Stock spec: ON (from the ADOBE_STOCK repository variable)"
+            if ! is_true "$INPUT_ADOBE"; then
+              echo "⚠ The adobe_stock input arrived as '$INPUT_ADOBE' — the repo variable is what"
+              echo "  saved this render. GitHub ignores unknown/misspelled dispatch inputs silently,"
+              echo "  so send it in the JSON body instead of a form field or query string:"
+              echo "    POST /repos/{owner}/{repo}/actions/workflows/<file>.yml/dispatches"
+              echo "    {\"ref\":\"main\",\"inputs\":{\"adobe_stock\":\"true\"}}"
+            fi
+          else
+            echo "Adobe Stock spec: OFF (input '$INPUT_ADOBE', variable '$POLICY_ADOBE')"
+          fi
+
+          if [ "$ADOBE" = "true" ] && [ "$CODEC" != "h264" ]; then
+            echo "⚠ Adobe compliance is ON but the codec is '$CODEC': the 40 Mbps H.264 re-encode"
+            echo "  only runs for h264, so this render will probably fail the bitrate floor."
+          fi
+
+          MIN_MBPS="${{ vars.MIN_MBPS || '20' }}"
+          case "$MIN_MBPS" in
+            ''|*[!0-9]*)
+              MIN_MBPS=20
+              ;;
+          esac
+          echo "Bitrate floor: ${MIN_MBPS} Mbps (0 = disabled)"
+
+          echo "ADOBE_STOCK=$ADOBE" >> "$GITHUB_ENV"
+          echo "MIN_MBPS=$MIN_MBPS" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:
@@ -388,14 +460,11 @@ jobs:
           EVERY_NTH="${{ github.event.inputs.every_nth_frame || '1' }}"
           GIF_LOOPS="${{ github.event.inputs.gif_loops }}"
           PROPS='${{ github.event.inputs.props }}'
-          ADOBE="${{ github.event.inputs.adobe_stock || 'false' }}"
+          ADOBE="${ADOBE_STOCK:-false}"
           ADVANCED_ARGS="${{ github.event.inputs.advanced_args }}"
           W="${{ github.event.inputs.width }}"
           H="${{ github.event.inputs.height }}"
           FPS="${{ github.event.inputs.fps }}"
-
-          # Expose the Adobe flag to the later "Inspect output" step
-          echo "ADOBE_STOCK=$ADOBE" >> "$GITHUB_ENV"
 
           # Build the remotion render command dynamically
           CMD="npx remotion render \"${{ matrix.id }}\" \"$OUTPUT\""
@@ -509,10 +578,10 @@ jobs:
           REQ_H="${{ github.event.inputs.height }}"
           REQ_FPS="${{ github.event.inputs.fps }}"
 
-          # Minimum Mbps required by your delivery spec. Change it without editing
-          # this file: repo Settings -> Secrets and variables -> Actions ->
-          # Variables -> MIN_MBPS (set 0 to disable the floor).
-          MIN_MBPS="${{ vars.MIN_MBPS || '20' }}"
+          # Minimum Mbps required by your delivery spec, resolved by the
+          # "Effective settings" step from the MIN_MBPS repository variable
+          # (default 20; set 0 to disable the floor).
+          MIN_MBPS="${MIN_MBPS:-20}"
           case "$MIN_MBPS" in
             ''|*[!0-9]*)
               MIN_MBPS=20
@@ -573,7 +642,7 @@ jobs:
               echo "❌ FAIL: bitrate ${MBPS} Mbps is below the ${MIN_MBPS} Mbps floor"
               echo "   Fix A: set video_bitrate=40M and advanced_args='--max-rate=50M --buffer-size=100M'"
               echo "   Fix B: set adobe_stock=true (re-encodes with -b:v 40M -minrate 35M -maxrate 50M)"
-              echo "   Fix C: set the MIN_MBPS repository variable to 0 to disable the floor"
+              echo "   Fix C: set the ADOBE_STOCK repository variable to true, or MIN_MBPS=0 to disable the floor"
               FAILED=1
             fi
           else
