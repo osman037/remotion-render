@@ -1,12 +1,15 @@
 /**
- * FinancialAidApplicationJourney.tsx
+ * DebtPayoffJourney.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * A brand-neutral FAFSA-style financial aid application process visual for
- * colleges, edtech, and financial-aid consultancies: documents gather, an
- * FSA ID is created, three form sections complete in sequence (student ->
- * contributor invite -> parent), the form is signed and submitted, a Student
- * Aid Index gauge computes, and the aid package fans out into grants,
- * federal loans, and work-study. Demand-validated 2026-09-30 (PROVEN).
+ * A cinematic personal-finance visual for finance creators, debt-counseling
+ * brands and fintech educators: the debt-snowball method as a 15-second arc.
+ * Five balances ranked smallest to largest drain month by month, the freed
+ * payment cascades into the next target, and the total-debt counter falls to
+ * a "DEBT FREE / $0 BALANCE" payoff. Deterministic seeded randomness only.
+ *
+ * Register in Root.tsx:
+ *   <Composition id="DebtPayoffJourney" component={DebtPayoffJourney}
+ *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
 import React from 'react';
@@ -20,514 +23,511 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (deep academic navy + gold)
+// Palette (dark cinematic finance: near-black navy, debt rose/red, payoff green)
 // ---------------------------------------------------------------------------
-const BG = '#060D1A';
-const INK = '#F2F5FA';
-const MUTED = 'rgba(242,245,250,0.60)';
-const GOLD = '#FFC94D';
-const GOLD_DIM = 'rgba(255,201,77,0.14)';
-const BLUE = '#4DA3FF';
+const BG = '#070B14';
+const INK = '#F3F6FC';
+const MUTED = 'rgba(243,246,252,0.60)';
+const FAINT = 'rgba(243,246,252,0.32)';
+const ROSE = '#FB7185';
+const RED = '#EF4444';
+const RED_DEEP = '#991B1B';
 const GREEN = '#34D399';
-const PANEL = 'rgba(9,18,36,0.92)';
-const HAIRLINE = 'rgba(242,245,250,0.16)';
+const GREEN_DEEP = '#065F46';
+const GOLD = '#FBBF24';
+const CYAN = '#67E8F9';
+const PANEL = 'rgba(8,12,24,0.90)';
+const HAIRLINE = 'rgba(243,246,252,0.14)';
+const SLATE = 'rgba(148,178,205,0.40)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
+const clamp01 = {extrapolateLeft: 'clamp' as const, extrapolateRight: 'clamp' as const};
+
 // ---------------------------------------------------------------------------
 // Timeline (frames at 60 fps) -> 900 frames = 15 s
 // ---------------------------------------------------------------------------
-const PHASES = [
-  {key: 'docs', label: 'DOCUMENTS', start: 90, end: 260},
-  {key: 'fsaid', label: 'FSA ID', start: 250, end: 420},
-  {key: 'sections', label: 'FORM SECTIONS', start: 410, end: 640},
-  {key: 'submit', label: 'SIGN & SUBMIT', start: 630, end: 770},
-  {key: 'aid', label: 'AID PACKAGE', start: 760, end: 900},
-];
+const MONTH_START = 90;   // the 14-month payoff run begins
+const MONTH_END = 780;    // last debt hits zero
+const MONTHS = 14;
+const PAYOFF_START = 800;
 
-const DOCS = [
-  {name: 'FEDERAL TAX RETURN', detail: '1040 · 2024'},
-  {name: 'W-2 / INCOME RECORDS', detail: 'WAGES'},
-  {name: 'SOCIAL SECURITY NO.', detail: 'ID VERIFIED'},
+interface Debt {
+  name: string;
+  tag: string;
+  balance: number;
+  pay: number;     // monthly minimum payment
+  payoff: number;  // month this debt reaches zero
+}
+const DEBTS: Debt[] = [
+  {name: 'Store Card',   tag: 'RETAIL',   balance: 840,   pay: 95,  payoff: 2},
+  {name: 'Medical Bill', tag: 'HEALTH',   balance: 2300,  pay: 120, payoff: 5},
+  {name: 'Credit Card',  tag: 'REVOLVING',balance: 6200,  pay: 220, payoff: 8},
+  {name: 'Auto Loan',    tag: 'SECURED',  balance: 7900,  pay: 310, payoff: 11},
+  {name: 'Student Loan', tag: 'TERM',     balance: 14500, pay: 285, payoff: 14},
 ];
+const TOTAL_START = DEBTS.reduce((a, d) => a + d.balance, 0); // 31740
+const EXTRA = 240; // monthly snowball attack amount on top of minimums
+const MONTHLY_BUDGET = DEBTS.reduce((a, d) => a + d.pay, 0) + EXTRA; // 1270
 
-const SECTIONS = [
-  {name: 'STUDENT INFO', sub: 'demographics · schools', rows: 5},
-  {name: 'CONTRIBUTOR INVITE', sub: 'parent invited via email', rows: 3},
-  {name: 'PARENT INFO', sub: 'income · assets', rows: 5},
-];
+const monthFloat = (frame: number) =>
+  interpolate(frame, [MONTH_START, MONTH_END], [0, MONTHS], clamp01);
+const payoffFrame = (p: number) => MONTH_START + (p / MONTHS) * (MONTH_END - MONTH_START);
 
-const AID_TYPES = [
-  {name: 'GRANTS', amount: 7395, note: 'no repayment', color: GREEN},
-  {name: 'FEDERAL LOANS', amount: 5500, note: 'subsidized', color: BLUE},
-  {name: 'WORK-STUDY', amount: 3000, note: 'part-time', color: GOLD},
-];
+// Remaining balance of debt i at a given month (eased drain, exact 0 at payoff)
+const balanceAt = (i: number, m: number) => {
+  const d = DEBTS[i];
+  if (m >= d.payoff) return 0;
+  return d.balance * Math.pow(Math.max(0, 1 - m / d.payoff), 1.12);
+};
+// Freed monthly cash flow at month m (minimums of fully-paid debts)
+const freedAt = (m: number) =>
+  DEBTS.filter((d) => m >= d.payoff).reduce((a, d) => a + d.pay, 0);
+const targetIndexAt = (m: number) => {
+  const idx = DEBTS.findIndex((d) => m < d.payoff);
+  return idx === -1 ? DEBTS.length - 1 : idx;
+};
+const fmt$ = (v: number) =>
+  '$' + Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+// ---------------------------------------------------------------------------
+// Layout
+// ---------------------------------------------------------------------------
+const BAR_X = 220;
+const BAR_W = 2160;
+const barY = (i: number) => 700 + i * 190;
 
 // ---------------------------------------------------------------------------
 // SVG defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="faGlow" cx="50%" cy="28%" r="80%">
-      <stop offset="0%" stopColor="#0E2A5E" stopOpacity={0.85} />
-      <stop offset="55%" stopColor="#0A1834" stopOpacity={0.35} />
-      <stop offset="100%" stopColor="#060D1A" stopOpacity={0} />
+    <radialGradient id="dpGlow" cx="38%" cy="30%" r="80%">
+      <stop offset="0%" stopColor="rgba(251,113,133,0.11)" />
+      <stop offset="45%" stopColor="rgba(239,68,68,0.05)" />
+      <stop offset="100%" stopColor="rgba(7,11,20,0)" />
     </radialGradient>
-    <radialGradient id="faVig" cx="50%" cy="50%" r="72%">
-      <stop offset="0%" stopColor="#000000" stopOpacity={0} />
-      <stop offset="78%" stopColor="#000000" stopOpacity={0} />
-      <stop offset="100%" stopColor="#02040A" stopOpacity={0.85} />
+    <radialGradient id="dpVignette" cx="50%" cy="50%" r="76%">
+      <stop offset="58%" stopColor="rgba(3,5,10,0)" />
+      <stop offset="100%" stopColor="rgba(1,2,6,0.80)" />
     </radialGradient>
-    <linearGradient id="faGoldBar" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor="#8A5E12" />
-      <stop offset="50%" stopColor="#FFC94D" />
-      <stop offset="100%" stopColor="#FFE9B0" />
+    <linearGradient id="dpScan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="rgba(251,113,133,0)" />
+      <stop offset="50%" stopColor="rgba(251,113,133,0.12)" />
+      <stop offset="100%" stopColor="rgba(251,113,133,0)" />
     </linearGradient>
-    <linearGradient id="faSweep" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="#FFC94D" stopOpacity={0} />
-      <stop offset="50%" stopColor="#FFC94D" stopOpacity={0.10} />
-      <stop offset="100%" stopColor="#FFC94D" stopOpacity={0} />
+    <linearGradient id="dpDebt" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={RED_DEEP} />
+      <stop offset="60%" stopColor={RED} />
+      <stop offset="100%" stopColor={ROSE} />
     </linearGradient>
-    <filter id="faBlur24" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation={24} />
+    <linearGradient id="dpPaid" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={GREEN_DEEP} />
+      <stop offset="100%" stopColor={GREEN} />
+    </linearGradient>
+    <linearGradient id="dpPayoff" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={GREEN} />
+      <stop offset="55%" stopColor={CYAN} />
+      <stop offset="100%" stopColor={GOLD} />
+    </linearGradient>
+    <filter id="dpBlur70" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="70" />
     </filter>
-    <filter id="faGlow8" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation={8} result="b" />
-      <feMerge>
-        <feMergeNode in="b" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
+    <filter id="dpBlur16" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="16" />
     </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background: navy base + glow + vignette + drifting dot grid + light sweep
+// Background: dark finance console, drifting orbs, dot field, scan sweep
 // ---------------------------------------------------------------------------
-const DOTS_X = 32;
-const DOTS_Y = 18;
-
 const Background: React.FC<{frame: number}> = ({frame}) => {
+  const drift = Math.sin((frame / 900) * Math.PI * 2) * 90;
+  const scanY = (frame / 900) * 2500 - 300;
+  const orbs: React.ReactElement[] = [];
+  for (let i = 0; i < 6; i++) {
+    const ox = random(`dp-orb-x-${i}`) * 3840;
+    const oy = random(`dp-orb-y-${i}`) * 2160;
+    const r = 260 + random(`dp-orb-r-${i}`) * 320;
+    const hue =
+      i % 3 === 0
+        ? 'rgba(251,113,133,0.08)'
+        : i % 3 === 1
+        ? 'rgba(239,68,68,0.07)'
+        : 'rgba(52,211,153,0.05)';
+    const mx = Math.sin((frame / 900) * Math.PI * 2 + i * 2.1) * 120;
+    const my = Math.cos((frame / 900) * Math.PI * 2 + i * 1.7) * 90;
+    orbs.push(<circle key={i} cx={ox + mx} cy={oy + my} r={r} fill={hue} filter="url(#dpBlur70)" />);
+  }
   const dots: React.ReactElement[] = [];
-  const drift = (frame * 0.55) % 120;
-  for (let ix = 0; ix <= DOTS_X; ix++) {
-    for (let iy = 0; iy <= DOTS_Y; iy++) {
-      const x = ix * 120 - drift;
-      const y = iy * 120;
-      const tw = 0.05 + 0.05 * random(`fa-dot-${ix}-${iy}-${Math.floor(frame / 24)}`);
+  for (let gx = 70; gx < 3840; gx += 175) {
+    for (let gy = 70; gy < 2160; gy += 175) {
+      const jx = (random(`dp-dot-x-${gx}-${gy}`) - 0.5) * 26;
+      const jy = (random(`dp-dot-y-${gx}-${gy}`) - 0.5) * 26;
       dots.push(
-        <circle key={`${ix}-${iy}`} cx={x} cy={y} r={2.4} fill="#9DB8E8" opacity={tw} />,
+        <circle key={`${gx}-${gy}`} cx={gx + jx} cy={gy + jy} r={2.2} fill="rgba(243,246,252,0.05)" />
       );
     }
   }
-  const sweepY = interpolate(frame, [0, 900], [-400, 2560], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', inset: 0}}>
-      <rect width={3840} height={2160} fill={BG} />
-      <rect width={3840} height={2160} fill="url(#faGlow)" />
-      <g>{dots}</g>
-      <rect x={0} y={sweepY - 260} width={3840} height={520} fill="url(#faSweep)" />
-      <rect width={3840} height={2160} fill="url(#faVig)" />
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Film grain (full-frame, re-seeded every frame)
-// ---------------------------------------------------------------------------
-const GRAIN_COUNT = 1100;
-
-const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
-  const rects: React.ReactElement[] = [];
-  for (let i = 0; i < GRAIN_COUNT; i++) {
-    const x = random(`fa-grain-x-${frame}-${i}`) * 3840;
-    const y = random(`fa-grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`fa-grain-o-${frame}-${i}`) * 0.045;
-    const s = 2 + random(`fa-grain-s-${frame}-${i}`) * 2.5;
-    const white = random(`fa-grain-w-${frame}-${i}`) > 0.5;
-    rects.push(
-      <rect
-        key={i}
-        x={x}
-        y={y}
-        width={s}
-        height={s}
-        fill={white ? '#FFFFFF' : '#000000'}
-        opacity={o}
-      />,
+  const tickers: React.ReactElement[] = [];
+  for (let i = 0; i < 26; i++) {
+    const ty = 150 + i * 72;
+    const x = ((random(`dp-tick-x-${i}`) * 3840 + frame * (1.2 + random(`dp-tick-s-${i}`) * 2)) % 4200) - 200;
+    tickers.push(
+      <text key={i} x={x} y={ty} fill="rgba(243,246,252,0.05)" fontSize={30} fontFamily={MONO}>
+        {random(`dp-tick-n-${i}`) > 0.5 ? '+' : '-'}{(random(`dp-tick-v-${i}`) * 9).toFixed(2)}%
+      </text>
     );
   }
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', inset: 0}}>
-      {rects}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Title header
-// ---------------------------------------------------------------------------
-const Header: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const p = spring({frame: Math.max(0, frame - 8), fps, config: {damping: 120, stiffness: 160}});
-  const y = interpolate(p, [0, 1], [60, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const op = interpolate(p, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  return (
-    <div style={{position: 'absolute', top: 120, left: 0, right: 0, opacity: op, transform: `translateY(${y}px)`}}>
-      <div style={{display: 'flex', justifyContent: 'space-between', padding: '0 240px'}}>
-        <div style={{fontFamily: MONO, fontSize: 34, letterSpacing: 8, color: MUTED}}>
-          FEDERAL STUDENT AID
-        </div>
-        <div style={{fontFamily: MONO, fontSize: 34, letterSpacing: 8, color: MUTED}}>
-          AID YEAR 2027–28
-        </div>
-      </div>
-      <div style={{textAlign: 'center', marginTop: 36}}>
-        <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 118, letterSpacing: 10, color: INK, textShadow: '0 4px 40px rgba(0,0,0,0.6)'}}>
-          FINANCIAL AID
-        </div>
-        <div style={{fontFamily: MONO, fontSize: 40, letterSpacing: 22, color: GOLD, marginTop: 14}}>
-          APPLICATION JOURNEY
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Step rail: 5 phase nodes with drawing connector
-// ---------------------------------------------------------------------------
-const RAIL_TOP = 620;
-const RAIL_LEFT = 420;
-const RAIL_RIGHT = 3420;
-
-const StepRail: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const enter = spring({frame: Math.max(0, frame - 40), fps, config: {damping: 120, stiffness: 140}});
-  const op = interpolate(enter, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const lineDraw = interpolate(frame, [70, 780], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const n = PHASES.length;
-  const nodes = PHASES.map((ph, i) => {
-    const x = RAIL_LEFT + (i * (RAIL_RIGHT - RAIL_LEFT)) / (n - 1);
-    const on = frame >= ph.start;
-    const active = frame >= ph.start && frame < ph.end;
-    const pop = on
-      ? spring({frame: Math.max(0, frame - ph.start), fps, config: {damping: 90, stiffness: 220}})
-      : 0;
-    const r = 26 + pop * 22;
-    return {x, on, active, r, ph};
-  });
-  return (
-    <div style={{position: 'absolute', inset: 0, opacity: op}}>
-      <svg width={3840} height={2160} style={{position: 'absolute', inset: 0}}>
-        <line x1={RAIL_LEFT} y1={RAIL_TOP} x2={RAIL_RIGHT} y2={RAIL_TOP} stroke={HAIRLINE} strokeWidth={6} />
-        <line
-          x1={RAIL_LEFT}
-          y1={RAIL_TOP}
-          x2={RAIL_LEFT + (RAIL_RIGHT - RAIL_LEFT) * lineDraw}
-          y2={RAIL_TOP}
-          stroke={GOLD}
-          strokeWidth={6}
-          filter="url(#faGlow8)"
-        />
-        {nodes.map(({x, on, active, r, ph}, i) => (
-          <g key={ph.key}>
-            <circle
-              cx={x}
-              cy={RAIL_TOP}
-              r={r}
-              fill={active ? GOLD : on ? '#12244A' : '#0A1428'}
-              stroke={on ? GOLD : HAIRLINE}
-              strokeWidth={on ? 4 : 2}
-              filter={active ? 'url(#faGlow8)' : undefined}
-            />
-            {on && (
-              <text
-                x={x}
-                y={RAIL_TOP + 12}
-                textAnchor="middle"
-                fontFamily={MONO}
-                fontSize={34}
-                fontWeight={700}
-                fill={active ? '#0A1428' : GOLD}
-              >
-                ✓
-              </text>
-            )}
-            <text
-              x={x}
-              y={RAIL_TOP + 84}
-              textAnchor="middle"
-              fontFamily={MONO}
-              fontSize={30}
-              letterSpacing={5}
-              fill={active ? GOLD : on ? INK : MUTED}
-              fontWeight={active ? 700 : 400}
-            >
-              {ph.label}
-            </text>
-          </g>
-        ))}
+    <div style={{position: 'absolute', inset: 0, backgroundColor: BG}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <rect width={3840} height={2160} fill="url(#dpGlow)" transform={`translate(${drift},${-drift * 0.6})`} />
+        {orbs}
+        <g transform={`translate(${drift * 0.4},0)`}>{dots}</g>
+        {tickers}
+        <rect x={0} y={scanY} width={3840} height={340} fill="url(#dpScan)" />
+        <rect width={3840} height={2160} fill="url(#dpVignette)" />
       </svg>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Phase panels (detail stage y 780 - 1880)
+// Title bar
 // ---------------------------------------------------------------------------
-const panelAnim = (frame: number, fps: number, start: number, end: number) => {
-  const inn = spring({frame: Math.max(0, frame - start), fps, config: {damping: 110, stiffness: 150}});
-  const fadeIn = interpolate(inn, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const slide = interpolate(inn, [0, 1], [70, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const fadeOut =
-    frame > end - 40
-      ? interpolate(frame, [end - 40, end], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})
-      : 1;
-  return {opacity: fadeIn * fadeOut, y: slide};
+const TitleBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const rise = spring({frame, fps, config: {damping: 200, stiffness: 90, mass: 1}});
+  const y = interpolate(rise, [0, 1], [70, 0]);
+  const opacity = interpolate(rise, [0, 1], [0, 1]);
+  const blink = 0.6 + 0.4 * Math.sin((frame / 60) * Math.PI * 2);
+  return (
+    <div style={{position: 'absolute', top: 118, left: 220, right: 220, opacity, transform: `translateY(${y}px)`}}>
+      <div style={{display: 'flex', alignItems: 'flex-start'}}>
+        <div>
+          <div style={{fontFamily: MONO, fontSize: 44, letterSpacing: 14, color: ROSE}}>
+            PERSONAL FINANCE &nbsp;·&nbsp; DEBT STRATEGY
+          </div>
+          <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 148, color: INK, marginTop: 16, letterSpacing: -2}}>
+            Debt Payoff Journey
+          </div>
+          <div style={{fontFamily: FONT, fontSize: 40, color: MUTED, marginTop: 14}}>
+            Smallest balance first — every payoff frees cash to attack the next
+          </div>
+        </div>
+        <div style={{marginLeft: 'auto', textAlign: 'right'}}>
+          <div style={{display: 'inline-flex', alignItems: 'center', gap: 22, border: `2px solid ${ROSE}`, borderRadius: 16, padding: '14px 32px', backgroundColor: 'rgba(10,6,10,0.6)'}}>
+            <div style={{width: 24, height: 24, borderRadius: 12, backgroundColor: ROSE, opacity: blink, boxShadow: `0 0 26px ${ROSE}`}} />
+            <div style={{fontFamily: MONO, fontSize: 40, fontWeight: 700, color: INK, letterSpacing: 4}}>
+              SNOWBALL METHOD
+            </div>
+          </div>
+          <div style={{fontFamily: MONO, fontSize: 32, color: FAINT, marginTop: 14}}>
+            5 DEBTS · {fmt$(MONTHLY_BUDGET)}/MO BUDGET
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
-const DocumentsPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const {opacity, y} = panelAnim(frame, fps, 90, 265);
-  if (opacity <= 0) return null;
+// ---------------------------------------------------------------------------
+// Total-debt counter (top-right hero number)
+// ---------------------------------------------------------------------------
+const TotalDebt: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 40, fps, config: {damping: 200, stiffness: 80}});
+  const m = monthFloat(frame);
+  const total = DEBTS.reduce((a, _, i) => a + balanceAt(i, m), 0);
+  const done = total <= 0.5;
   return (
-    <div style={{position: 'absolute', top: 800, left: 0, right: 0, opacity, transform: `translateY(${y}px)`}}>
-      <div style={{display: 'flex', justifyContent: 'center', gap: 90}}>
-        {DOCS.map((d, i) => {
-          const tick = frame >= 110 + i * 45;
-          const pop = tick
-            ? spring({frame: frame - (110 + i * 45), fps, config: {damping: 90, stiffness: 240}})
-            : 0;
+    <div style={{position: 'absolute', right: 220, top: 400, textAlign: 'right', opacity: Math.min(1, enter)}}>
+      <div style={{fontFamily: MONO, fontSize: 38, letterSpacing: 10, color: MUTED}}>
+        TOTAL DEBT REMAINING
+      </div>
+      <div
+        style={{
+          fontFamily: MONO,
+          fontWeight: 800,
+          fontSize: 150,
+          color: done ? GREEN : ROSE,
+          marginTop: 6,
+          textShadow: done ? `0 0 60px ${GREEN}` : `0 0 60px rgba(251,113,133,0.5)`,
+        }}
+      >
+        {fmt$(total)}
+      </div>
+      <div style={{fontFamily: MONO, fontSize: 34, color: FAINT, marginTop: 8}}>
+        STARTED {fmt$(TOTAL_START)} · MONTH {Math.min(MONTHS, Math.floor(m) + 1)} / {MONTHS}
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// The five debt bars: ranked smallest -> largest, shrinking month by month
+// ---------------------------------------------------------------------------
+const DebtBars: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const m = monthFloat(frame);
+  const target = targetIndexAt(m);
+  const freed = freedAt(m);
+  const attack = EXTRA + freed;
+  return (
+    <div style={{position: 'absolute', inset: 0}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        {DEBTS.map((d, i) => {
+          const enter = spring({frame: frame - (30 + i * 24), fps, config: {damping: 200, stiffness: 100}});
+          if (enter <= 0.001) return null;
+          const bal = balanceAt(i, m);
+          const paid = m >= d.payoff;
+          const isTarget = i === target && !paid;
+          const stampS = spring({frame: frame - payoffFrame(d.payoff), fps, config: {damping: 200, stiffness: 130}});
+          const y = barY(i);
+          const w = interpolate(bal, [0, d.balance], [0, BAR_W], clamp01);
+          const pct = (bal / d.balance) * 100;
+          // "freed" chip rides above the next bar right after a payoff
+          const chipT = interpolate(frame, [payoffFrame(d.payoff), payoffFrame(d.payoff) + 70], [0, 1], clamp01);
+          const nextIsTarget = i === target - 1 && target > 0;
           return (
-            <div
-              key={d.name}
-              style={{
-                width: 780,
-                padding: '54px 60px',
-                background: PANEL,
-                border: `2px solid ${tick ? GOLD : HAIRLINE}`,
-                borderRadius: 28,
-                transform: `scale(${0.92 + pop * 0.08})`,
-                boxShadow: tick ? '0 0 60px rgba(255,201,77,0.18)' : 'none',
-              }}
-            >
-              <div style={{display: 'flex', alignItems: 'center', gap: 36}}>
-                <div
-                  style={{
-                    width: 96,
-                    height: 96,
-                    borderRadius: '50%',
-                    background: tick ? GOLD : 'rgba(242,245,250,0.08)',
-                    color: tick ? '#0A1428' : MUTED,
-                    fontSize: 52,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 800,
-                  }}
-                >
-                  {tick ? '✓' : '…'}
-                </div>
-                <div>
-                  <div style={{fontFamily: FONT, fontWeight: 700, fontSize: 44, color: INK, letterSpacing: 2}}>
-                    {d.name}
-                  </div>
-                  <div style={{fontFamily: MONO, fontSize: 30, color: tick ? GOLD : MUTED, marginTop: 10, letterSpacing: 4}}>
-                    {d.detail}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <g key={d.name} opacity={Math.min(1, enter)}>
+              {/* label row */}
+              <text x={BAR_X} y={y - 34} fill={INK} fontSize={46} fontFamily={FONT} fontWeight={750}>
+                {i + 1}. {d.name}
+              </text>
+              <text x={BAR_X + 470} y={y - 34} fill={FAINT} fontSize={30} fontFamily={MONO} letterSpacing={5}>
+                {d.tag}
+              </text>
+              <text x={BAR_X + BAR_W} y={y - 30} fill={paid ? GREEN : INK} fontSize={58} fontFamily={MONO} fontWeight={800} textAnchor="end">
+                {fmt$(bal)}
+              </text>
+              {/* track */}
+              <rect x={BAR_X} y={y} width={BAR_W} height={66} rx={33} fill="rgba(243,246,252,0.07)" />
+              {/* fill */}
+              {w > 2 && (
+                <rect
+                  x={BAR_X}
+                  y={y}
+                  width={w}
+                  height={66}
+                  rx={33}
+                  fill={paid ? 'url(#dpPaid)' : 'url(#dpDebt)'}
+                  style={{filter: paid ? 'drop-shadow(0 0 18px rgba(52,211,153,0.6))' : 'drop-shadow(0 0 14px rgba(239,68,68,0.45))'}}
+                />
+              )}
+              {paid && (
+                <rect x={BAR_X} y={y} width={BAR_W} height={66} rx={33} fill="none" stroke={GREEN} strokeWidth={3} opacity={0.7} />
+              )}
+              {/* month-by-month tick marks on the bar */}
+              {Array.from({length: 10}).map((_, k) => {
+                const tx = BAR_X + ((k + 1) / 11) * BAR_W;
+                return <line key={k} x1={tx} y1={y + 10} x2={tx} y2={y + 56} stroke="rgba(7,11,20,0.35)" strokeWidth={3} />;
+              })}
+              {/* percent label inside the bar */}
+              {w > 260 && !paid && (
+                <text x={BAR_X + w - 30} y={y + 45} fill="#FFF" fontSize={34} fontFamily={MONO} fontWeight={700} textAnchor="end">
+                  {pct.toFixed(0)}%
+                </text>
+              )}
+              {/* attack-payment chip on the live target */}
+              {isTarget && (
+                <g>
+                  <rect x={BAR_X + BAR_W - 620} y={y + 84} width={620} height={78} rx={16} fill="rgba(251,191,36,0.10)" stroke={GOLD} strokeWidth={2.5} />
+                  <text x={BAR_X + BAR_W - 590} y={y + 136} fill={GOLD} fontSize={38} fontFamily={MONO} fontWeight={800}>
+                    ATTACK PAYMENT {fmt$(attack)}/MO
+                  </text>
+                </g>
+              )}
+              {/* paid stamp */}
+              {paid && stampS > 0.02 && (
+                <g transform={`rotate(-8 ${BAR_X + BAR_W - 180} ${y + 33}) scale(${Math.min(1, stampS)})`} opacity={Math.min(1, stampS)}>
+                  <rect x={BAR_X + BAR_W - 330} y={y - 24} width={300} height={114} rx={16} fill="rgba(6,40,28,0.92)" stroke={GREEN} strokeWidth={5} />
+                  <text x={BAR_X + BAR_W - 180} y={y + 52} fill={GREEN} fontSize={52} fontFamily={FONT} fontWeight={800} textAnchor="middle" letterSpacing={3}>
+                    PAID ✓
+                  </text>
+                </g>
+              )}
+              {/* freed-cash chip cascading to the next target */}
+              {chipT > 0 && chipT < 1 && nextIsTarget && (
+                <g opacity={1 - chipT}>
+                  <rect x={BAR_X + BAR_W - 560} y={y - 130 - chipT * 60} width={620} height={72} rx={14} fill="rgba(52,211,153,0.16)" stroke={GREEN} strokeWidth={2.5} />
+                  <text x={BAR_X + BAR_W - 530} y={y - 82 - chipT * 60} fill={GREEN} fontSize={38} fontFamily={MONO} fontWeight={800}>
+                    +{fmt$(DEBTS[i].pay)}/MO FREED ↓
+                  </text>
+                </g>
+              )}
+            </g>
           );
         })}
-      </div>
-      <div style={{textAlign: 'center', marginTop: 60, fontFamily: MONO, fontSize: 32, letterSpacing: 6, color: MUTED}}>
-        GATHER TAX + INCOME + IDENTITY DOCUMENTS BEFORE YOU BEGIN
-      </div>
-    </div>
-  );
-};
-
-const FsaIdPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const {opacity, y} = panelAnim(frame, fps, 255, 425);
-  if (opacity <= 0) return null;
-  const barW = interpolate(frame, [300, 400], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const verified = frame >= 385;
-  return (
-    <div style={{position: 'absolute', top: 800, left: 0, right: 0, opacity, transform: `translateY(${y}px)`, display: 'flex', justifyContent: 'center'}}>
-      <div style={{width: 1500, padding: '70px 90px', background: PANEL, border: `2px solid ${HAIRLINE}`, borderRadius: 32}}>
-        <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 8, color: GOLD}}>STEP 01 — CREATE YOUR FSA ID</div>
-        <div style={{display: 'flex', gap: 60, marginTop: 50, alignItems: 'center'}}>
-          <div style={{flex: 1}}>
-            <div style={{fontFamily: MONO, fontSize: 30, color: MUTED, letterSpacing: 4}}>USERNAME</div>
-            <div style={{fontFamily: FONT, fontWeight: 700, fontSize: 54, color: INK, marginTop: 8}}>student.aid.2027</div>
-            <div style={{fontFamily: MONO, fontSize: 30, color: MUTED, letterSpacing: 4, marginTop: 34}}>PASSWORD</div>
-            <div style={{fontFamily: FONT, fontWeight: 700, fontSize: 54, color: INK, marginTop: 8, letterSpacing: 6}}>
-              ••••••••••••
-            </div>
-          </div>
-          <div style={{width: 320, textAlign: 'center'}}>
-            <div
-              style={{
-                width: 240,
-                height: 240,
-                borderRadius: '50%',
-                margin: '0 auto',
-                border: `10px solid ${verified ? GREEN : 'rgba(242,245,250,0.15)'}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 110,
-                color: verified ? GREEN : MUTED,
-                boxShadow: verified ? '0 0 70px rgba(52,211,153,0.35)' : 'none',
-              }}
-            >
-              {verified ? '✓' : '◌'}
-            </div>
-            <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 6, color: verified ? GREEN : MUTED, marginTop: 24}}>
-              {verified ? 'ID VERIFIED' : 'VERIFYING…'}
-            </div>
-          </div>
-        </div>
-        <div style={{marginTop: 46, height: 26, background: 'rgba(242,245,250,0.10)', borderRadius: 13, overflow: 'hidden'}}>
-          <div style={{width: `${barW * 100}%`, height: '100%', background: 'url(#faGoldBar)', borderRadius: 13}} />
-        </div>
-        <div style={{fontFamily: MONO, fontSize: 28, color: MUTED, marginTop: 16, letterSpacing: 3, textAlign: 'right'}}>
-          {Math.round(barW * 100)}% — YOUR ELECTRONIC SIGNATURE FOR EVERY AID YEAR
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const SectionsPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const {opacity, y} = panelAnim(frame, fps, 415, 645);
-  if (opacity <= 0) return null;
-  return (
-    <div style={{position: 'absolute', top: 780, left: 0, right: 0, opacity, transform: `translateY(${y}px)`}}>
-      <div style={{display: 'flex', justifyContent: 'center', gap: 70}}>
-        {SECTIONS.map((s, si) => {
-          const start = 440 + si * 62;
-          const doneCount = Math.max(0, Math.min(s.rows, Math.floor((frame - start) / 12)));
-          const allDone = frame >= start + s.rows * 12 + 10;
-          const inn = spring({frame: Math.max(0, frame - (start - 20)), fps, config: {damping: 110, stiffness: 160}});
+      </svg>
+      {/* month ruler under the bars */}
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        {Array.from({length: MONTHS}).map((_, k) => {
+          const mx = BAR_X + ((k + 0.5) / MONTHS) * BAR_W;
+          const lit = m >= k + 1;
           return (
-            <div
-              key={s.name}
-              style={{
-                width: 940,
-                padding: '50px 56px',
-                background: PANEL,
-                border: `2px solid ${allDone ? GREEN : HAIRLINE}`,
-                borderRadius: 28,
-                opacity: interpolate(inn, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
-                transform: `translateY(${interpolate(inn, [0, 1], [50, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}px)`,
-              }}
-            >
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 40, color: INK, letterSpacing: 3}}>
-                  {s.name}
-                </div>
-                <div
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 28,
-                    letterSpacing: 4,
-                    color: allDone ? GREEN : MUTED,
-                    border: `2px solid ${allDone ? GREEN : HAIRLINE}`,
-                    borderRadius: 12,
-                    padding: '10px 22px',
-                  }}
-                >
-                  {allDone ? '✓ COMPLETE' : `${doneCount}/${s.rows}`}
-                </div>
-              </div>
-              <div style={{fontFamily: MONO, fontSize: 28, color: MUTED, marginTop: 8, letterSpacing: 2}}>{s.sub}</div>
-              <div style={{marginTop: 36, display: 'flex', flexDirection: 'column', gap: 18}}>
-                {Array.from({length: s.rows}).map((_, r) => {
-                  const filled = r < doneCount;
-                  const w = 0.55 + random(`fa-sec-${si}-${r}`) * 0.4;
-                  return (
-                    <div key={r} style={{height: 22, background: 'rgba(242,245,250,0.08)', borderRadius: 11, overflow: 'hidden'}}>
-                      <div
-                        style={{
-                          width: filled ? `${w * 100}%` : '0%',
-                          height: '100%',
-                          background: filled ? (allDone ? GREEN : BLUE) : 'transparent',
-                          borderRadius: 11,
-                        }}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            <g key={k}>
+              <line x1={mx} y1={1700} x2={mx} y2={lit ? 1728 : 1716} stroke={lit ? GOLD : SLATE} strokeWidth={lit ? 7 : 4} strokeLinecap="round" />
+              <text x={mx} y={1772} fill={lit ? GOLD : FAINT} fontSize={26} fontFamily={MONO} textAnchor="middle">
+                M{k + 1}
+              </text>
+            </g>
           );
         })}
-      </div>
-      <div style={{textAlign: 'center', marginTop: 56, fontFamily: MONO, fontSize: 32, letterSpacing: 6, color: MUTED}}>
-        SECTIONS COMPLETE IN SEQUENCE — STUDENT → CONTRIBUTOR → PARENT
-      </div>
+        <text x={BAR_X} y={1690} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={6}>
+          MONTH-BY-MONTH PAYDOWN
+        </text>
+      </svg>
     </div>
   );
 };
 
-const SubmitPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const {opacity, y} = panelAnim(frame, fps, 635, 775);
-  if (opacity <= 0) return null;
-  const sig = interpolate(frame, [655, 715], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const stamped = frame >= 715;
-  const stampP = stamped
-    ? spring({frame: frame - 715, fps, config: {damping: 60, stiffness: 320}})
-    : 0;
-  const refNum = Math.floor(interpolate(frame, [720, 770], [0, 88273194], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
+// ---------------------------------------------------------------------------
+// Monthly budget panel: minimums vs snowball attack allocation, live
+// ---------------------------------------------------------------------------
+const BudgetPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 120, fps, config: {damping: 200, stiffness: 80}});
+  const m = monthFloat(frame);
+  const mins = DEBTS.filter((d) => m < d.payoff).reduce((a, d) => a + d.pay, 0);
+  const attack = EXTRA + freedAt(m);
+  const PX = 2620;
+  const PW = 980;
+  const minsW = (mins / MONTHLY_BUDGET) * PW;
+  const pulse = 0.75 + 0.25 * Math.sin((frame / 60) * Math.PI * 2);
   return (
-    <div style={{position: 'absolute', top: 800, left: 0, right: 0, opacity, transform: `translateY(${y}px)`, display: 'flex', justifyContent: 'center'}}>
-      <div style={{width: 1700, padding: '64px 90px', background: PANEL, border: `2px solid ${HAIRLINE}`, borderRadius: 32, position: 'relative'}}>
-        <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 8, color: GOLD}}>STEP 04 — SIGN & SUBMIT</div>
-        <svg width={1520} height={150} style={{marginTop: 40}}>
-          <line x1={40} y1={110} x2={1480} y2={110} stroke={HAIRLINE} strokeWidth={3} />
-          <path
-            d="M 120 95 C 260 20, 340 120, 480 60 S 700 110, 860 55 S 1100 100, 1300 60"
-            fill="none"
-            stroke={INK}
-            strokeWidth={7}
-            strokeLinecap="round"
-            strokeDasharray={1400}
-            strokeDashoffset={1400 * (1 - sig)}
-          />
-        </svg>
-        <div style={{fontFamily: MONO, fontSize: 28, color: MUTED, letterSpacing: 4}}>ELECTRONIC SIGNATURE — FSA ID</div>
-        <div style={{marginTop: 44, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-          <div style={{fontFamily: MONO, fontSize: 34, color: MUTED, letterSpacing: 4}}>
-            CONFIRMATION&nbsp;&nbsp;<span style={{color: INK, fontWeight: 700}}>FA-{String(refNum).padStart(8, '0')}</span>
-          </div>
-          <div style={{fontFamily: MONO, fontSize: 28, color: MUTED, letterSpacing: 4}}>
-            STATUS: <span style={{color: stamped ? GREEN : GOLD, fontWeight: 700}}>{stamped ? 'SUBMITTED' : 'SIGNING…'}</span>
-          </div>
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <rect x={PX} y={700} width={PW} height={420} rx={22} fill={PANEL} stroke={HAIRLINE} strokeWidth={2} />
+        <text x={PX + 44} y={772} fill={ROSE} fontSize={32} fontFamily={MONO} letterSpacing={8}>
+          MONTHLY BUDGET · {fmt$(MONTHLY_BUDGET)}
+        </text>
+        <text x={PX + 44} y={830} fill={FAINT} fontSize={28} fontFamily={MONO}>
+          MINIMUMS {fmt$(mins)} · ATTACK {fmt$(attack)}
+        </text>
+        <rect x={PX + 44} y={880} width={PW - 88} height={54} rx={27} fill="rgba(243,246,252,0.07)" />
+        <rect x={PX + 44} y={880} width={(minsW * (PW - 88)) / PW} height={54} rx={27} fill={RED} opacity={0.85} />
+        <rect
+          x={PX + 44 + (minsW * (PW - 88)) / PW}
+          y={880}
+          width={Math.max(8, PW - 88 - (minsW * (PW - 88)) / PW)}
+          height={54}
+          rx={27}
+          fill={GREEN}
+          opacity={pulse}
+        />
+        <text x={PX + 44} y={1010} fill={MUTED} fontSize={29} fontFamily={MONO}>
+          THE ATTACK PAYMENT GROWS AS DEBTS FALL
+        </text>
+        <text x={PX + 44} y={1062} fill={GREEN} fontSize={29} fontFamily={MONO} fontWeight={700}>
+          +{fmt$(freedAt(m))}/MO FREED SO FAR
+        </text>
+      </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Interest-avoided strip (snowball vs paying minimums)
+// ---------------------------------------------------------------------------
+const InterestStrip: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 200, fps, config: {damping: 200, stiffness: 80}});
+  const avoided = 4820 * interpolate(frame, [MONTH_START, MONTH_END], [0, 1], clamp01);
+  const monthsSaved = 34 * interpolate(frame, [MONTH_START, MONTH_END], [0, 1], clamp01);
+  const PX = 2620;
+  return (
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <rect x={PX} y={1170} width={980} height={300} rx={22} fill={PANEL} stroke={HAIRLINE} strokeWidth={2} />
+        <text x={PX + 44} y={1242} fill={GOLD} fontSize={32} fontFamily={MONO} letterSpacing={8}>
+          VS MINIMUMS ONLY
+        </text>
+        <text x={PX + 44} y={1340} fill={INK} fontSize={72} fontFamily={MONO} fontWeight={800}>
+          {fmt$(avoided)}
+        </text>
+        <text x={PX + 44} y={1400} fill={MUTED} fontSize={30} fontFamily={MONO}>
+          INTEREST AVOIDED · {Math.round(monthsSaved)} MONTHS SAVED
+        </text>
+      </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Payoff banner: DEBT FREE / $0 BALANCE
+// ---------------------------------------------------------------------------
+const PayoffBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - PAYOFF_START, fps, config: {damping: 200, stiffness: 70}});
+  if (enter <= 0.001) return null;
+  const opacity = interpolate(enter, [0, 1], [0, 1]);
+  const flash = interpolate(frame, [PAYOFF_START + 20, PAYOFF_START + 80], [0, 1], clamp01);
+  const stampS = spring({frame: frame - (PAYOFF_START + 18), fps, config: {damping: 200, stiffness: 140}});
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 100,
+        left: 0,
+        right: 0,
+        display: 'flex',
+        justifyContent: 'center',
+        opacity,
+        transform: `scale(${0.94 + enter * 0.06})`,
+      }}
+    >
+      <div
+        style={{
+          position: 'relative',
+          backgroundColor: 'rgba(4,10,8,0.95)',
+          border: `3px solid ${GREEN}`,
+          borderRadius: 26,
+          padding: '44px 140px',
+          textAlign: 'center',
+          boxShadow: `0 0 140px rgba(52,211,153,${0.25 + flash * 0.35})`,
+        }}
+      >
+        <div style={{fontFamily: MONO, fontSize: 42, letterSpacing: 16, color: GREEN}}>$0 BALANCE</div>
+        <div
+          style={{
+            fontFamily: FONT,
+            fontWeight: 800,
+            fontSize: 108,
+            color: INK,
+            marginTop: 8,
+            background: 'linear-gradient(90deg,#34D399,#67E8F9,#FBBF24)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
+          DEBT FREE
         </div>
-        {stamped && (
+        <div style={{fontFamily: MONO, fontSize: 36, color: MUTED, marginTop: 12}}>
+          {fmt$(TOTAL_START)} CLEARED IN {MONTHS} MONTHS · {fmt$(4820)} INTEREST AVOIDED
+        </div>
+        {stampS > 0.02 && (
           <div
             style={{
               position: 'absolute',
-              top: 120,
-              right: 120,
-              transform: `rotate(-12deg) scale(${0.6 + stampP * 0.4})`,
-              opacity: interpolate(stampP, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
-              border: `8px solid ${GREEN}`,
-              borderRadius: 18,
-              padding: '18px 44px',
+              right: 70,
+              top: -60,
+              transform: `rotate(10deg) scale(${Math.min(1, stampS)})`,
               fontFamily: FONT,
               fontWeight: 800,
-              fontSize: 64,
-              letterSpacing: 8,
+              fontSize: 54,
               color: GREEN,
-              boxShadow: '0 0 50px rgba(52,211,153,0.4)',
+              border: `5px solid ${GREEN}`,
+              borderRadius: 18,
+              padding: '14px 44px',
+              backgroundColor: 'rgba(4,10,8,0.92)',
+              boxShadow: '0 0 70px rgba(52,211,153,0.6)',
+              letterSpacing: 4,
             }}
           >
-            SUBMITTED
+            $0 ✓
           </div>
         )}
       </div>
@@ -535,105 +535,42 @@ const SubmitPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
   );
 };
 
-const AidPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const inn = spring({frame: Math.max(0, frame - 765), fps, config: {damping: 110, stiffness: 150}});
-  const opacity = interpolate(inn, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  if (opacity <= 0) return null;
-  const y = interpolate(inn, [0, 1], [70, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const sai = Math.floor(interpolate(frame, [780, 860], [0, 18240], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
-  const total = AID_TYPES.reduce((a, t) => a + t.amount, 0);
-  const liveTotal = Math.floor(interpolate(frame, [800, 895], [0, total], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
-  const maxAmt = Math.max(...AID_TYPES.map((t) => t.amount));
-  return (
-    <div style={{position: 'absolute', top: 800, left: 0, right: 0, opacity, transform: `translateY(${y}px)`, display: 'flex', justifyContent: 'center', gap: 80}}>
-      <div style={{width: 1050, padding: '56px 70px', background: PANEL, border: `2px solid ${GOLD_DIM}`, borderRadius: 32, textAlign: 'center'}}>
-        <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 8, color: MUTED}}>STUDENT AID INDEX</div>
-        <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 120, color: GOLD, marginTop: 16, textShadow: '0 0 40px rgba(255,201,77,0.35)'}}>
-          {sai.toLocaleString('en-US')}
-        </div>
-        <svg width={900} height={130} style={{marginTop: 10}}>
-          {Array.from({length: 60}).map((_, i) => (
-            <rect
-              key={i}
-              x={30 + i * 14}
-              y={40}
-              width={8}
-              height={i / 60 < sai / 40000 ? 60 : 34}
-              fill={i / 60 < sai / 40000 ? GOLD : 'rgba(242,245,250,0.12)'}
-              rx={4}
-            />
-          ))}
-        </svg>
-        <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 5, color: GREEN, marginTop: 20}}>
-          ✓ ELIGIBLE FOR NEED-BASED AID
-        </div>
-      </div>
-      <div style={{width: 1650, padding: '56px 70px', background: PANEL, border: `2px solid ${HAIRLINE}`, borderRadius: 32}}>
-        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-          <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 8, color: MUTED}}>YOUR AID PACKAGE</div>
-          <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 64, color: INK}}>
-            ${liveTotal.toLocaleString('en-US')}<span style={{fontSize: 30, color: MUTED}}>/yr</span>
-          </div>
-        </div>
-        <div style={{marginTop: 44, display: 'flex', flexDirection: 'column', gap: 34}}>
-          {AID_TYPES.map((t, i) => {
-            const start = 800 + i * 28;
-            const p = interpolate(frame, [start, start + 55], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-            return (
-              <div key={t.name}>
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-                  <div style={{fontFamily: FONT, fontWeight: 700, fontSize: 40, color: INK, letterSpacing: 3}}>{t.name}</div>
-                  <div style={{fontFamily: MONO, fontSize: 34, color: t.color}}>
-                    ${Math.floor(t.amount * p).toLocaleString('en-US')} <span style={{color: MUTED, fontSize: 26}}>· {t.note}</span>
-                  </div>
-                </div>
-                <div style={{marginTop: 14, height: 30, background: 'rgba(242,245,250,0.08)', borderRadius: 15, overflow: 'hidden'}}>
-                  <div style={{width: `${(t.amount / maxAmt) * p * 100}%`, height: '100%', background: t.color, borderRadius: 15, boxShadow: `0 0 24px ${t.color}`}} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // ---------------------------------------------------------------------------
-// Bottom ticker (per-frame motion)
+// Film grain (full-frame, re-seeded every frame)
 // ---------------------------------------------------------------------------
-const TICKER = '  •  $150B+ FEDERAL AID DISBURSED EACH YEAR    •  ~85% OF U.S. UNDERGRADS RECEIVE FEDERAL AID    •  2027–28 FAFSA OPENS OCTOBER 1    •  FILE EARLY — SOME AID IS FIRST-COME    ';
-
-const Ticker: React.FC<{frame: number}> = ({frame}) => {
-  const x = -((frame * 7) % 2400);
+const GRAIN_COUNT = 900;
+const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
+  const dots: React.ReactElement[] = [];
+  for (let i = 0; i < GRAIN_COUNT; i++) {
+    const x = random(`dp-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`dp-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`dp-grain-o-${frame}-${i}`) * 0.04;
+    const s = 2 + random(`dp-grain-s-${frame}-${i}`) * 2.5;
+    dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
+  }
   return (
-    <div style={{position: 'absolute', bottom: 64, left: 0, right: 0, overflow: 'hidden', borderTop: `2px solid ${HAIRLINE}`, borderBottom: `2px solid ${HAIRLINE}`, padding: '22px 0'}}>
-      <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 5, color: MUTED, whiteSpace: 'nowrap', transform: `translateX(${x}px)`}}>
-        {TICKER.repeat(3)}
-      </div>
-    </div>
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {dots}
+    </svg>
   );
 };
 
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const FinancialAidApplicationJourney: React.FC = () => {
+export const DebtPayoffJourney: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
-      <Defs />
       <Background frame={frame} />
-      <Header frame={frame} fps={fps} />
-      <StepRail frame={frame} fps={fps} />
-      <DocumentsPanel frame={frame} fps={fps} />
-      <FsaIdPanel frame={frame} fps={fps} />
-      <SectionsPanel frame={frame} fps={fps} />
-      <SubmitPanel frame={frame} fps={fps} />
-      <AidPanel frame={frame} fps={fps} />
-      <Ticker frame={frame} />
+      <TitleBar frame={frame} fps={fps} />
+      <TotalDebt frame={frame} fps={fps} />
+      <DebtBars frame={frame} fps={fps} />
+      <BudgetPanel frame={frame} fps={fps} />
+      <InterestStrip frame={frame} fps={fps} />
+      <PayoffBanner frame={frame} fps={fps} />
       <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
