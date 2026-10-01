@@ -1,29 +1,27 @@
 import React from "react";
 import { Composition } from "remotion";
-import { BackgroundCheckProcess } from "./compositions/comp0";
-import { ClosingCostBreakdown } from "./compositions/comp1";
-import { CreatorMonetizationJourney } from "./compositions/comp2";
-import { FinancialAidApplicationJourney } from "./compositions/comp3";
-import { MarketplaceSellerFees } from "./compositions/comp4";
-import { PasswordHealthAudit } from "./compositions/comp5";
-import { PayrollRunCycle } from "./compositions/comp6";
-import { PodcastDistributionFlow } from "./compositions/comp7";
-import { RentalApplicationProcess } from "./compositions/comp8";
-import { RestaurantTicketFlow } from "./compositions/comp9";
-import { SupportTicketTriage } from "./compositions/comp10";
+import { AgileSprintCycle } from "./compositions/comp0";
+import { CropGrowthCycle } from "./compositions/comp1";
+import { CreditScoreBuilding } from "./compositions/comp2";
+import { DebtPayoffJourney } from "./compositions/comp3";
+import { EmployeeOnboardingJourney } from "./compositions/comp4";
+import { InventoryReplenishmentCycle } from "./compositions/comp5";
+import { PetAdoptionJourney } from "./compositions/comp6";
+import { PriorAuthorizationFlow } from "./compositions/comp7";
+import { RetirementSavingsJourney } from "./compositions/comp8";
+import { VehicleMaintenanceSchedule } from "./compositions/comp9";
 
 export const RemotionRoot: React.FC = () => (
   <>
-    <Composition id="BackgroundCheckProcess" component={BackgroundCheckProcess} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="ClosingCostBreakdown" component={ClosingCostBreakdown} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="CreatorMonetizationJourney" component={CreatorMonetizationJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="FinancialAidApplicationJourney" component={FinancialAidApplicationJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="MarketplaceSellerFees" component={MarketplaceSellerFees} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="PasswordHealthAudit" component={PasswordHealthAudit} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="PayrollRunCycle" component={PayrollRunCycle} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="PodcastDistributionFlow" component={PodcastDistributionFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="RentalApplicationProcess" component={RentalApplicationProcess} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="RestaurantTicketFlow" component={RestaurantTicketFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="SupportTicketTriage" component={SupportTicketTriage} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="AgileSprintCycle" component={AgileSprintCycle} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="CropGrowthCycle" component={CropGrowthCycle} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="CreditScoreBuilding" component={CreditScoreBuilding} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="DebtPayoffJourney" component={DebtPayoffJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="EmployeeOnboardingJourney" component={EmployeeOnboardingJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="InventoryReplenishmentCycle" component={InventoryReplenishmentCycle} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="PetAdoptionJourney" component={PetAdoptionJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="PriorAuthorizationFlow" component={PriorAuthorizationFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="RetirementSavingsJourney" component={RetirementSavingsJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="VehicleMaintenanceSchedule" component={VehicleMaintenanceSchedule} width={3840} height={2160} fps={60} durationInFrames={900} />
   </>
 );
