@@ -1,11 +1,15 @@
 /**
- * CreatorMonetizationJourney.tsx
+ * CreditScoreBuilding.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * A brand-neutral creator-monetization journey for creator-economy courses,
- * MCNs, and creator-tool SaaS: the fixed partner-program arc — 1,000
- * subscribers, 4,000 watch hours, studio review, ad account, mailed PIN,
- * the $100 payout threshold, and the first payout. Demand-validated
- * 2026-09-30 (PLAUSIBLE).
+ * A cinematic personal-finance visual for credit-counseling firms, fintech
+ * educators and lenders: a credit score dial climbs 300 to 850 while the
+ * five FICO factors fill as arc segments around it. Utilization dips under
+ * 30%, the 740 line flashes an EXCELLENT badge, and the payoff locks in the
+ * final score. Deterministic seeded randomness only.
+ *
+ * Register in Root.tsx:
+ *   <Composition id="CreditScoreBuilding" component={CreditScoreBuilding}
+ *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
 import React from 'react';
@@ -19,32 +23,77 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (creator red + play-button dark)
+// Palette (midnight finance, score arc red -> gold -> green)
 // ---------------------------------------------------------------------------
-const BG = '#0E0708';
-const INK = '#FAF3F0';
-const MUTED = 'rgba(250,243,240,0.58)';
-const RED = '#FF4D4D';
-const GOLD = '#FFC94D';
+const BG = '#060A13';
+const INK = '#F2F6FD';
+const MUTED = 'rgba(242,246,253,0.60)';
+const FAINT = 'rgba(242,246,253,0.32)';
+const RED = '#F87171';
+const AMBER = '#FBBF24';
+const GOLD = '#FBBF24';
 const GREEN = '#34D399';
+const TEAL = '#2DD4BF';
+const CYAN = '#67E8F9';
 const BLUE = '#60A5FA';
-const PANEL = 'rgba(18,10,11,0.94)';
-const HAIRLINE = 'rgba(250,243,240,0.15)';
+const PANEL = 'rgba(8,12,24,0.90)';
+const HAIRLINE = 'rgba(242,246,253,0.14)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
+const clamp01 = {extrapolateLeft: 'clamp' as const, extrapolateRight: 'clamp' as const};
+
 // ---------------------------------------------------------------------------
-// Milestones
+// Timeline (frames at 60 fps) -> 900 frames = 15 s
 // ---------------------------------------------------------------------------
-const MILESTONES = [
-  {label: '1,000 SUBS', start: 90, color: RED},
-  {label: '4,000 WATCH HRS', start: 200, color: RED},
-  {label: 'STUDIO REVIEW', start: 330, color: BLUE},
-  {label: 'AD ACCOUNT', start: 450, color: GOLD},
-  {label: 'PIN MAILED', start: 560, color: GOLD},
-  {label: '$100 THRESHOLD', start: 680, color: GREEN},
-  {label: 'FIRST PAYOUT', start: 790, color: GREEN},
+const SCORE_START = 90;
+const SCORE_END = 800;
+const PAYOFF_START = 810;
+
+interface Factor {
+  name: string;
+  sub: string;
+  weight: number;   // share of the 550-point climb
+  at: number;       // frame its fill begins
+  color: string;
+}
+const FACTORS: Factor[] = [
+  {name: 'Payment History', sub: 'ON-TIME PAYMENTS', weight: 0.35, at: 120, color: TEAL},
+  {name: 'Credit Utilization', sub: 'BALANCE VS LIMIT', weight: 0.30, at: 260, color: CYAN},
+  {name: 'Credit Age', sub: 'OLDEST ACCOUNT 9 YRS', weight: 0.15, at: 400, color: BLUE},
+  {name: 'Credit Mix', sub: 'CARD + LOAN + MORTGAGE', weight: 0.10, at: 530, color: AMBER},
+  {name: 'New Inquiries', sub: '0 HARD PULLS / 12 MO', weight: 0.10, at: 650, color: GREEN},
+];
+const RANGE = 550; // 300 -> 850
+const factorFill = (fi: number, frame: number) =>
+  interpolate(frame, [FACTORS[fi].at, FACTORS[fi].at + 100], [0, 1], clamp01);
+const scoreAt = (frame: number) =>
+  300 + FACTORS.reduce((a, f, i) => a + f.weight * RANGE * factorFill(i, frame), 0);
+const utilAt = (frame: number) =>
+  68 - 46 * interpolate(frame, [FACTORS[1].at, FACTORS[1].at + 130], [0, 1], clamp01) +
+  0.8 * Math.sin(frame * 0.07);
+
+// ---------------------------------------------------------------------------
+// Dial geometry
+// ---------------------------------------------------------------------------
+const CX = 1150;
+const CY = 1210;
+const R = 560;
+const ang = (score: number) => Math.PI - ((score - 300) / RANGE) * Math.PI;
+const px = (r: number, a: number) => CX + r * Math.cos(a);
+const py = (r: number, a: number) => CY + r * Math.sin(a);
+const arcPath = (r: number, s0: number, s1: number) => {
+  const a0 = ang(s0);
+  const a1 = ang(s1);
+  return `M ${px(r, a0).toFixed(1)} ${py(r, a0).toFixed(1)} A ${r} ${r} 0 0 1 ${px(r, a1).toFixed(1)} ${py(r, a1).toFixed(1)}`;
+};
+const TIERS = [
+  {label: 'POOR', lo: 300, hi: 579, color: RED},
+  {label: 'FAIR', lo: 580, hi: 669, color: '#FB923C'},
+  {label: 'GOOD', lo: 670, hi: 739, color: AMBER},
+  {label: 'VERY GOOD', lo: 740, hi: 799, color: TEAL},
+  {label: 'EXCEPTIONAL', lo: 800, hi: 850, color: GREEN},
 ];
 
 // ---------------------------------------------------------------------------
@@ -52,167 +101,343 @@ const MILESTONES = [
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="cmGlow" cx="50%" cy="28%" r="80%">
-      <stop offset="0%" stopColor="#3D1114" stopOpacity={0.85} />
-      <stop offset="55%" stopColor="#220D0F" stopOpacity={0.32} />
-      <stop offset="100%" stopColor="#0E0708" stopOpacity={0} />
+    <radialGradient id="csGlow" cx="36%" cy="30%" r="80%">
+      <stop offset="0%" stopColor="rgba(45,212,191,0.10)" />
+      <stop offset="45%" stopColor="rgba(96,165,250,0.05)" />
+      <stop offset="100%" stopColor="rgba(6,10,19,0)" />
     </radialGradient>
-    <radialGradient id="cmVig" cx="50%" cy="50%" r="72%">
-      <stop offset="0%" stopColor="#000000" stopOpacity={0} />
-      <stop offset="78%" stopColor="#000000" stopOpacity={0} />
-      <stop offset="100%" stopColor="#050203" stopOpacity={0.85} />
+    <radialGradient id="csVignette" cx="50%" cy="50%" r="76%">
+      <stop offset="58%" stopColor="rgba(3,5,10,0)" />
+      <stop offset="100%" stopColor="rgba(1,2,6,0.80)" />
     </radialGradient>
-    <linearGradient id="cmSweep" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor="#FF4D4D" stopOpacity={0} />
-      <stop offset="50%" stopColor="#FF4D4D" stopOpacity={0.10} />
-      <stop offset="100%" stopColor="#FF4D4D" stopOpacity={0} />
+    <linearGradient id="csScan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="rgba(103,232,249,0)" />
+      <stop offset="50%" stopColor="rgba(103,232,249,0.12)" />
+      <stop offset="100%" stopColor="rgba(103,232,249,0)" />
     </linearGradient>
-    <filter id="cmGlow10" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation={10} result="b" />
-      <feMerge>
-        <feMergeNode in="b" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
+    <linearGradient id="csArc" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={RED} />
+      <stop offset="45%" stopColor={AMBER} />
+      <stop offset="100%" stopColor={GREEN} />
+    </linearGradient>
+    <linearGradient id="csPayoff" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={TEAL} />
+      <stop offset="55%" stopColor={GREEN} />
+      <stop offset="100%" stopColor={GOLD} />
+    </linearGradient>
+    <filter id="csBlur70" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="70" />
+    </filter>
+    <filter id="csBlur16" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="16" />
     </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background: glow + vignette + rising play particles + sweep
+// Background
 // ---------------------------------------------------------------------------
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const parts: React.ReactElement[] = [];
-  for (let i = 0; i < 80; i++) {
-    const bx = random(`cm-p-x-${i}`) * 3840;
-    const by = random(`cm-p-y-${i}`) * 2160;
-    const y = ((by + frame * (0.8 + random(`cm-p-v-${i}`) * 1.6)) % 2300) - 70;
-    const o = 0.04 + random(`cm-p-o-${i}`) * 0.06;
-    const s = 8 + random(`cm-p-s-${i}`) * 20;
-    parts.push(
-      <polygon
-        key={i}
-        points={`${bx},${y - s} ${bx + s * 0.9},${y} ${bx},${y + s}`}
-        fill="#FF4D4D"
-        opacity={o}
-      />,
-    );
+  const drift = Math.sin((frame / 900) * Math.PI * 2) * 90;
+  const scanY = (frame / 900) * 2500 - 300;
+  const orbs: React.ReactElement[] = [];
+  for (let i = 0; i < 6; i++) {
+    const ox = random(`cs-orb-x-${i}`) * 3840;
+    const oy = random(`cs-orb-y-${i}`) * 2160;
+    const r = 260 + random(`cs-orb-r-${i}`) * 320;
+    const hue =
+      i % 3 === 0
+        ? 'rgba(45,212,191,0.08)'
+        : i % 3 === 1
+        ? 'rgba(96,165,250,0.07)'
+        : 'rgba(52,211,153,0.06)';
+    const mx = Math.sin((frame / 900) * Math.PI * 2 + i * 1.8) * 120;
+    const my = Math.cos((frame / 900) * Math.PI * 2 + i * 2.2) * 90;
+    orbs.push(<circle key={i} cx={ox + mx} cy={oy + my} r={r} fill={hue} filter="url(#csBlur70)" />);
   }
-  const sweepX = interpolate(frame, [0, 900], [-500, 4340], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  const dots: React.ReactElement[] = [];
+  for (let gx = 70; gx < 3840; gx += 175) {
+    for (let gy = 70; gy < 2160; gy += 175) {
+      const jx = (random(`cs-dot-x-${gx}-${gy}`) - 0.5) * 26;
+      const jy = (random(`cs-dot-y-${gx}-${gy}`) - 0.5) * 26;
+      dots.push(
+        <circle key={`${gx}-${gy}`} cx={gx + jx} cy={gy + jy} r={2.2} fill="rgba(242,246,253,0.05)" />
+      );
+    }
+  }
+  const hairlines: React.ReactElement[] = [];
+  for (let gx = 0; gx <= 3840; gx += 480) {
+    hairlines.push(<line key={`v${gx}`} x1={gx} y1={0} x2={gx} y2={2160} stroke="rgba(242,246,253,0.035)" strokeWidth={1} />);
+  }
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', inset: 0}}>
-      <rect width={3840} height={2160} fill={BG} />
-      <rect width={3840} height={2160} fill="url(#cmGlow)" />
-      <g>{parts}</g>
-      <rect x={sweepX - 300} y={0} width={600} height={2160} fill="url(#cmSweep)" />
-      <rect width={3840} height={2160} fill="url(#cmVig)" />
-    </svg>
+    <div style={{position: 'absolute', inset: 0, backgroundColor: BG}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <rect width={3840} height={2160} fill="url(#csGlow)" transform={`translate(${drift},${-drift * 0.6})`} />
+        {orbs}
+        <g transform={`translate(${drift * 0.4},0)`}>{dots}</g>
+        {hairlines}
+        <rect x={0} y={scanY} width={3840} height={340} fill="url(#csScan)" />
+        <rect width={3840} height={2160} fill="url(#csVignette)" />
+      </svg>
+    </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Film grain
+// Title bar
 // ---------------------------------------------------------------------------
-const GRAIN_COUNT = 1100;
-
-const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
-  const rects: React.ReactElement[] = [];
-  for (let i = 0; i < GRAIN_COUNT; i++) {
-    const x = random(`cm-grain-x-${frame}-${i}`) * 3840;
-    const y = random(`cm-grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`cm-grain-o-${frame}-${i}`) * 0.045;
-    const s = 2 + random(`cm-grain-s-${frame}-${i}`) * 2.5;
-    const white = random(`cm-grain-w-${frame}-${i}`) > 0.5;
-    rects.push(
-      <rect key={i} x={x} y={y} width={s} height={s} fill={white ? '#FFFFFF' : '#000000'} opacity={o} />,
-    );
-  }
+const TitleBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const rise = spring({frame, fps, config: {damping: 200, stiffness: 90, mass: 1}});
+  const y = interpolate(rise, [0, 1], [70, 0]);
+  const opacity = interpolate(rise, [0, 1], [0, 1]);
+  const blink = 0.6 + 0.4 * Math.sin((frame / 60) * Math.PI * 2);
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', inset: 0}}>
-      {rects}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Header
-// ---------------------------------------------------------------------------
-const Header: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const p = spring({frame: Math.max(0, frame - 8), fps, config: {damping: 120, stiffness: 160}});
-  const y = interpolate(p, [0, 1], [60, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const op = interpolate(p, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  return (
-    <div style={{position: 'absolute', top: 100, left: 0, right: 0, opacity: op, transform: `translateY(${y}px)`, textAlign: 'center'}}>
-      <div style={{fontFamily: MONO, fontSize: 34, letterSpacing: 10, color: MUTED}}>CREATOR ECONOMY</div>
-      <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 104, letterSpacing: 8, color: INK, marginTop: 22}}>
-        ROAD TO <span style={{color: RED}}>MONETIZATION</span>
-      </div>
-      <div style={{fontFamily: MONO, fontSize: 34, letterSpacing: 10, color: MUTED, marginTop: 14}}>
-        THE PARTNER-PROGRAM JOURNEY
+    <div style={{position: 'absolute', top: 118, left: 220, right: 220, opacity, transform: `translateY(${y}px)`}}>
+      <div style={{display: 'flex', alignItems: 'flex-start'}}>
+        <div>
+          <div style={{fontFamily: MONO, fontSize: 44, letterSpacing: 14, color: CYAN}}>
+            PERSONAL FINANCE &nbsp;·&nbsp; CREDIT HEALTH
+          </div>
+          <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 148, color: INK, marginTop: 16, letterSpacing: -2}}>
+            Credit Score Building
+          </div>
+          <div style={{fontFamily: FONT, fontSize: 40, color: MUTED, marginTop: 14}}>
+            Five scoring factors, one dial — 300 to 850 in 15 seconds
+          </div>
+        </div>
+        <div style={{marginLeft: 'auto', textAlign: 'right'}}>
+          <div style={{display: 'inline-flex', alignItems: 'center', gap: 22, border: `2px solid ${TEAL}`, borderRadius: 16, padding: '14px 32px', backgroundColor: 'rgba(6,12,12,0.6)'}}>
+            <div style={{width: 24, height: 24, borderRadius: 12, backgroundColor: TEAL, opacity: blink, boxShadow: `0 0 26px ${TEAL}`}} />
+            <div style={{fontFamily: MONO, fontSize: 40, fontWeight: 700, color: INK, letterSpacing: 4}}>
+              FICO FACTORS
+            </div>
+          </div>
+          <div style={{fontFamily: MONO, fontSize: 32, color: FAINT, marginTop: 14}}>
+            300 → 850 RANGE · 5 FACTORS
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Milestone path
+// Score dial: tiered arc, factor segments, needle, score history sparkline
 // ---------------------------------------------------------------------------
-const M_TOP = 600;
-const M_LEFT = 280;
-const M_RIGHT = 3560;
+const ScoreDial: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 60, fps, config: {damping: 200, stiffness: 80}});
+  const score = scoreAt(frame);
+  const prog = (score - 300) / RANGE;
+  const tier = TIERS.find((t) => score >= t.lo && score <= t.hi) ?? TIERS[0];
+  const excellent = score >= 740;
+  const exS = spring({frame: frame - 560, fps, config: {damping: 200, stiffness: 120}});
 
-const MilestonePath: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const enter = spring({frame: Math.max(0, frame - 40), fps, config: {damping: 120, stiffness: 140}});
-  const op = interpolate(enter, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const draw = interpolate(frame, [70, 830], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  // factor arc segments on the inner ring (r - 90), proportional to weight
+  const segs: React.ReactElement[] = [];
+  let acc = 300;
+  FACTORS.forEach((f, i) => {
+    const fill = factorFill(i, frame);
+    if (fill <= 0.001) return;
+    const s0 = acc;
+    const s1 = acc + f.weight * RANGE * fill;
+    acc += f.weight * RANGE;
+    segs.push(
+      <path
+        key={i}
+        d={arcPath(R - 96, s0, s1)}
+        fill="none"
+        stroke={f.color}
+        strokeWidth={34}
+        strokeLinecap="round"
+        style={{filter: `drop-shadow(0 0 12px ${f.color})`}}
+      />
+    );
+  });
+
+  // tick marks every 50 points, labels every 100
+  const ticks: React.ReactElement[] = [];
+  for (let s = 300; s <= 850; s += 50) {
+    const a = ang(s);
+    const major = s % 100 === 0;
+    const x1 = px(R - (major ? 44 : 26), a);
+    const y1 = py(R - (major ? 44 : 26), a);
+    const x2 = px(R + 14, a);
+    const y2 = py(R + 14, a);
+    const lx = px(R + 62, a);
+    const ly = py(R + 62, a);
+    ticks.push(
+      <g key={s}>
+        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={prog * RANGE + 300 >= s ? 'rgba(242,246,253,0.85)' : FAINT} strokeWidth={major ? 7 : 4} strokeLinecap="round" />
+        {major && (
+          <text x={lx} y={ly + 11} fill={prog * RANGE + 300 >= s ? INK : MUTED} fontSize={32} fontFamily={MONO} fontWeight={700} textAnchor="middle">
+            {s}
+          </text>
+        )}
+      </g>
+    );
+  }
+
+  // needle
+  const na = ang(score);
+  const nx = px(R - 210, na);
+  const ny = py(R - 210, na);
+
+  // score history: trailing 120 frames, sampled every 6
+  const hist: string[] = [];
+  const HN = 22;
+  for (let k = 0; k < HN; k++) {
+    const hf = Math.max(0, frame - (HN - 1 - k) * 6);
+    const hs = scoreAt(hf);
+    const hx = CX - 420 + (k / (HN - 1)) * 840;
+    const hy = CY + 470 - ((hs - 300) / RANGE) * 150;
+    hist.push(`${hx.toFixed(1)},${hy.toFixed(1)}`);
+  }
+
   return (
-    <div style={{position: 'absolute', inset: 0, opacity: op}}>
-      <svg width={3840} height={2160} style={{position: 'absolute', inset: 0}}>
-        <line x1={M_LEFT} y1={M_TOP} x2={M_RIGHT} y2={M_TOP} stroke={HAIRLINE} strokeWidth={6} />
-        <line
-          x1={M_LEFT}
-          y1={M_TOP}
-          x2={M_LEFT + (M_RIGHT - M_LEFT) * draw}
-          y2={M_TOP}
-          stroke={RED}
-          strokeWidth={6}
-          filter="url(#cmGlow10)"
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <circle cx={CX} cy={CY} r={R + 120} fill="rgba(8,12,24,0.55)" stroke={HAIRLINE} strokeWidth={2} />
+        {/* tier bands on the outer arc */}
+        {TIERS.map((t) => (
+          <path key={t.label} d={arcPath(R + 60, t.lo, t.hi)} fill="none" stroke={t.color} strokeWidth={10} opacity={tier.label === t.label ? 0.95 : 0.28} strokeLinecap="round" />
+        ))}
+        {/* base arc + progress arc */}
+        <path d={arcPath(R, 300, 850)} fill="none" stroke="rgba(242,246,253,0.10)" strokeWidth={26} strokeLinecap="round" />
+        <path
+          d={arcPath(R, 300, score)}
+          fill="none"
+          stroke="url(#csArc)"
+          strokeWidth={26}
+          strokeLinecap="round"
+          style={{filter: 'drop-shadow(0 0 22px rgba(251,191,36,0.55))'}}
         />
-        {MILESTONES.map((m, i) => {
-          const x = M_LEFT + (i * (M_RIGHT - M_LEFT)) / (MILESTONES.length - 1);
-          const on = frame >= m.start;
-          const pop = on ? spring({frame: frame - m.start, fps, config: {damping: 90, stiffness: 220}}) : 0;
-          const active = on && (i === MILESTONES.length - 1 || frame < MILESTONES[i + 1].start);
+        {segs}
+        {ticks}
+        {/* needle */}
+        <line x1={CX} y1={CY} x2={nx} y2={ny} stroke={INK} strokeWidth={12} strokeLinecap="round" />
+        <circle cx={CX} cy={CY} r={40} fill="#0B1220" stroke={INK} strokeWidth={6} />
+        <circle cx={nx} cy={ny} r={20} fill={tier.color} style={{filter: `drop-shadow(0 0 16px ${tier.color})`}} />
+        {/* score history sparkline */}
+        <polyline points={hist.join(' ')} fill="none" stroke={CYAN} strokeWidth={5} strokeLinecap="round" opacity={0.85} />
+        <text x={CX} y={CY + 540} fill={FAINT} fontSize={28} fontFamily={MONO} letterSpacing={6} textAnchor="middle">
+          SCORE TRAJECTORY · LAST 2 SEC
+        </text>
+      </svg>
+      {/* center readout */}
+      <div style={{position: 'absolute', left: CX - 380, top: CY - 160, width: 760, textAlign: 'center'}}>
+        <div style={{fontFamily: MONO, fontSize: 40, letterSpacing: 10, color: MUTED}}>CREDIT SCORE</div>
+        <div
+          style={{
+            fontFamily: MONO,
+            fontWeight: 800,
+            fontSize: 210,
+            color: INK,
+            lineHeight: 1,
+            textShadow: `0 0 70px ${tier.color}`,
+          }}
+        >
+          {Math.round(score)}
+        </div>
+        <div style={{fontFamily: MONO, fontSize: 44, fontWeight: 700, color: tier.color, marginTop: 14, letterSpacing: 4}}>
+          {tier.label}
+        </div>
+      </div>
+      {/* EXCELLENT badge at 740 */}
+      {excellent && exS > 0.02 && (
+        <div
+          style={{
+            position: 'absolute',
+            left: CX - 330,
+            top: CY + 330,
+            width: 660,
+            textAlign: 'center',
+            transform: `scale(${Math.min(1, exS)})`,
+            fontFamily: FONT,
+            fontWeight: 800,
+            fontSize: 66,
+            color: GREEN,
+            border: `5px solid ${GREEN}`,
+            borderRadius: 20,
+            padding: '18px 0',
+            backgroundColor: 'rgba(4,12,9,0.9)',
+            boxShadow: '0 0 80px rgba(52,211,153,0.6)',
+            letterSpacing: 6,
+          }}
+        >
+          ★ EXCELLENT ★
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Factor cards (right column): weight, contribution points, fill bar.
+// Utilization card carries a live utilization gauge dipping under 30%.
+// ---------------------------------------------------------------------------
+const FactorCards: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const PX = 2440;
+  const PW = 1180;
+  const CARD_H = 196;
+  const cardY = (i: number) => 420 + i * (CARD_H + 34);
+  return (
+    <div style={{position: 'absolute', inset: 0}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <text x={PX} y={380} fill={CYAN} fontSize={32} fontFamily={MONO} letterSpacing={8}>
+          FICO SCORING FACTORS
+        </text>
+        {FACTORS.map((f, i) => {
+          const enter = spring({frame: frame - (90 + i * 30), fps, config: {damping: 200, stiffness: 100}});
+          if (enter <= 0.001) return null;
+          const fill = factorFill(i, frame);
+          const pts = Math.round(f.weight * RANGE * fill);
+          const maxPts = Math.round(f.weight * RANGE);
+          const y = cardY(i);
+          const isUtil = i === 1;
+          const util = utilAt(frame);
+          const under30 = util < 30;
+          const uTagS = spring({frame: frame - 400, fps, config: {damping: 200, stiffness: 120}});
           return (
-            <g key={m.label}>
-              <circle
-                cx={x}
-                cy={M_TOP}
-                r={24 + pop * 20}
-                fill={active ? m.color : on ? '#2A1214' : '#171012'}
-                stroke={on ? m.color : HAIRLINE}
-                strokeWidth={on ? 4 : 2}
-                filter={active ? 'url(#cmGlow10)' : undefined}
-              />
-              {on && (
-                <text x={x} y={M_TOP + 13} textAnchor="middle" fontFamily={MONO} fontSize={34} fontWeight={800} fill={active ? '#171012' : m.color}>
+            <g key={f.name} opacity={Math.min(1, enter)}>
+              <rect x={PX} y={y} width={PW} height={CARD_H} rx={20} fill={PANEL} stroke={fill >= 1 ? f.color : HAIRLINE} strokeWidth={fill >= 1 ? 3 : 1.5} />
+              <rect x={PX} y={y} width={10} height={CARD_H} fill={f.color} />
+              <text x={PX + 48} y={y + 58} fill={INK} fontSize={42} fontFamily={FONT} fontWeight={750}>
+                {f.name}
+              </text>
+              <text x={PX + 48} y={y + 100} fill={FAINT} fontSize={28} fontFamily={MONO} letterSpacing={3}>
+                {f.sub} · {Math.round(f.weight * 100)}%
+              </text>
+              <text x={PX + PW - 44} y={y + 66} fill={f.color} fontSize={56} fontFamily={MONO} fontWeight={800} textAnchor="end">
+                +{pts}
+                <tspan fill={FAINT} fontSize={30} fontWeight={400}> / {maxPts} PTS</tspan>
+              </text>
+              {/* fill bar */}
+              <rect x={PX + 48} y={y + 128} width={PW - 96} height={26} rx={13} fill="rgba(242,246,253,0.08)" />
+              <rect x={PX + 48} y={y + 128} width={(PW - 96) * fill} height={26} rx={13} fill={f.color} opacity={0.9} />
+              {fill >= 1 && (
+                <text x={PX + PW - 60} y={y + 152} fill={f.color} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="end">
                   ✓
                 </text>
               )}
-              <text
-                x={x}
-                y={M_TOP + 84}
-                textAnchor="middle"
-                fontFamily={MONO}
-                fontSize={27}
-                letterSpacing={4}
-                fill={active ? m.color : on ? INK : MUTED}
-                fontWeight={active ? 700 : 400}
-              >
-                {m.label}
-              </text>
+              {/* utilization gauge */}
+              {isUtil && (
+                <g>
+                  <text x={PX + 48} y={y + 190} fill={under30 ? GREEN : AMBER} fontSize={34} fontFamily={MONO} fontWeight={700}>
+                    UTILIZATION {util.toFixed(1)}%
+                  </text>
+                  {under30 && uTagS > 0.02 && (
+                    <g opacity={Math.min(1, uTagS)} transform={`scale(${Math.min(1, uTagS)})`}>
+                      <rect x={PX + PW - 430} y={y + 148} width={386} height={56} rx={12} fill="rgba(52,211,153,0.14)" stroke={GREEN} strokeWidth={2.5} />
+                      <text x={PX + PW - 237} y={y + 188} fill={GREEN} fontSize={32} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+                        UNDER 30% ✓
+                      </text>
+                    </g>
+                  )}
+                </g>
+              )}
             </g>
           );
         })}
@@ -222,198 +447,141 @@ const MilestonePath: React.FC<{frame: number; fps: number}> = ({frame, fps}) => 
 };
 
 // ---------------------------------------------------------------------------
-// Detail stage: thresholds -> review -> PIN -> payout
+// Tier legend (left rail)
 // ---------------------------------------------------------------------------
-const Stage: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  // Phase 1: threshold bars (subs + watch hours)
-  const p1 = spring({frame: Math.max(0, frame - 85), fps, config: {damping: 110, stiffness: 150}});
-  const p1o = interpolate(p1, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const p1fade =
-    frame > 300 ? interpolate(frame, [300, 340], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}) : 1;
-  const subs = Math.floor(interpolate(frame, [100, 290], [0, 1000], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
-  const hours = Math.floor(interpolate(frame, [210, 320], [0, 4000], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
-
-  // Phase 2: studio review spinner
-  const p2 = spring({frame: Math.max(0, frame - 325), fps, config: {damping: 110, stiffness: 150}});
-  const p2o = interpolate(p2, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const p2fade =
-    frame > 440 ? interpolate(frame, [440, 480], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}) : 1;
-  const reviewP = interpolate(frame, [340, 440], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const approved = frame >= 435;
-
-  // Phase 3: PIN envelope
-  const p3 = spring({frame: Math.max(0, frame - 555), fps, config: {damping: 110, stiffness: 150}});
-  const p3o = interpolate(p3, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const p3fade =
-    frame > 660 ? interpolate(frame, [660, 700], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}) : 1;
-  const pinOn = frame >= 620;
-
-  // Phase 4: earnings to payout
-  const p4 = spring({frame: Math.max(0, frame - 675), fps, config: {damping: 110, stiffness: 150}});
-  const p4o = interpolate(p4, [0, 1], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const earnings = interpolate(frame, [690, 830], [0, 100], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const paid = frame >= 835;
-
+const TierLegend: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 150, fps, config: {damping: 200, stiffness: 80}});
+  const score = scoreAt(frame);
   return (
-    <div style={{position: 'absolute', top: 800, left: 0, right: 0, display: 'flex', justifyContent: 'center'}}>
-      {p1o * p1fade > 0 && (
-        <div style={{opacity: p1o * p1fade, width: 2200, padding: '60px 80px', background: PANEL, border: `2px solid ${HAIRLINE}`, borderRadius: 30}}>
-          <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 8, color: RED}}>ELIGIBILITY THRESHOLDS</div>
-          {[
-            {label: 'SUBSCRIBERS', cur: subs, goal: 1000, color: RED},
-            {label: 'WATCH HOURS', cur: hours, goal: 4000, color: RED},
-          ].map((t) => {
-            const pct = Math.min(1, t.cur / t.goal);
-            return (
-              <div key={t.label} style={{marginTop: 44}}>
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-                  <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 46, color: INK, letterSpacing: 3}}>{t.label}</div>
-                  <div style={{fontFamily: MONO, fontSize: 40, color: pct >= 1 ? GREEN : t.color, fontWeight: 700}}>
-                    {t.cur.toLocaleString('en-US')} / {t.goal.toLocaleString('en-US')} {pct >= 1 ? '✓' : ''}
-                  </div>
-                </div>
-                <div style={{marginTop: 16, height: 30, background: 'rgba(250,243,240,0.08)', borderRadius: 15, overflow: 'hidden'}}>
-                  <div style={{width: `${pct * 100}%`, height: '100%', background: pct >= 1 ? GREEN : t.color, borderRadius: 15, boxShadow: `0 0 24px ${pct >= 1 ? GREEN : t.color}`}} />
-                </div>
-              </div>
-            );
-          })}
-          <div style={{fontFamily: MONO, fontSize: 28, color: MUTED, marginTop: 34, letterSpacing: 3, textAlign: 'center'}}>
-            OR 10M SHORTS VIEWS IN 90 DAYS — PICK YOUR PATH
-          </div>
-        </div>
-      )}
-      {p2o * p2fade > 0 && (
-        <div style={{opacity: p2o * p2fade, width: 1900, padding: '60px 80px', background: PANEL, border: `2px solid ${HAIRLINE}`, borderRadius: 30, display: 'flex', gap: 70, alignItems: 'center'}}>
-          <div style={{position: 'relative', width: 260, height: 260}}>
-            <svg width={260} height={260}>
-              <circle cx={130} cy={130} r={105} fill="none" stroke="rgba(250,243,240,0.10)" strokeWidth={22} />
-              <circle
-                cx={130}
-                cy={130}
-                r={105}
-                fill="none"
-                stroke={approved ? GREEN : BLUE}
-                strokeWidth={22}
-                strokeLinecap="round"
-                strokeDasharray={2 * Math.PI * 105}
-                strokeDashoffset={2 * Math.PI * 105 * (1 - reviewP)}
-                transform="rotate(-90 130 130)"
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <text x={120} y={700} fill={CYAN} fontSize={30} fontFamily={MONO} letterSpacing={8}>
+          SCORE TIERS
+        </text>
+        {TIERS.map((t, i) => {
+          const s = spring({frame: frame - (150 + i * 26), fps, config: {damping: 200, stiffness: 120}});
+          if (s <= 0.001) return null;
+          const active = score >= t.lo && score <= t.hi;
+          const y = 740 + i * 168;
+          return (
+            <g key={t.label} opacity={Math.min(1, s)}>
+              <rect
+                x={120}
+                y={y}
+                width={300}
+                height={140}
+                rx={16}
+                fill={active ? 'rgba(242,246,253,0.08)' : PANEL}
+                stroke={active ? t.color : HAIRLINE}
+                strokeWidth={active ? 3.5 : 1.5}
               />
-            </svg>
-            <div style={{position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 80, color: approved ? GREEN : BLUE}}>
-              {approved ? '✓' : '◌'}
-            </div>
-          </div>
-          <div style={{flex: 1}}>
-            <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 8, color: BLUE}}>STUDIO REVIEW</div>
-            <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 58, color: INK, marginTop: 14}}>
-              {approved ? 'CHANNEL APPROVED' : 'REVIEWING YOUR CHANNEL…'}
-            </div>
-            <div style={{fontFamily: MONO, fontSize: 30, color: MUTED, marginTop: 14, letterSpacing: 3}}>
-              {approved ? 'ORIGINAL CONTENT · POLICY COMPLIANT ✓' : 'ORIGINALITY · POLICY COMPLIANCE · AUTHENTICITY'}
-            </div>
-          </div>
-        </div>
-      )}
-      {p3o * p3fade > 0 && (
-        <div style={{opacity: p3o * p3fade, width: 1900, padding: '60px 80px', background: PANEL, border: `2px solid ${HAIRLINE}`, borderRadius: 30, display: 'flex', gap: 70, alignItems: 'center'}}>
-          <div style={{fontSize: 200}}>✉️</div>
-          <div style={{flex: 1}}>
-            <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 8, color: GOLD}}>ADDRESS VERIFICATION</div>
-            <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 58, color: INK, marginTop: 14}}>
-              {pinOn ? 'PIN VERIFIED ✓' : 'YOUR PIN IS IN THE MAIL'}
-            </div>
-            <div style={{display: 'flex', gap: 18, marginTop: 26}}>
-              {[2, 4, 7, 1, 9, 3].map((d, i) => {
-                const show = pinOn || frame >= 585 + i * 8;
-                return (
-                  <div key={i} style={{width: 96, height: 120, borderRadius: 14, background: 'rgba(250,243,240,0.07)', border: `2px solid ${HAIRLINE}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 56, fontWeight: 800, color: show ? GOLD : 'transparent'}}>
-                    {show ? d : '·'}
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{fontFamily: MONO, fontSize: 28, color: MUTED, marginTop: 22, letterSpacing: 3}}>
-              ENTER THE 6-DIGIT CODE TO UNLOCK PAYMENTS
-            </div>
-          </div>
-        </div>
-      )}
-      {p4o > 0 && (
-        <div style={{opacity: p4o, width: 2300, padding: '60px 80px', background: PANEL, border: `2px solid ${paid ? GREEN : HAIRLINE}`, borderRadius: 30, boxShadow: paid ? '0 0 70px rgba(52,211,153,0.25)' : 'none'}}>
-          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-            <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 8, color: paid ? GREEN : MUTED}}>ESTIMATED EARNINGS</div>
-            <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 100, color: paid ? GREEN : INK}}>
-              ${earnings.toFixed(2)}
-            </div>
-          </div>
-          <div style={{marginTop: 30, height: 34, background: 'rgba(250,243,240,0.08)', borderRadius: 17, overflow: 'hidden', position: 'relative'}}>
-            <div style={{width: `${earnings}%`, height: '100%', background: paid ? GREEN : GOLD, borderRadius: 17, boxShadow: `0 0 24px ${paid ? GREEN : GOLD}`}} />
-            <div style={{position: 'absolute', left: '100%', top: -10, transform: 'translateX(-100%)', fontFamily: MONO, fontSize: 26, color: MUTED, letterSpacing: 3, whiteSpace: 'nowrap', paddingRight: 12}}>
-              $100 PAYOUT THRESHOLD
-            </div>
-          </div>
-          {paid && (
-            <div style={{marginTop: 34, textAlign: 'center'}}>
-              <div style={{display: 'inline-block', border: '8px solid #34D399', borderRadius: 20, padding: '20px 70px', transform: 'rotate(-6deg)', boxShadow: '0 0 60px rgba(52,211,153,0.4)'}}>
-                <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 76, letterSpacing: 10, color: GREEN}}>FIRST PAYOUT SENT</div>
-              </div>
-              <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 6, color: MUTED, marginTop: 22}}>BANK TRANSFER · 3–5 BUSINESS DAYS</div>
-            </div>
-          )}
-        </div>
-      )}
+              <rect x={120} y={y} width={10} height={140} fill={t.color} />
+              <text x={162} y={y + 58} fill={active ? INK : MUTED} fontSize={34} fontFamily={FONT} fontWeight={800} letterSpacing={1}>
+                {t.label}
+              </text>
+              <text x={162} y={y + 102} fill={FAINT} fontSize={28} fontFamily={MONO}>
+                {t.lo}–{t.hi}
+              </text>
+              {active && <circle cx={386} cy={y + 70} r={14} fill={t.color} style={{filter: `drop-shadow(0 0 12px ${t.color})`}} />}
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Live revenue ticker (per-frame motion)
+// Payoff banner: EXCELLENT + final score
 // ---------------------------------------------------------------------------
-const LiveRevenue: React.FC<{frame: number}> = ({frame}) => {
-  const rpm = 3.2 + Math.sin(frame / 90) * 0.6;
+const PayoffBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - PAYOFF_START, fps, config: {damping: 200, stiffness: 70}});
+  if (enter <= 0.001) return null;
+  const opacity = interpolate(enter, [0, 1], [0, 1]);
+  const flash = interpolate(frame, [PAYOFF_START + 20, PAYOFF_START + 80], [0, 1], clamp01);
+  const score = Math.round(scoreAt(Math.min(frame, SCORE_END)));
   return (
-    <div style={{position: 'absolute', top: 380, right: 240, textAlign: 'right'}}>
-      <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 6, color: MUTED}}>EST. RPM TODAY</div>
-      <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 84, color: GOLD}}>${rpm.toFixed(2)}</div>
-      <div style={{fontFamily: MONO, fontSize: 28, letterSpacing: 4, color: MUTED, marginTop: 6}}>PER 1,000 MONETIZED VIEWS</div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Ticker strip
-// ---------------------------------------------------------------------------
-const STRIP = '  •  1,000 SUBS + 4,000 WATCH HOURS = THE GATE    •  REVIEW TAKES DAYS, NOT MINUTES — KEEP POSTING    •  PIN ARRIVES BY MAIL IN 2–4 WEEKS    •  PAYOUTS START AT $100    ';
-
-const Strip: React.FC<{frame: number}> = ({frame}) => {
-  const x = -((frame * 7) % 2400);
-  return (
-    <div style={{position: 'absolute', bottom: 56, left: 0, right: 0, overflow: 'hidden', borderTop: `2px solid ${HAIRLINE}`, borderBottom: `2px solid ${HAIRLINE}`, padding: '22px 0'}}>
-      <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 5, color: MUTED, whiteSpace: 'nowrap', transform: `translateX(${x}px)`}}>
-        {STRIP.repeat(3)}
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 60,
+        left: 0,
+        right: 0,
+        display: 'flex',
+        justifyContent: 'center',
+        opacity,
+        transform: `scale(${0.94 + enter * 0.06})`,
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: 'rgba(4,10,9,0.95)',
+          border: `3px solid ${GREEN}`,
+          borderRadius: 26,
+          padding: '44px 150px',
+          textAlign: 'center',
+          boxShadow: `0 0 140px rgba(52,211,153,${0.25 + flash * 0.35})`,
+        }}
+      >
+        <div style={{fontFamily: MONO, fontSize: 42, letterSpacing: 16, color: GREEN}}>SCORE {score} / 850</div>
+        <div
+          style={{
+            fontFamily: FONT,
+            fontWeight: 800,
+            fontSize: 108,
+            marginTop: 8,
+            background: 'linear-gradient(90deg,#2DD4BF,#34D399,#FBBF24)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            letterSpacing: 6,
+          }}
+        >
+          EXCELLENT
+        </div>
+        <div style={{fontFamily: MONO, fontSize: 36, color: MUTED, marginTop: 12}}>
+          5/5 FACTORS OPTIMIZED · UTILIZATION UNDER 30% · 0 HARD INQUIRIES
+        </div>
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
+// Film grain (full-frame, re-seeded every frame)
+// ---------------------------------------------------------------------------
+const GRAIN_COUNT = 900;
+const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
+  const dots: React.ReactElement[] = [];
+  for (let i = 0; i < GRAIN_COUNT; i++) {
+    const x = random(`cs-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`cs-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`cs-grain-o-${frame}-${i}`) * 0.04;
+    const s = 2 + random(`cs-grain-s-${frame}-${i}`) * 2.5;
+    dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {dots}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const CreatorMonetizationJourney: React.FC = () => {
+export const CreditScoreBuilding: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
-      <Defs />
       <Background frame={frame} />
-      <Header frame={frame} fps={fps} />
-      <MilestonePath frame={frame} fps={fps} />
-      <LiveRevenue frame={frame} />
-      <Stage frame={frame} fps={fps} />
-      <Strip frame={frame} />
+      <TitleBar frame={frame} fps={fps} />
+      <ScoreDial frame={frame} fps={fps} />
+      <TierLegend frame={frame} fps={fps} />
+      <FactorCards frame={frame} fps={fps} />
+      <PayoffBanner frame={frame} fps={fps} />
       <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
