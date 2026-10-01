@@ -1,15 +1,14 @@
 /**
- * PasswordHealthAudit.tsx
+ * InventoryReplenishmentCycle.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * A brand-neutral credential security AUDIT visual for IT trainers and MSPs:
- * a credential inventory is scanned row by row, each account gets a
- * strength-score ring and a verdict chip (WEAK / REUSED / BREACHED / STRONG),
- * findings are tallied, a remediation checklist hardens the posture, and the
- * payoff is an overall Credential Health Score arc rising 41 -> 92 with 2FA
- * shields lighting green. No real passwords are ever shown - only masked dots.
+ * A cinematic small-business-ops visual for POS/inventory SaaS brands,
+ * retail consultants and small-biz educators: a stock-level gauge drains
+ * with live sales ticks, hits the reorder line, fires a purchase order,
+ * rides a shipping-transit arc, and restocks the shelf — landing on a
+ * never-out-of-stock guard payoff. Deterministic seeded randomness only.
  *
  * Register in Root.tsx:
- *   <Composition id="PasswordHealthAudit" component={PasswordHealthAudit}
+ *   <Composition id="InventoryReplenishmentCycle" component={InventoryReplenishmentCycle}
  *     width={3840} height={2160} fps={60} durationInFrames={900} />
  */
 
@@ -24,216 +23,186 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (dark security console)
+// Palette (warehouse cinematic: deep slate, stock amber, restock green)
 // ---------------------------------------------------------------------------
-const BG = '#060B12';
-const INK = '#EAF2FB';
-const MUTED = 'rgba(234,242,251,0.58)';
-const CYAN = '#38E1FF';
-const CYAN_DIM = 'rgba(56,225,255,0.16)';
-const WEAK = '#F87171';
-const REUSED = '#FBBF24';
-const BREACHED = '#E11D48';
-const STRONG = '#34D399';
-const PANEL = 'rgba(10,18,30,0.86)';
-const HAIRLINE = 'rgba(234,242,251,0.14)';
+const BG = '#080B13';
+const INK = '#F2F5FA';
+const MUTED = 'rgba(242,245,250,0.60)';
+const FAINT = 'rgba(242,245,250,0.32)';
+const AMBER = '#FBBF24';
+const ORANGE = '#FB923C';
+const GREEN = '#34D399';
+const GREEN_DEEP = '#065F46';
+const TEAL = '#2DD4BF';
+const CYAN = '#67E8F9';
+const RED = '#F87171';
+const PANEL = 'rgba(9,13,23,0.90)';
+const HAIRLINE = 'rgba(242,245,250,0.14)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
+const clamp01 = {extrapolateLeft: 'clamp' as const, extrapolateRight: 'clamp' as const};
+
 // ---------------------------------------------------------------------------
 // Timeline (frames at 60 fps) -> 900 frames = 15 s
 // ---------------------------------------------------------------------------
-const ROW_START = 24;       // first account row enters
-const ROW_GAP = 14;         // stagger between rows
-const SCAN_START = 170;     // audit sweep begins
-const SCAN_STEP = 46;       // frames per account verdict
-const SUMMARY_START = 560;  // findings tally counts up
-const CHECK_START = 430;    // remediation checklist begins
-const CHECK_GAP = 58;
-const SCORE_START = 580;    // health score arc payoff
-const SCORE_END = 740;
-const RESOLVE_START = 810;  // final banner
+const DRAIN_START = 60;
+const REORDER_AT = 470;   // stock hits the reorder line
+const PO_AT = 490;        // purchase order fires
+const TRANSIT_START = 530;
+const DELIVERY_AT = 700;  // truck arrives, restock begins
+const RESTOCK_END = 780;
+const PAYOFF_START = 812;
 
-// ---------------------------------------------------------------------------
-// Data: 8 generic accounts, 3 weak / 2 reused / 1 breached / 2 strong
-// ---------------------------------------------------------------------------
-type Verdict = 'WEAK' | 'REUSED' | 'BREACHED' | 'STRONG';
-interface Account {
-  name: string;
-  entropy: number; // bits
-  score: number;   // 0-100
-  verdict: Verdict;
-}
-const ACCOUNTS: Account[] = [
-  {name: 'Corporate Email', entropy: 58.2, score: 92, verdict: 'STRONG'},
-  {name: 'VPN Gateway', entropy: 31.4, score: 38, verdict: 'WEAK'},
-  {name: 'Cloud Console', entropy: 44.7, score: 74, verdict: 'REUSED'},
-  {name: 'Code Repository', entropy: 52.9, score: 85, verdict: 'STRONG'},
-  {name: 'Banking', entropy: 27.8, score: 51, verdict: 'WEAK'},
-  {name: 'CRM', entropy: 41.3, score: 44, verdict: 'REUSED'},
-  {name: 'Wi-Fi Admin', entropy: 19.5, score: 22, verdict: 'BREACHED'},
-  {name: 'Backup Service', entropy: 35.6, score: 61, verdict: 'WEAK'},
-];
+const MAX_UNITS = 1200;
+const REORDER_LINE = 300;
 
-const VERDICT_COLOR: Record<Verdict, string> = {
-  WEAK: WEAK,
-  REUSED: REUSED,
-  BREACHED: BREACHED,
-  STRONG: STRONG,
+const unitsAt = (f: number): number => {
+  if (f < DRAIN_START) return MAX_UNITS;
+  if (f < REORDER_AT) return MAX_UNITS - 2.2 * (f - DRAIN_START);
+  if (f < DELIVERY_AT) return REORDER_LINE - 2 - 0.5 * (f - REORDER_AT);
+  if (f < RESTOCK_END) {
+    const low = REORDER_LINE - 2 - 0.5 * (DELIVERY_AT - REORDER_AT);
+    return low + (MAX_UNITS - low) * ((f - DELIVERY_AT) / (RESTOCK_END - DELIVERY_AT));
+  }
+  return MAX_UNITS - 1.2 * (f - RESTOCK_END);
 };
+const dailyRateAt = (f: number) => 132 + 9 * Math.sin(f * 0.06) + 4 * Math.sin(f * 0.23);
+const fmtN = (v: number) =>
+  Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
-const CHECKLIST = [
-  'ROTATE BREACHED CREDENTIALS',
-  'ENABLE 2FA ON ALL ACCOUNTS',
-  'DEPLOY PASSPHRASE POLICY',
-  'REVIEW IN 90 DAYS',
-];
-
-const SHIELDS = ['EMAIL', 'VPN', 'BANKING', 'CLOUD'];
+// ---------------------------------------------------------------------------
+// Layout
+// ---------------------------------------------------------------------------
+const GX = 220;        // gauge x
+const GW = 400;        // gauge width
+const GY = 480;        // gauge top
+const GH = 1180;       // gauge height
+const gaugeY = (units: number) => GY + GH - (units / MAX_UNITS) * GH;
+const reorderY = GY + GH - (REORDER_LINE / MAX_UNITS) * GH;
 
 // ---------------------------------------------------------------------------
 // SVG defs
 // ---------------------------------------------------------------------------
 const Defs: React.FC = () => (
   <defs>
-    <radialGradient id="paGlow" cx="42%" cy="30%" r="75%">
-      <stop offset="0%" stopColor="rgba(56,225,255,0.13)" />
-      <stop offset="55%" stopColor="rgba(56,225,255,0.035)" />
-      <stop offset="100%" stopColor="rgba(6,11,18,0)" />
+    <radialGradient id="irGlow" cx="38%" cy="28%" r="80%">
+      <stop offset="0%" stopColor="rgba(251,191,36,0.10)" />
+      <stop offset="45%" stopColor="rgba(45,212,191,0.05)" />
+      <stop offset="100%" stopColor="rgba(8,11,19,0)" />
     </radialGradient>
-    <radialGradient id="paVignette" cx="50%" cy="50%" r="76%">
-      <stop offset="60%" stopColor="rgba(3,6,10,0)" />
-      <stop offset="100%" stopColor="rgba(2,4,8,0.74)" />
+    <radialGradient id="irVignette" cx="50%" cy="50%" r="76%">
+      <stop offset="58%" stopColor="rgba(3,5,10,0)" />
+      <stop offset="100%" stopColor="rgba(1,2,6,0.80)" />
     </radialGradient>
-    <linearGradient id="paScan" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="rgba(56,225,255,0)" />
-      <stop offset="50%" stopColor="rgba(56,225,255,0.20)" />
-      <stop offset="100%" stopColor="rgba(56,225,255,0)" />
+    <linearGradient id="irScan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="rgba(251,191,36,0)" />
+      <stop offset="50%" stopColor="rgba(251,191,36,0.12)" />
+      <stop offset="100%" stopColor="rgba(251,191,36,0)" />
     </linearGradient>
-    <linearGradient id="paScoreArc" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={WEAK} />
-      <stop offset="45%" stopColor={REUSED} />
-      <stop offset="100%" stopColor={STRONG} />
+    <linearGradient id="irStock" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor={AMBER} />
+      <stop offset="100%" stopColor={ORANGE} />
     </linearGradient>
-    <filter id="paGlow12" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="12" result="blur" />
-      <feMerge>
-        <feMergeNode in="blur" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
+    <linearGradient id="irPayoff" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={GREEN} />
+      <stop offset="55%" stopColor={TEAL} />
+      <stop offset="100%" stopColor={CYAN} />
+    </linearGradient>
+    <filter id="irBlur70" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="70" />
     </filter>
-    <filter id="paShadow" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="22" stdDeviation="30" floodColor="#000000" floodOpacity="0.6" />
+    <filter id="irBlur16" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="16" />
     </filter>
   </defs>
 );
 
 // ---------------------------------------------------------------------------
-// Background: vignette + cyan radial glow + drifting shimmer dot grid +
-// audit scan sweep + per-frame tickers
+// Background
 // ---------------------------------------------------------------------------
-const ROWS_TOP = 560;
-const ROW_H = 168;
-const ROWS_BOTTOM = ROWS_TOP + 8 * ROW_H;
-
 const Background: React.FC<{frame: number}> = ({frame}) => {
-  const driftX = (frame * 0.35) % 140;
+  const drift = Math.sin((frame / 900) * Math.PI * 2) * 90;
+  const scanY = (frame / 900) * 2500 - 300;
+  const orbs: React.ReactElement[] = [];
+  for (let i = 0; i < 6; i++) {
+    const ox = random(`ir-orb-x-${i}`) * 3840;
+    const oy = random(`ir-orb-y-${i}`) * 2160;
+    const r = 260 + random(`ir-orb-r-${i}`) * 320;
+    const hue =
+      i % 3 === 0
+        ? 'rgba(251,191,36,0.07)'
+        : i % 3 === 1
+        ? 'rgba(45,212,191,0.06)'
+        : 'rgba(52,211,153,0.05)';
+    const mx = Math.sin((frame / 900) * Math.PI * 2 + i * 1.9) * 120;
+    const my = Math.cos((frame / 900) * Math.PI * 2 + i * 2.1) * 90;
+    orbs.push(<circle key={i} cx={ox + mx} cy={oy + my} r={r} fill={hue} filter="url(#irBlur70)" />);
+  }
   const dots: React.ReactElement[] = [];
-  for (let gx = 0; gx <= 28; gx++) {
-    for (let gy = 0; gy <= 16; gy++) {
-      const shimmer = 0.05 + 0.05 * Math.sin(frame * 0.07 + gx * 0.8 + gy * 1.2);
+  for (let gx = 70; gx < 3840; gx += 175) {
+    for (let gy = 70; gy < 2160; gy += 175) {
+      const jx = (random(`ir-dot-x-${gx}-${gy}`) - 0.5) * 26;
+      const jy = (random(`ir-dot-y-${gx}-${gy}`) - 0.5) * 26;
       dots.push(
-        <circle
-          key={`${gx}-${gy}`}
-          cx={gx * 140 - driftX}
-          cy={gy * 140 + 40}
-          r={2.4}
-          fill="#38E1FF"
-          opacity={shimmer}
-        />
+        <circle key={`${gx}-${gy}`} cx={gx + jx} cy={gy + jy} r={2.2} fill="rgba(242,245,250,0.05)" />
       );
     }
   }
-  // Audit sweep travels down the account rows during the build phase.
-  const scanProg = interpolate(frame, [SCAN_START, SCAN_START + 8 * SCAN_STEP], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const scanY = ROWS_TOP + scanProg * (ROWS_BOTTOM - ROWS_TOP);
-  const scanOn = frame >= SCAN_START && frame < SCORE_START;
-  // Bytes-scanned ticker (per-frame counter for pixel motion).
-  const bytes = Math.floor(interpolate(frame, [SCAN_START, SCORE_START], [0, 1843200], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  }));
-  const tick = ((frame * 2.4) % 2400) - 200;
+  // conveyor slats streaming (per-frame motion)
+  const slats: React.ReactElement[] = [];
+  for (let i = 0; i < 12; i++) {
+    const sx = ((random(`ir-slat-x-${i}`) * 4200 + frame * 9) % 4400 + 4400) % 4400 - 300;
+    slats.push(<rect key={i} x={sx} y={1990} width={180} height={12} rx={6} fill="rgba(242,245,250,0.06)" />);
+  }
   return (
-    <>
-      <AbsoluteFill style={{backgroundColor: BG}} />
+    <div style={{position: 'absolute', inset: 0, backgroundColor: BG}}>
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs />
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#paGlow)" />
-        {dots}
-        {scanOn && (
-          <g>
-            <rect x={0} y={scanY - 110} width={3840} height={220} fill="url(#paScan)" />
-            <line x1={0} y1={scanY} x2={3840} y2={scanY} stroke={CYAN} strokeWidth={3} opacity={0.75} filter="url(#paGlow12)" />
-          </g>
-        )}
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#paVignette)" />
-        {/* per-frame scrolling telemetry strip, bottom */}
-        <g opacity={0.5}>
-          <text x={tick} y={2108} fill={MUTED} fontSize={26} fontFamily={MONO} letterSpacing={2}>
-            SCAN ENGINE v4.2 &middot; SHA-256 SALT CHECK &middot; BREACH CORPUS 14.7B RECORDS &middot; ENTROPY FLOOR 40 BITS &middot; ZERO-TRUST POLICY &middot; BYTES SCANNED {bytes.toLocaleString('en-US')}
-          </text>
-          <text x={tick + 2400} y={2108} fill={MUTED} fontSize={26} fontFamily={MONO} letterSpacing={2}>
-            SCAN ENGINE v4.2 &middot; SHA-256 SALT CHECK &middot; BREACH CORPUS 14.7B RECORDS &middot; ENTROPY FLOOR 40 BITS &middot; ZERO-TRUST POLICY &middot; BYTES SCANNED {bytes.toLocaleString('en-US')}
-          </text>
-        </g>
+        <rect width={3840} height={2160} fill="url(#irGlow)" transform={`translate(${drift},${-drift * 0.6})`} />
+        {orbs}
+        <g transform={`translate(${drift * 0.4},0)`}>{dots}</g>
+        {slats}
+        <rect x={0} y={scanY} width={3840} height={340} fill="url(#irScan)" />
+        <rect width={3840} height={2160} fill="url(#irVignette)" />
       </svg>
-    </>
+    </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Title bar + live status HUD
+// Title bar
 // ---------------------------------------------------------------------------
-const TitleBar: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [0, 44], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const rise = interpolate(frame, [0, 44], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const scanProg = interpolate(frame, [SCAN_START, SCAN_START + 8 * SCAN_STEP], [0, 100], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const done = frame >= SCORE_START;
+const TitleBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const rise = spring({frame, fps, config: {damping: 200, stiffness: 90, mass: 1}});
+  const y = interpolate(rise, [0, 1], [70, 0]);
+  const opacity = interpolate(rise, [0, 1], [0, 1]);
+  const blink = 0.6 + 0.4 * Math.sin((frame / 60) * Math.PI * 2);
   return (
-    <div style={{position: 'absolute', top: 0, left: 0, width: 3840, opacity: fade}}>
-      <div style={{position: 'absolute', top: 84 + rise, left: 200}}>
-        <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 80, letterSpacing: -1.5}}>
-          Credential Health <span style={{color: CYAN}}>Audit</span>
+    <div style={{position: 'absolute', top: 118, left: 220, right: 220, opacity, transform: `translateY(${y}px)`}}>
+      <div style={{display: 'flex', alignItems: 'flex-start'}}>
+        <div>
+          <div style={{fontFamily: MONO, fontSize: 44, letterSpacing: 14, color: AMBER}}>
+            RETAIL OPS &nbsp;·&nbsp; INVENTORY CONTROL
+          </div>
+          <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 148, color: INK, marginTop: 16, letterSpacing: -2}}>
+            Inventory Replenishment
+          </div>
+          <div style={{fontFamily: FONT, fontSize: 40, color: MUTED, marginTop: 14}}>
+            Drain, reorder, restock — the cycle that never lets a shelf go empty
+          </div>
         </div>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 4, marginTop: 14}}>
-          SECURITY POSTURE SCAN &middot; 8 ACCOUNTS &middot; NO PLAINTEXT STORED
-        </div>
-      </div>
-      <div style={{position: 'absolute', top: 96 + rise, right: 200, textAlign: 'right'}}>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>STATUS</div>
-        <div
-          style={{
-            color: done ? STRONG : CYAN,
-            fontFamily: MONO,
-            fontWeight: 800,
-            fontSize: 52,
-            marginTop: 10,
-            textShadow: done ? `0 0 28px ${STRONG}88` : `0 0 28px ${CYAN}88`,
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {done ? 'AUDIT COMPLETE' : `SCANNING ${Math.floor(scanProg)}%`}
-        </div>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, marginTop: 8}}>
-          {done ? '6 findings logged' : 'comparing salted hashes vs breach corpus'}
+        <div style={{marginLeft: 'auto', textAlign: 'right'}}>
+          <div style={{display: 'inline-flex', alignItems: 'center', gap: 22, border: `2px solid ${TEAL}`, borderRadius: 16, padding: '14px 32px', backgroundColor: 'rgba(5,12,11,0.6)'}}>
+            <div style={{width: 24, height: 24, borderRadius: 12, backgroundColor: TEAL, opacity: blink, boxShadow: `0 0 26px ${TEAL}`}} />
+            <div style={{fontFamily: MONO, fontSize: 40, fontWeight: 700, color: INK, letterSpacing: 4}}>
+              REORDER-POINT SYSTEM
+            </div>
+          </div>
+          <div style={{fontFamily: MONO, fontSize: 32, color: FAINT, marginTop: 14}}>
+            SKU-4471 · WIDGET PRO · LEAD TIME 6 DAYS
+          </div>
         </div>
       </div>
     </div>
@@ -241,127 +210,148 @@ const TitleBar: React.FC<{frame: number}> = ({frame}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Account rows: inventory -> audit verdicts (score rings + verdict chips)
+// Stock gauge (left): draining tank, reorder line, safety zone, sale chips
 // ---------------------------------------------------------------------------
-const PANEL_LEFT = 200;
-const PANEL_W = 1900;
-const ROW_INNER_H = 148;
+const StockGauge: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 40, fps, config: {damping: 200, stiffness: 80}});
+  const units = unitsAt(frame);
+  const fy = gaugeY(units);
+  const low = units < REORDER_LINE;
+  const reorderS = spring({frame: frame - REORDER_AT, fps, config: {damping: 200, stiffness: 120}});
 
-const AccountRows: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 8, fps, config: {damping: 200, stiffness: 70}});
-  if (s <= 0.001) return null;
+  // sale chips popping off the gauge surface
+  const chips: React.ReactElement[] = [];
+  for (let k = 0; k < 30; k++) {
+    const ek = 80 + k * 26;
+    const age = frame - ek;
+    if (age < 0 || age > 70 || frame > DELIVERY_AT) continue;
+    const t = age / 70;
+    const n = 2 + Math.floor(random(`ir-sale-n-${k}`) * 5);
+    const cx = GX + GW + 30 + t * 260;
+    const cy = fy - 40 - t * 190;
+    chips.push(
+      <g key={k} opacity={1 - t}>
+        <rect x={cx} y={cy} width={190} height={58} rx={12} fill="rgba(251,146,60,0.14)" stroke={ORANGE} strokeWidth={2} />
+        <text x={cx + 95} y={cy + 40} fill={ORANGE} fontSize={32} fontFamily={MONO} fontWeight={700} textAnchor="middle">
+          SALE −{n}
+        </text>
+      </g>
+    );
+  }
+
+  // measurement ticks
+  const ticks: React.ReactElement[] = [];
+  for (let u = 0; u <= MAX_UNITS; u += 150) {
+    const ty = gaugeY(u);
+    ticks.push(
+      <g key={u}>
+        <line x1={GX - 34} y1={ty} x2={GX - 12} y2={ty} stroke="rgba(242,245,250,0.30)" strokeWidth={3} />
+        <text x={GX - 52} y={ty + 11} fill={FAINT} fontSize={26} fontFamily={MONO} textAnchor="end">
+          {u}
+        </text>
+      </g>
+    );
+  }
+
+  return (
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
+      <div style={{position: 'absolute', left: GX, top: GY - 150}}>
+        <div style={{fontFamily: MONO, fontSize: 36, letterSpacing: 8, color: MUTED}}>UNITS ON HAND</div>
+        <div
+          style={{
+            fontFamily: MONO,
+            fontWeight: 800,
+            fontSize: 120,
+            color: low ? ORANGE : INK,
+            textShadow: low ? '0 0 40px rgba(251,146,60,0.6)' : 'none',
+          }}
+        >
+          {fmtN(units)}
+        </div>
+      </div>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        {/* tank */}
+        <rect x={GX} y={GY} width={GW} height={GH} rx={24} fill="rgba(242,245,250,0.05)" stroke={HAIRLINE} strokeWidth={2.5} />
+        {/* safety-stock zone (bottom 10%) */}
+        <rect x={GX} y={GY + GH * 0.9} width={GW} height={GH * 0.1} fill="rgba(248,113,113,0.10)" />
+        {/* fill */}
+        <rect x={GX + 14} y={fy} width={GW - 28} height={GY + GH - 14 - fy} fill="url(#irStock)" opacity={0.92} />
+        <rect x={GX + 14} y={fy} width={GW - 28} height={10} fill="#FFE9B8" opacity={0.9} filter="url(#irBlur16)" />
+        {ticks}
+        {/* reorder line */}
+        <line x1={GX - 60} y1={reorderY} x2={GX + GW + 60} y2={reorderY} stroke={RED} strokeWidth={5} strokeDasharray="18 12" />
+        <text x={GX + GW + 80} y={reorderY + 13} fill={RED} fontSize={34} fontFamily={MONO} fontWeight={800} letterSpacing={2}>
+          REORDER {REORDER_LINE}
+        </text>
+        {chips}
+        {/* reorder alarm */}
+        {low && reorderS > 0.02 && (
+          <g opacity={Math.min(1, reorderS)} transform={`scale(${Math.min(1, reorderS)})`}>
+            <rect x={GX - 10} y={GY - 120} width={GW + 20} height={80} rx={14} fill="rgba(60,10,10,0.92)" stroke={RED} strokeWidth={3.5} />
+            <text x={GX + GW / 2} y={GY - 66} fill={RED} fontSize={36} fontFamily={MONO} fontWeight={800} textAnchor="middle" letterSpacing={3}>
+              ⚠ REORDER TRIGGERED
+            </text>
+          </g>
+        )}
+      </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Live sales ticker (center-top strip, per-frame updates)
+// ---------------------------------------------------------------------------
+const SALE_LINES = Array.from({length: 14}).map((_, i) => {
+  const n = 1 + Math.floor(random(`ir-tick-n-${i}`) * 6);
+  const amt = n * (24 + Math.floor(random(`ir-tick-p-${i}`) * 40));
+  const ch = ['WEB', 'POS-2', 'POS-1', 'APP'][Math.floor(random(`ir-tick-c-${i}`) * 4)];
+  return `SALE #${88410 + i * 7} · WIDGET PRO ×${n} · $${amt} · ${ch}`;
+});
+const SalesTicker: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 90, fps, config: {damping: 200, stiffness: 90}});
+  const head = Math.floor(frame / 26) % SALE_LINES.length;
+  const live = 0.6 + 0.4 * Math.sin((frame / 60) * Math.PI * 2);
+  const rate = dailyRateAt(frame);
   return (
     <div
       style={{
         position: 'absolute',
-        left: PANEL_LEFT,
-        top: ROWS_TOP,
-        width: PANEL_W,
-        opacity: Math.min(1, s),
-        transform: `translateY(${(1 - s) * 60}px)`,
+        left: 800,
+        top: 480,
+        width: 1640,
+        opacity: Math.min(1, enter),
+        backgroundColor: PANEL,
+        border: `1px solid ${HAIRLINE}`,
+        borderRadius: 20,
+        padding: '30px 44px',
       }}
     >
-      <div
-        style={{
-          background: PANEL,
-          borderRadius: 30,
-          border: `2px solid ${HAIRLINE}`,
-          filter: 'url(#paShadow)',
-          backdropFilter: 'blur(6px)',
-          padding: '34px 40px 40px',
-        }}
-      >
-        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 18}}>
-          <span style={{color: CYAN, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>CREDENTIAL INVENTORY</span>
-          <span style={{color: MUTED, fontFamily: MONO, fontSize: 28}}>8 logins &middot; masked</span>
+      <div style={{display: 'flex', alignItems: 'center', gap: 22}}>
+        <div style={{width: 20, height: 20, borderRadius: 10, backgroundColor: ORANGE, opacity: live, boxShadow: `0 0 24px ${ORANGE}`}} />
+        <div style={{fontFamily: MONO, fontSize: 32, letterSpacing: 8, color: ORANGE}}>LIVE SALES</div>
+        <div style={{marginLeft: 'auto', fontFamily: MONO, fontSize: 32, color: MUTED}}>
+          RATE <span style={{color: INK, fontWeight: 700}}>{rate.toFixed(0)}/DAY</span>
         </div>
-        {ACCOUNTS.map((acc, i) => {
-          const rs = spring({frame: frame - (ROW_START + i * ROW_GAP), fps, config: {damping: 170, stiffness: 110}});
-          if (rs <= 0.001) return null;
-          const verdictStart = SCAN_START + i * SCAN_STEP;
-          const vs = spring({frame: frame - verdictStart, fps, config: {damping: 160, stiffness: 120}});
-          const ringDraw = interpolate(frame, [verdictStart, verdictStart + 55], [0, 1], {
-            extrapolateLeft: 'clamp',
-            extrapolateRight: 'clamp',
-          });
-          const ringVal = Math.round(acc.score * ringDraw);
-          const color = VERDICT_COLOR[acc.verdict];
-          const y = 86 + i * ROW_H;
-          // Entropy jitter while its row is being audited (per-frame motion).
-          const jitter = frame >= verdictStart && frame < verdictStart + SCAN_STEP
-            ? 1.6 * Math.sin(frame * 0.5 + i * 1.7)
-            : 0;
-          const flash = frame >= verdictStart && frame < verdictStart + 8;
+      </div>
+      <div style={{marginTop: 18}}>
+        {[0, 1].map((k) => {
+          const line = SALE_LINES[(head + k) % SALE_LINES.length];
           return (
             <div
-              key={acc.name}
+              key={`${head}-${k}`}
               style={{
-                position: 'absolute',
-                left: 40,
-                top: y,
-                width: PANEL_W - 80,
-                height: ROW_INNER_H,
-                borderRadius: 20,
-                background: flash ? 'rgba(56,225,255,0.10)' : 'rgba(234,242,251,0.028)',
-                border: `1.5px solid ${flash ? CYAN_DIM : HAIRLINE}`,
-                opacity: Math.min(1, rs),
-                transform: `translateX(${(1 - rs) * -70}px)`,
+                fontFamily: MONO,
+                fontSize: 33,
+                color: k === 0 ? INK : MUTED,
+                opacity: k === 0 ? 1 : 0.5,
+                marginTop: k === 0 ? 0 : 12,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
             >
-              <svg width={PANEL_W - 80} height={ROW_INNER_H} style={{position: 'absolute', top: 0, left: 0}}>
-                {/* index */}
-                <text x={36} y={88} fill={MUTED} fontSize={30} fontFamily={MONO} fontWeight={700}>
-                  {String(i + 1).padStart(2, '0')}
-                </text>
-                {/* account name */}
-                <text x={110} y={72} fill={INK} fontSize={42} fontFamily={FONT} fontWeight={700}>
-                  {acc.name}
-                </text>
-                {/* masked credential (never real passwords) */}
-                <text x={110} y={118} fill={MUTED} fontSize={34} fontFamily={MONO} letterSpacing={3}>
-                  &#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;
-                </text>
-                {/* entropy bits, data-driven per account */}
-                <text x={700} y={72} fill={MUTED} fontSize={26} fontFamily={MONO} letterSpacing={2}>
-                  ENTROPY
-                </text>
-                <text x={700} y={116} fill={acc.verdict === 'STRONG' ? STRONG : INK} fontSize={36} fontFamily={MONO} fontWeight={700} style={{fontVariantNumeric: 'tabular-nums'}}>
-                  {(acc.entropy + jitter).toFixed(1)} bits
-                </text>
-                {/* strength-score ring */}
-                {vs > 0.001 && (
-                  <g transform="translate(1230, 74)" opacity={Math.min(1, vs)}>
-                    <circle cx={0} cy={0} r={52} fill="none" stroke={HAIRLINE} strokeWidth={11} />
-                    <circle
-                      cx={0}
-                      cy={0}
-                      r={52}
-                      fill="none"
-                      stroke={color}
-                      strokeWidth={11}
-                      strokeLinecap="round"
-                      pathLength={1}
-                      strokeDasharray={1}
-                      strokeDashoffset={1 - (ringVal / 100)}
-                      transform="rotate(-90)"
-                      filter="url(#paGlow12)"
-                    />
-                    <text x={0} y={14} textAnchor="middle" fill={INK} fontSize={38} fontFamily={MONO} fontWeight={800} style={{fontVariantNumeric: 'tabular-nums'}}>
-                      {ringVal}
-                    </text>
-                  </g>
-                )}
-                {/* verdict chip */}
-                {vs > 0.35 && (
-                  <g transform={`translate(1420, 34) scale(${0.7 + 0.3 * Math.min(1, vs)})`} opacity={Math.min(1, vs)}>
-                    <rect x={0} y={0} width={320} height={80} rx={40} fill={`${color}1F`} stroke={color} strokeWidth={2.5} />
-                    <circle cx={48} cy={40} r={13} fill={color} />
-                    <text x={76} y={53} fill={color} fontSize={32} fontFamily={MONO} fontWeight={800} letterSpacing={2}>
-                      {acc.verdict}
-                    </text>
-                  </g>
-                )}
-              </svg>
+              {line}
             </div>
           );
         })}
@@ -371,372 +361,242 @@ const AccountRows: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Right column: findings tally + remediation checklist
+// Transit map: PO card fires, truck rides the supplier -> warehouse arc
 // ---------------------------------------------------------------------------
-const RIGHT_LEFT = 2280;
-const RIGHT_W = 1360;
+const P0 = {x: 1010, y: 1090};
+const PC = {x: 1620, y: 770};
+const P1 = {x: 2230, y: 1090};
+const bez = (t: number) => ({
+  x: (1 - t) * (1 - t) * P0.x + 2 * (1 - t) * t * PC.x + t * t * P1.x,
+  y: (1 - t) * (1 - t) * P0.y + 2 * (1 - t) * t * PC.y + t * t * P1.y,
+});
 
-const AuditSummary: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 60, fps, config: {damping: 200, stiffness: 80}});
-  if (s <= 0.001) return null;
-  const counts: {label: Verdict | 'SCANNED'; n: number; color: string}[] = [
-    {label: 'WEAK', n: 3, color: WEAK},
-    {label: 'REUSED', n: 2, color: REUSED},
-    {label: 'BREACHED', n: 1, color: BREACHED},
-    {label: 'STRONG', n: 2, color: STRONG},
-  ];
-  const scanned = Math.floor(
-    interpolate(frame, [SCAN_START, SCAN_START + 8 * SCAN_STEP], [0, 8], {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    })
-  );
+const TransitMap: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 150, fps, config: {damping: 200, stiffness: 80}});
+  const poS = spring({frame: frame - PO_AT, fps, config: {damping: 200, stiffness: 100}});
+  const poFade = 1 - interpolate(frame, [TRANSIT_START, TRANSIT_START + 50], [0, 1], clamp01);
+  const t = interpolate(frame, [TRANSIT_START, DELIVERY_AT], [0, 1], clamp01);
+  const arcDraw = interpolate(frame, [PO_AT, TRANSIT_START + 30], [0, 1], clamp01);
+  const truck = bez(t);
+  const day = Math.min(6, 1 + Math.floor(t * 6));
+  const delivered = frame >= DELIVERY_AT;
+  const delS = spring({frame: frame - DELIVERY_AT, fps, config: {damping: 200, stiffness: 120}});
+  const arcD = `M ${P0.x} ${P0.y} Q ${PC.x} ${PC.y} ${P1.x} ${P1.y}`;
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: RIGHT_LEFT,
-        top: ROWS_TOP,
-        width: RIGHT_W,
-        opacity: Math.min(1, s),
-        transform: `translateY(${(1 - s) * 60}px)`,
-      }}
-    >
-      <div
-        style={{
-          background: PANEL,
-          borderRadius: 30,
-          border: `2px solid ${HAIRLINE}`,
-          filter: 'url(#paShadow)',
-          backdropFilter: 'blur(6px)',
-          padding: '34px 44px',
-        }}
-      >
-        <div style={{color: CYAN, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>AUDIT FINDINGS</div>
-        <div style={{marginTop: 22}}>
-          {counts.map((c, k) => {
-            const target = frame >= SUMMARY_START + k * 26 ? c.n : 0;
-            const shown = Math.floor(
-              interpolate(frame, [SUMMARY_START + k * 26, SUMMARY_START + k * 26 + 40], [0, target], {
-                extrapolateLeft: 'clamp',
-                extrapolateRight: 'clamp',
-              })
-            );
-            return (
-              <div
-                key={c.label}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'baseline',
-                  marginTop: k === 0 ? 0 : 14,
-                }}
-              >
-                <span style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 2}}>
-                  <span style={{color: c.color, fontWeight: 800}}>&#9632;</span> {c.label}
-                </span>
-                <span
-                  style={{
-                    color: c.color,
-                    fontFamily: MONO,
-                    fontWeight: 800,
-                    fontSize: 58,
-                    fontVariantNumeric: 'tabular-nums',
-                    textShadow: `0 0 20px ${c.color}66`,
-                  }}
-                >
-                  {shown}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-        <div style={{marginTop: 20, paddingTop: 18, borderTop: `1.5px solid ${HAIRLINE}`}}>
-          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
-            <span style={{color: MUTED, fontFamily: MONO, fontSize: 30, letterSpacing: 2}}>CREDENTIALS SCANNED</span>
-            <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 52, fontVariantNumeric: 'tabular-nums'}}>
-              {scanned}<span style={{color: MUTED, fontSize: 32}}>/8</span>
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const Remediation: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 90, fps, config: {damping: 200, stiffness: 80}});
-  if (s <= 0.001) return null;
-  const top = ROWS_TOP + 560;
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: RIGHT_LEFT,
-        top,
-        width: RIGHT_W,
-        opacity: Math.min(1, s),
-        transform: `translateY(${(1 - s) * 60}px)`,
-      }}
-    >
-      <div
-        style={{
-          background: PANEL,
-          borderRadius: 30,
-          border: `2px solid ${HAIRLINE}`,
-          filter: 'url(#paShadow)',
-          backdropFilter: 'blur(6px)',
-          padding: '34px 44px 40px',
-        }}
-      >
-        <div style={{color: STRONG, fontFamily: MONO, fontSize: 30, letterSpacing: 3}}>REMEDIATION CHECKLIST</div>
-        <div style={{marginTop: 20}}>
-          {CHECKLIST.map((item, i) => {
-            const start = CHECK_START + i * CHECK_GAP;
-            const on = frame >= start;
-            const cs = spring({frame: frame - start, fps, config: {damping: 150, stiffness: 130}});
-            if (cs <= 0.001) return null;
-            return (
-              <div
-                key={item}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 26,
-                  marginTop: i === 0 ? 0 : 20,
-                  opacity: on ? 1 : 0.3,
-                  transform: `scale(${0.92 + 0.08 * Math.min(1, cs)})`,
-                  transformOrigin: 'left center',
-                }}
-              >
-                <span
-                  style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: '50%',
-                    background: on ? STRONG : 'rgba(234,242,251,0.10)',
-                    color: '#060B12',
-                    fontSize: 38,
-                    fontWeight: 800,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    boxShadow: on ? `0 0 26px ${STRONG}99` : 'none',
-                  }}
-                >
-                  {on ? '\u2713' : '\u00B7'}
-                </span>
-                <span
-                  style={{
-                    color: on ? INK : MUTED,
-                    fontFamily: MONO,
-                    fontWeight: 700,
-                    fontSize: 36,
-                    letterSpacing: 1,
-                  }}
-                >
-                  {item}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Payoff: Credential Health Score arc 41 -> 92 + 2FA shields
-// ---------------------------------------------------------------------------
-const Shield: React.FC<{x: number; label: string; frame: number; start: number; fps: number}> = ({
-  x,
-  label,
-  frame,
-  start,
-  fps,
-}) => {
-  const s = spring({frame: frame - start, fps, config: {damping: 150, stiffness: 120}});
-  if (s <= 0.001) return null;
-  const lit = frame >= start;
-  const pulse = lit ? 0.6 + 0.4 * Math.sin(frame * 0.12 + start * 0.05) : 0;
-  return (
-    <g transform={`translate(${x}, 0)`} opacity={Math.min(1, s)}>
-      <path
-        d="M 0 -64 L 56 -38 L 56 12 C 56 48 28 72 0 84 C -28 72 -56 48 -56 12 L -56 -38 Z"
-        fill={lit ? 'rgba(52,211,153,0.14)' : 'rgba(234,242,251,0.05)'}
-        stroke={lit ? STRONG : HAIRLINE}
-        strokeWidth={5}
-        style={lit ? {filter: `drop-shadow(0 0 ${18 + pulse * 14}px ${STRONG})`} : undefined}
-      />
-      {lit && (
-        <text x={0} y={24} textAnchor="middle" fill={STRONG} fontSize={56} fontWeight={800}>
-          {'\u2713'}
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <rect x={800} y={700} width={1640} height={560} rx={22} fill={PANEL} stroke={HAIRLINE} strokeWidth={2} />
+        <text x={844} y={772} fill={TEAL} fontSize={32} fontFamily={MONO} letterSpacing={8}>
+          REPLENISHMENT IN MOTION
         </text>
-      )}
-      {!lit && (
-        <text x={0} y={22} textAnchor="middle" fill={MUTED} fontSize={44} fontWeight={700} fontFamily={MONO}>
-          2FA
-        </text>
-      )}
-      <text x={0} y={128} textAnchor="middle" fill={lit ? STRONG : MUTED} fontSize={30} fontFamily={MONO} letterSpacing={3} fontWeight={700}>
-        {label}
-      </text>
-    </g>
-  );
-};
-
-const HealthScore: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const enter = interpolate(frame, [SCORE_START - 40, SCORE_START + 20], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const exit = interpolate(frame, [RESOLVE_START - 20, RESOLVE_START + 40], [1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const vis = enter * exit;
-  if (vis <= 0.001) return null;
-  const score = Math.round(
-    interpolate(frame, [SCORE_START, SCORE_END], [41, 92], {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    })
-  );
-  const arcProg = interpolate(frame, [SCORE_START, SCORE_END], [0.41, 0.92], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const scale = 0.9 + 0.1 * enter;
-  const cx = 1920;
-  const cy = 1010;
-  return (
-    <>
-      <AbsoluteFill style={{backgroundColor: 'rgba(3,6,10,0.80)', opacity: vis}} />
-      <svg
-        width={3840}
-        height={2160}
-        style={{position: 'absolute', top: 0, left: 0, opacity: vis, transform: `scale(${scale})`, transformOrigin: '1920px 1010px'}}
-      >
-        <text x={cx} y={380} textAnchor="middle" fill={CYAN} fontSize={34} fontFamily={MONO} letterSpacing={6}>
-          POSTURE AFTER REMEDIATION
-        </text>
-        <text x={cx} y={470} textAnchor="middle" fill={INK} fontSize={72} fontFamily={FONT} fontWeight={800} letterSpacing={-1}>
-          Credential Health Score
-        </text>
-        {/* score arc */}
-        <g transform={`translate(${cx}, ${cy})`}>
-          <circle cx={0} cy={0} r={300} fill="none" stroke={HAIRLINE} strokeWidth={40} />
-          <circle
-            cx={0}
-            cy={0}
-            r={300}
-            fill="none"
-            stroke="url(#paScoreArc)"
-            strokeWidth={40}
-            strokeLinecap="round"
-            pathLength={1}
-            strokeDasharray={1}
-            strokeDashoffset={1 - arcProg}
-            transform="rotate(135)"
-            filter="url(#paGlow12)"
-          />
-          {/* arc track ticks */}
-          {Array.from({length: 41}).map((_, k) => {
-            const a = (135 + k * (270 / 40)) * (Math.PI / 180);
-            const inner = k % 5 === 0 ? 348 : 358;
-            return (
-              <line
-                key={k}
-                x1={Math.cos(a) * inner}
-                y1={Math.sin(a) * inner}
-                x2={Math.cos(a) * 372}
-                y2={Math.sin(a) * 372}
-                stroke={k / 40 <= arcProg ? STRONG : HAIRLINE}
-                strokeWidth={k % 5 === 0 ? 6 : 3}
-              />
-            );
-          })}
-        </g>
-        <text
-          x={cx}
-          y={cy + 58}
-          textAnchor="middle"
-          fill={INK}
-          fontSize={180}
-          fontFamily={MONO}
-          fontWeight={800}
-          style={{textShadow: `0 0 60px ${STRONG}77`, fontVariantNumeric: 'tabular-nums'}}
-        >
-          {score}
-        </text>
-        <text x={cx} y={cy + 130} textAnchor="middle" fill={MUTED} fontSize={36} fontFamily={MONO} letterSpacing={4}>
-          / 100
-        </text>
-        <text x={cx} y={1520} textAnchor="middle" fill={STRONG} fontSize={40} fontFamily={MONO} fontWeight={800} letterSpacing={3}>
-          {'\u2713'} 2FA ENABLED ON ALL ACCOUNTS
-        </text>
-        <g transform={`translate(${cx - 540}, 1660)`}>
-          {SHIELDS.map((label, i) => (
-            <Shield key={label} x={i * 360} label={label} frame={frame} fps={fps} start={SCORE_START + 60 + i * 34} />
-          ))}
-        </g>
+        {/* arc */}
+        <path d={arcD} fill="none" stroke="rgba(242,245,250,0.14)" strokeWidth={6} strokeDasharray="16 14" />
+        <path
+          d={arcD}
+          fill="none"
+          stroke={TEAL}
+          strokeWidth={7}
+          strokeLinecap="round"
+          pathLength={1}
+          strokeDasharray={1}
+          strokeDashoffset={1 - arcDraw}
+          style={{filter: 'drop-shadow(0 0 12px rgba(45,212,191,0.6))'}}
+        />
+        {/* supplier + warehouse nodes */}
+        <circle cx={P0.x} cy={P0.y} r={44} fill="#131A28" stroke={AMBER} strokeWidth={5} />
+        <text x={P0.x} y={P0.y + 13} fill={AMBER} fontSize={36} fontFamily={MONO} fontWeight={800} textAnchor="middle">S</text>
+        <text x={P0.x} y={P0.y + 96} fill={MUTED} fontSize={30} fontFamily={MONO} textAnchor="middle">SUPPLIER</text>
+        <circle cx={P1.x} cy={P1.y} r={44} fill="#131A28" stroke={delivered ? GREEN : FAINT} strokeWidth={5} />
+        <text x={P1.x} y={P1.y + 13} fill={delivered ? GREEN : FAINT} fontSize={36} fontFamily={MONO} fontWeight={800} textAnchor="middle">W</text>
+        <text x={P1.x} y={P1.y + 96} fill={MUTED} fontSize={30} fontFamily={MONO} textAnchor="middle">WAREHOUSE</text>
+        {/* truck */}
+        {t > 0.001 && t < 0.999 && (
+          <g>
+            <circle cx={truck.x} cy={truck.y} r={40} fill="rgba(45,212,191,0.18)" />
+            <rect x={truck.x - 46} y={truck.y - 26} width={92} height={52} rx={12} fill={TEAL} style={{filter: 'drop-shadow(0 0 18px rgba(45,212,191,0.8))'}} />
+            <rect x={truck.x - 46} y={truck.y - 26} width={30} height={52} rx={12} fill="#0B3B36" />
+            <text x={truck.x} y={truck.y - 52} fill={TEAL} fontSize={32} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+              DAY {day}/6
+            </text>
+          </g>
+        )}
+        {/* PO card */}
+        {poS > 0.02 && poFade > 0.01 && (
+          <g opacity={Math.min(1, poS) * poFade} transform={`translate(1180,820) scale(${Math.min(1, poS)})`}>
+            <rect x={-260} y={-90} width={520} height={180} rx={18} fill="rgba(8,20,18,0.95)" stroke={TEAL} strokeWidth={4} style={{filter: 'drop-shadow(0 0 30px rgba(45,212,191,0.5))'}} />
+            <text x={0} y={-34} fill={TEAL} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="middle" letterSpacing={3}>
+              PURCHASE ORDER
+            </text>
+            <text x={0} y={22} fill={INK} fontSize={44} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+              PO-8841 · 1,200 UNITS
+            </text>
+            <text x={0} y={64} fill={MUTED} fontSize={28} fontFamily={MONO} textAnchor="middle">
+              SENT TO SUPPLIER ✓
+            </text>
+          </g>
+        )}
+        {/* delivered stamp */}
+        {delivered && delS > 0.02 && (
+          <g opacity={Math.min(1, delS)} transform={`translate(${P1.x - 130},${P1.y - 190}) scale(${Math.min(1, delS)}) rotate(-8)`}>
+            <rect x={0} y={0} width={260} height={76} rx={14} fill="rgba(6,40,28,0.94)" stroke={GREEN} strokeWidth={4} />
+            <text x={130} y={52} fill={GREEN} fontSize={38} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+              DELIVERED ✓
+            </text>
+          </g>
+        )}
       </svg>
-    </>
+    </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Resolve banner
+// Shelf grid: 12 facings empty and refill with the stock level
 // ---------------------------------------------------------------------------
-const ResolveBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - RESOLVE_START, fps, config: {damping: 200, stiffness: 95}});
-  if (s <= 0.001) return null;
+const ShelfGrid: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 200, fps, config: {damping: 200, stiffness: 80}});
+  const units = unitsAt(frame);
+  const filled = Math.round(12 * (units / MAX_UNITS));
+  const slots: React.ReactElement[] = [];
+  for (let i = 0; i < 12; i++) {
+    const col = i % 6;
+    const row = Math.floor(i / 6);
+    const sx = 800 + col * 268;
+    const sy = 1360 + row * 180;
+    const isFilled = i < filled;
+    slots.push(
+      <g key={i}>
+        {isFilled ? (
+          <g>
+            <rect x={sx} y={sy} width={240} height={150} rx={16} fill="url(#irStock)" opacity={0.9} />
+            <rect x={sx} y={sy} width={240} height={44} rx={16} fill="#FFE9B8" opacity={0.55} />
+            <text x={sx + 120} y={sy + 100} fill="#3A2404" fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+              PRO
+            </text>
+          </g>
+        ) : (
+          <rect x={sx} y={sy} width={240} height={150} rx={16} fill="none" stroke="rgba(242,245,250,0.22)" strokeWidth={3} strokeDasharray="12 10" />
+        )}
+      </g>
+    );
+  }
+  return (
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <text x={800} y={1320} fill={AMBER} fontSize={32} fontFamily={MONO} letterSpacing={8}>
+          SHELF AVAILABILITY · {filled}/12 FACINGS
+        </text>
+        {slots}
+      </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Metrics panel (right column)
+// ---------------------------------------------------------------------------
+const MetricsPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 120, fps, config: {damping: 200, stiffness: 80}});
+  const units = unitsAt(frame);
+  const rate = dailyRateAt(frame);
+  const cover = units / rate;
+  const PX = 2620;
+  const rows = [
+    {label: 'UNITS ON HAND', value: fmtN(units), color: units < REORDER_LINE ? ORANGE : INK},
+    {label: 'DAILY SALES RATE', value: `${rate.toFixed(0)}/DAY`, color: INK},
+    {label: 'DAYS OF COVER', value: cover.toFixed(1), color: cover < 3 ? RED : cover < 6 ? AMBER : GREEN},
+    {label: 'REORDER POINT', value: fmtN(REORDER_LINE), color: MUTED},
+    {label: 'STOCKOUTS', value: '0', color: GREEN},
+  ];
+  return (
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <rect x={PX} y={480} width={980} height={920} rx={22} fill={PANEL} stroke={HAIRLINE} strokeWidth={2} />
+        <text x={PX + 44} y={552} fill={TEAL} fontSize={32} fontFamily={MONO} letterSpacing={8}>
+          INVENTORY METRICS
+        </text>
+        {rows.map((r, i) => {
+          const s = spring({frame: frame - (120 + i * 26), fps, config: {damping: 200, stiffness: 120}});
+          if (s <= 0.001) return null;
+          const ry = 640 + i * 150;
+          return (
+            <g key={r.label} opacity={Math.min(1, s)}>
+              <text x={PX + 44} y={ry} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={4}>
+                {r.label}
+              </text>
+              <text x={PX + 936} y={ry + 66} fill={r.color} fontSize={72} fontFamily={MONO} fontWeight={800} textAnchor="end">
+                {r.value}
+              </text>
+              <line x1={PX + 44} y1={ry + 100} x2={PX + 936} y2={ry + 100} stroke="rgba(242,245,250,0.08)" strokeWidth={1.5} />
+            </g>
+          );
+        })}
+      </svg>
+      <div style={{position: 'absolute', left: PX, top: 1440, width: 980, backgroundColor: PANEL, border: `1px solid ${HAIRLINE}`, borderRadius: 20, padding: '34px 44px'}}>
+        <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 6, color: TEAL}}>REORDER POLICY</div>
+        <div style={{fontFamily: MONO, fontSize: 34, color: MUTED, marginTop: 18, lineHeight: 1.7}}>
+          REORDER POINT <span style={{color: INK, fontWeight: 700}}>300 UNITS</span>
+          <br />
+          SAFETY STOCK <span style={{color: INK, fontWeight: 700}}>120 UNITS</span> · LEAD TIME <span style={{color: INK, fontWeight: 700}}>6 DAYS</span>
+          <br />
+          ORDER QUANTITY <span style={{color: GREEN, fontWeight: 700}}>1,200 UNITS</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Payoff banner: NEVER OUT OF STOCK guard
+// ---------------------------------------------------------------------------
+const PayoffBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - PAYOFF_START, fps, config: {damping: 200, stiffness: 70}});
+  if (enter <= 0.001) return null;
+  const opacity = interpolate(enter, [0, 1], [0, 1]);
+  const flash = interpolate(frame, [PAYOFF_START + 20, PAYOFF_START + 80], [0, 1], clamp01);
   return (
     <div
       style={{
         position: 'absolute',
-        bottom: 92,
+        bottom: 60,
         left: 0,
-        width: 3840,
+        right: 0,
         display: 'flex',
         justifyContent: 'center',
-        opacity: Math.min(1, s),
-        transform: `translateY(${(1 - s) * 50}px)`,
+        opacity,
+        transform: `scale(${0.94 + enter * 0.06})`,
       }}
     >
       <div
         style={{
-          background: 'rgba(52,211,153,0.10)',
-          border: `2.5px solid ${STRONG}`,
-          borderRadius: 999,
-          padding: '30px 100px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 50,
-          boxShadow: `0 0 60px ${STRONG}44`,
+          backgroundColor: 'rgba(4,11,9,0.95)',
+          border: `3px solid ${GREEN}`,
+          borderRadius: 26,
+          padding: '44px 90px',
+          textAlign: 'center',
+          boxShadow: `0 0 140px rgba(52,211,153,${0.25 + flash * 0.35})`,
         }}
       >
-        <span
+        <div style={{fontFamily: MONO, fontSize: 42, letterSpacing: 14, color: GREEN}}>0 STOCKOUTS · 98.7% FILL RATE</div>
+        <div
           style={{
-            width: 66,
-            height: 66,
-            borderRadius: '50%',
-            background: STRONG,
-            color: '#060B12',
-            fontSize: 42,
+            fontFamily: FONT,
             fontWeight: 800,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            fontSize: 100,
+            marginTop: 8,
+            background: 'linear-gradient(90deg,#34D399,#2DD4BF,#67E8F9)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            letterSpacing: 4,
           }}
         >
-          {'\u2713'}
-        </span>
-        <span style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 50, letterSpacing: 2}}>
-          AUDIT COMPLETE &middot; 6 FINDINGS REMEDIATED &middot; SCORE 92/100
-        </span>
+          NEVER OUT OF STOCK
+        </div>
+        <div style={{fontFamily: MONO, fontSize: 36, color: MUTED, marginTop: 12}}>
+          REORDER AT 300 → PO-8841 → 6-DAY TRANSIT → SHELF RESTOCKED
+        </div>
       </div>
     </div>
   );
@@ -749,10 +609,10 @@ const GRAIN_COUNT = 900;
 const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
   const dots: React.ReactElement[] = [];
   for (let i = 0; i < GRAIN_COUNT; i++) {
-    const x = random(`pa-grain-x-${frame}-${i}`) * 3840;
-    const y = random(`pa-grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`pa-grain-o-${frame}-${i}`) * 0.04;
-    const s = 2 + random(`pa-grain-s-${frame}-${i}`) * 2.5;
+    const x = random(`ir-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`ir-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`ir-grain-o-${frame}-${i}`) * 0.04;
+    const s = 2 + random(`ir-grain-s-${frame}-${i}`) * 2.5;
     dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
   }
   return (
@@ -765,19 +625,20 @@ const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const PasswordHealthAudit: React.FC = () => {
+export const InventoryReplenishmentCycle: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
 
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
       <Background frame={frame} />
-      <TitleBar frame={frame} />
-      <AccountRows frame={frame} fps={fps} />
-      <AuditSummary frame={frame} fps={fps} />
-      <Remediation frame={frame} fps={fps} />
-      <HealthScore frame={frame} fps={fps} />
-      <ResolveBanner frame={frame} fps={fps} />
+      <TitleBar frame={frame} fps={fps} />
+      <StockGauge frame={frame} fps={fps} />
+      <SalesTicker frame={frame} fps={fps} />
+      <TransitMap frame={frame} fps={fps} />
+      <ShelfGrid frame={frame} fps={fps} />
+      <MetricsPanel frame={frame} fps={fps} />
+      <PayoffBanner frame={frame} fps={fps} />
       <FilmGrain frame={frame} />
     </AbsoluteFill>
   );
