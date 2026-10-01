@@ -1,727 +1,1067 @@
-import React from "react";
+/**
+ * AgileSprintCycle.tsx
+ * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
+ * A brand-neutral AGILE SPRINT visual for trainers, coaches and product-leadership
+ * decks: backlog cards flow into a 2-week sprint ring, daily-standup tick marks
+ * light the 14-day arc, a burndown line slopes to zero, review/retro checkpoints
+ * land, and the ring closes with a velocity payoff that loops to the next sprint.
+ * Deterministic seeded randomness only. Teal/blue palette, no tool UI, no brands.
+ *
+ * Register in Root.tsx:
+ *   <Composition id="AgileSprintCycle" component={AgileSprintCycle}
+ *     width={3840} height={2160} fps={60} durationInFrames={900} />
+ */
+
+import React from 'react';
 import {
+  AbsoluteFill,
+  interpolate,
+  random,
+  spring,
   useCurrentFrame,
   useVideoConfig,
-  interpolate,
-  spring,
-  Easing,
-} from "remotion";
+} from 'remotion';
 
-/* =====================================================================
-   HalloweenKineticType — premium 9:16 kinetic typography Halloween ad
-   1080x1920 / 60fps / 720 frames (12s)
-   Follows AGENT_REMOTION_GUIDE.md: named export only, frame-driven,
-   seeded randomness, no CSS animations.
-   ===================================================================== */
+// ---------------------------------------------------------------------------
+// Palette (deep navy console, teal/blue accents)
+// ---------------------------------------------------------------------------
+const BG = '#050B16';
+const INK = '#EAF2FB';
+const MUTED = 'rgba(234,242,251,0.60)';
+const TEAL = '#2DD4BF';
+const CYAN = '#67E8F9';
+const BLUE = '#60A5FA';
+const INDIGO = '#818CF8';
+const GREEN = '#34D399';
+const AMBER = '#FBBF24';
+const PANEL = 'rgba(9,15,29,0.88)';
+const HAIRLINE = 'rgba(234,242,251,0.14)';
+const SLATE = 'rgba(148,178,205,0.42)';
 
-export interface KineticTypeConfig {
-  dateLine: string;
-  mainWord: string;
-  subWord: string;
-  dateMark: string;
-  cta: string;
-  bg: string;
-  ink: string;
-  accent: string;
-  fontFamily: string;
+const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
+const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
+
+// ---------------------------------------------------------------------------
+// Timeline (frames at 60 fps) -> 900 frames = 15 s
+// ---------------------------------------------------------------------------
+const BACKLOG_ENTER = 40;   // backlog cards slide in
+const ENTER_STEP = 20;
+const FLOW_START = 210;     // cards fly from backlog into the ring
+const FLOW_STEP = 30;
+const FLOW_DUR = 80;
+const RING_START = 240;     // sprint ring arc begins
+const TICK_START = 250;     // day ticks begin
+const TICK_STEP = 24;
+const BURN_START = 260;     // burndown draws
+const BURN_END = 700;
+const RING_CLOSE = 800;     // ring arc completes -> loop
+const REVIEW_AT = 700;
+const RETRO_AT = 745;
+const PAYOFF_START = 800;
+
+const clamp01 = {extrapolateLeft: 'clamp' as const, extrapolateRight: 'clamp' as const};
+
+// ---------------------------------------------------------------------------
+// Data: 8 backlog stories -> 36 story points total
+// ---------------------------------------------------------------------------
+interface Story {
+  id: string;
+  title: string;
+  pts: number;
 }
+const STORIES: Story[] = [
+  {id: 'STY-118', title: 'Rate-limit hardening for public API', pts: 8},
+  {id: 'STY-121', title: 'Checkout retry flow on 3-D Secure', pts: 5},
+  {id: 'STY-124', title: 'CSV export for dashboard reports', pts: 3},
+  {id: 'STY-127', title: 'Auth session silent refresh', pts: 5},
+  {id: 'STY-129', title: 'Search index nightly backfill', pts: 8},
+  {id: 'STY-133', title: 'Billing proration edge cases', pts: 3},
+  {id: 'STY-136', title: 'Audit log 90-day retention', pts: 2},
+  {id: 'STY-139', title: 'Weekly digest notification batch', pts: 2},
+];
+const TOTAL_PTS = STORIES.reduce((a, s) => a + s.pts, 0); // 36
+const N_DAYS = 14;
 
-export interface KineticTimings {
-  dateOut: number;
-  mainStart: number;
-  slam: number;
-  sweepStart: number;
-  sweepEnd: number;
-  cut: number;
-  ctaStart: number;
-  fadeStart: number;
-  total: number;
-}
+// ---------------------------------------------------------------------------
+// Ring geometry
+// ---------------------------------------------------------------------------
+const CX = 1920;
+const CY = 1180;
+const R = 680;
+const slotAngle = (k: number) => ((-67.5 + k * 45) * Math.PI) / 180;
+const slotX = (k: number) => CX + R * Math.cos(slotAngle(k));
+const slotY = (k: number) => CY + R * Math.sin(slotAngle(k));
 
-const DEFAULT_CONFIG: KineticTypeConfig = {
-  dateLine: "31 OCTOBER",
-  mainWord: "HALLOWEEN",
-  subWord: "IS COMING",
-  dateMark: "31.10",
-  cta: "MAKE IT A NIGHT TO REMEMBER",
-  bg: "#0B0A09",
-  ink: "#F4EDE3",
-  accent: "#C75B1A",
-  fontFamily: "'Oswald', 'Arial Narrow', 'Helvetica Neue', sans-serif",
-};
+// Backlog slot origins (left panel)
+const CARD_W = 640;
+const CARD_H = 136;
+const CARD_X = 220;
+const cardY = (i: number) => 730 + i * 162;
 
-const DEFAULT_TIMINGS: KineticTimings = {
-  dateOut: 160,
-  mainStart: 120,
-  slam: 270,
-  sweepStart: 390,
-  sweepEnd: 510,
-  cut: 510,
-  ctaStart: 600,
-  fadeStart: 700,
-  total: 720,
-};
+// Burndown geometry (right panel)
+const BURNDOWN = {x0: 2800, x1: 3560, yTop: 480, yBot: 900};
+const DAY_POINTS = [36, 33.5, 31, 28, 25.5, 23, 19, 16, 14, 11.5, 9, 6.5, 4, 1.5, 0];
+const dayX = (d: number) => BURNDOWN.x0 + (d / N_DAYS) * (BURNDOWN.x1 - BURNDOWN.x0);
+const ptsY = (p: number) => BURNDOWN.yBot - (p / TOTAL_PTS) * (BURNDOWN.yBot - BURNDOWN.yTop);
 
-/* ---------------- deterministic PRNG (no Math.random) ---------------- */
-const mulberry32 = (seed: number) => {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-};
+// ---------------------------------------------------------------------------
+// SVG defs
+// ---------------------------------------------------------------------------
+const Defs: React.FC = () => (
+  <defs>
+    <radialGradient id="agGlow" cx="42%" cy="30%" r="80%">
+      <stop offset="0%" stopColor="rgba(45,212,191,0.13)" />
+      <stop offset="45%" stopColor="rgba(96,165,250,0.05)" />
+      <stop offset="100%" stopColor="rgba(5,11,22,0)" />
+    </radialGradient>
+    <radialGradient id="agVignette" cx="50%" cy="50%" r="76%">
+      <stop offset="58%" stopColor="rgba(3,6,13,0)" />
+      <stop offset="100%" stopColor="rgba(1,3,8,0.78)" />
+    </radialGradient>
+    <linearGradient id="agScan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="rgba(45,212,191,0)" />
+      <stop offset="50%" stopColor="rgba(45,212,191,0.14)" />
+      <stop offset="100%" stopColor="rgba(45,212,191,0)" />
+    </linearGradient>
+    <linearGradient id="agRing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stopColor={TEAL} />
+      <stop offset="55%" stopColor={CYAN} />
+      <stop offset="100%" stopColor={BLUE} />
+    </linearGradient>
+    <linearGradient id="agBar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor={CYAN} />
+      <stop offset="100%" stopColor={TEAL} />
+    </linearGradient>
+    <linearGradient id="agArea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor={TEAL} stopOpacity={0.30} />
+      <stop offset="100%" stopColor={TEAL} stopOpacity={0.02} />
+    </linearGradient>
+    <linearGradient id="agPayoff" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={TEAL} />
+      <stop offset="50%" stopColor={CYAN} />
+      <stop offset="100%" stopColor={BLUE} />
+    </linearGradient>
+    <filter id="agBlur60" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="60" />
+    </filter>
+    <filter id="agBlur14" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="14" />
+    </filter>
+  </defs>
+);
 
-const clampBoth = {
-  extrapolateLeft: "clamp",
-  extrapolateRight: "clamp",
-} as const;
-
-/* ---------------- embedded condensed typeface ---------------- */
-const FONT_B64 = "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";
-const FONT_FACE = `@font-face{font-family:'Oswald';font-style:normal;font-weight:300 700;src:url(data:font/woff2;base64,${FONT_B64}) format('woff2');}`;
-
-/* Warm film-grain texture, revealed inside the letters by the sweep */
-const GRAIN_SVG =
-  "data:image/svg+xml," +
-  encodeURIComponent(
-    `<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'>` +
-      `<filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/>` +
-      `<feColorMatrix type='matrix' values='0 0 0 0 1  0 0 0 0 0.82  0 0 0 0 0.66  0 0 0 0.6 0'/>` +
-      `</filter><rect width='240' height='240' filter='url(#n)'/></svg>`
-  );
-
-/* =====================================================================
-   FilmGrain — full-frame animated grain, re-seeded every frame.
-   Keeps the picture alive and carries the bitrate on dark frames.
-   ===================================================================== */
-const FilmGrain: React.FC<{
-  seed?: number;
-  cell?: number;
-  opacity?: number;
-}> = ({ seed = 11, cell = 14, opacity = 0.075 }) => {
-  const frame = useCurrentFrame();
-  const { width, height } = useVideoConfig();
-  const cols = Math.ceil(width / cell);
-  const rows = Math.ceil(height / cell);
-  const rand = mulberry32(seed * 100003 + frame * 7919);
-  const rects: React.ReactNode[] = [];
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      const v = Math.floor(rand() * 255);
-      rects.push(
-        <rect
-          key={`${x}-${y}`}
-          x={x * cell}
-          y={y * cell}
-          width={cell}
-          height={cell}
-          fill={`rgb(${v},${v},${v})`}
-          opacity={0.15 + rand() * 0.85}
-        />
+// ---------------------------------------------------------------------------
+// Background: layered, drifting, never flat
+// ---------------------------------------------------------------------------
+const Background: React.FC<{frame: number}> = ({frame}) => {
+  const drift1 = Math.sin((frame / 900) * Math.PI * 2) * 80;
+  const drift2 = Math.cos((frame / 900) * Math.PI * 2) * 64;
+  const scanY = (frame / 900) * 2460 - 300;
+  const orbs: React.ReactElement[] = [];
+  for (let i = 0; i < 6; i++) {
+    const ox = random(`ag-orb-x-${i}`) * 3840;
+    const oy = random(`ag-orb-y-${i}`) * 2160;
+    const r = 240 + random(`ag-orb-r-${i}`) * 300;
+    const hue =
+      i % 3 === 0
+        ? 'rgba(45,212,191,0.09)'
+        : i % 3 === 1
+        ? 'rgba(96,165,250,0.08)'
+        : 'rgba(103,232,249,0.06)';
+    const mx = Math.sin((frame / 900) * Math.PI * 2 + i * 1.9) * 110;
+    const my = Math.cos((frame / 900) * Math.PI * 2 + i * 2.1) * 84;
+    orbs.push(<circle key={i} cx={ox + mx} cy={oy + my} r={r} fill={hue} filter="url(#agBlur60)" />);
+  }
+  const dots: React.ReactElement[] = [];
+  for (let gx = 60; gx < 3840; gx += 160) {
+    for (let gy = 60; gy < 2160; gy += 160) {
+      const jx = (random(`ag-dot-x-${gx}-${gy}`) - 0.5) * 24;
+      const jy = (random(`ag-dot-y-${gx}-${gy}`) - 0.5) * 24;
+      // per-frame shimmer: every dot breathes at its own phase so no region is static
+      const shimmer = 0.028 + 0.028 * (0.5 + 0.5 * Math.sin(frame * 0.11 + gx * 0.013 + gy * 0.017));
+      const rr = 2.0 + 1.1 * (0.5 + 0.5 * Math.sin(frame * 0.09 + gx * 0.021 - gy * 0.011));
+      dots.push(
+        <circle key={`${gx}-${gy}`} cx={gx + jx} cy={gy + jy} r={rr} fill="rgba(234,242,251,0.9)" opacity={shimmer} />
       );
     }
   }
+  const hairlines: React.ReactElement[] = [];
+  for (let gx = 0; gx <= 3840; gx += 480) {
+    hairlines.push(<line key={`v${gx}`} x1={gx} y1={0} x2={gx} y2={2160} stroke="rgba(234,242,251,0.035)" strokeWidth={1} />);
+  }
+  for (let gy = 0; gy <= 2160; gy += 480) {
+    hairlines.push(<line key={`h${gy}`} x1={0} y1={gy} x2={3840} y2={gy} stroke="rgba(234,242,251,0.035)" strokeWidth={1} />);
+  }
+  // traveling pulse along the grid: a bright node that walks the frame perimeter every loop
+  const pulseT = (frame / 900);
+  const per = 2 * (3840 + 2160);
+  const pd = pulseT * per;
+  let ppx = 0;
+  let ppy = 0;
+  if (pd < 3840) {
+    ppx = pd; ppy = 0;
+  } else if (pd < 3840 + 2160) {
+    ppx = 3840; ppy = pd - 3840;
+  } else if (pd < 2 * 3840 + 2160) {
+    ppx = 3840 - (pd - 3840 - 2160); ppy = 2160;
+  } else {
+    ppx = 0; ppy = 2160 - (pd - 2 * 3840 - 2160);
+  }
+  // second sweep: vertical light column drifting horizontally across the frame
+  const colX = ((frame / 900) * 1.6 - 0.3) * 3840;
   return (
-    <svg
-      width={width}
-      height={height}
-      style={{
-        position: "absolute",
-        inset: 0,
-        opacity,
-        mixBlendMode: "overlay",
-        pointerEvents: "none",
-      }}
-    >
-      {rects}
-    </svg>
-  );
-};
-
-/* =====================================================================
-   TextReveal — small editorial fade/rise reveal (date line, etc.)
-   ===================================================================== */
-const TextReveal: React.FC<{
-  text: string;
-  start: number;
-  duration?: number;
-  fontSize: number;
-  letterSpacing?: string;
-  fontWeight?: number;
-  color: string;
-  fontFamily: string;
-}> = ({
-  text,
-  start,
-  duration = 40,
-  fontSize,
-  letterSpacing = "0.4em",
-  fontWeight = 300,
-  color,
-  fontFamily,
-}) => {
-  const frame = useCurrentFrame();
-  const p = interpolate(frame, [start, start + duration], [0, 1], {
-    ...clampBoth,
-    easing: Easing.bezier(0.22, 1, 0.36, 1),
-  });
-  const y = interpolate(p, [0, 1], [22, 0]);
-  return (
-    <div
-      style={{
-        opacity: p,
-        transform: `translateY(${y}px)`,
-        fontFamily,
-        fontSize,
-        fontWeight,
-        letterSpacing,
-        textIndent: letterSpacing,
-        color,
-        textAlign: "center",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {text}
+    <div style={{position: 'absolute', inset: 0, backgroundColor: BG}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <rect width={3840} height={2160} fill="url(#agGlow)" transform={`translate(${drift1},${drift2})`} />
+        {orbs}
+        <g transform={`translate(${drift1 * 0.4},${drift2 * 0.4})`}>{dots}</g>
+        {hairlines}
+        <rect x={0} y={scanY} width={3840} height={360} fill="url(#agScan)" />
+        <rect x={colX - 130} y={0} width={260} height={2160} fill="url(#agScan)" opacity={0.55} transform={`rotate(8 ${colX} 1080)`} />
+        <circle cx={ppx} cy={ppy} r={26} fill="rgba(45,212,191,0.5)" filter="url(#agBlur14)" />
+        <circle cx={ppx} cy={ppy} r={7} fill="rgba(103,232,249,0.85)" />
+        <rect width={3840} height={2160} fill="url(#agVignette)" />
+      </svg>
     </div>
   );
 };
 
-/* =====================================================================
-   GlitchText — aggressive horizontal letter entrance with restrained
-   digital displacement slices during travel. plain=true renders the
-   settled word without motion artifacts (for the light-sweep layer).
-   ===================================================================== */
-const GlitchText: React.FC<{
-  text: string;
-  start: number;
-  stagger?: number;
-  fontSize: number;
-  color: string;
-  accent: string;
-  fontFamily: string;
-  seed?: number;
-  plain?: boolean;
-  grainUrl?: string;
-}> = ({
-  text,
-  start,
-  stagger = 4,
-  fontSize,
-  color,
-  accent,
-  fontFamily,
-  seed = 7,
-  plain = false,
-  grainUrl,
-}) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const letters = text.split("");
-  const textured = Boolean(grainUrl);
-
+// ---------------------------------------------------------------------------
+// Title bar
+// ---------------------------------------------------------------------------
+const TitleBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const rise = spring({frame, fps, config: {damping: 200, stiffness: 90, mass: 1}});
+  const y = interpolate(rise, [0, 1], [60, 0]);
+  const opacity = interpolate(rise, [0, 1], [0, 1]);
+  const pulse = 0.72 + 0.28 * Math.sin((frame / 60) * Math.PI * 2);
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        fontFamily,
-        fontSize,
-        fontWeight: 700,
-        lineHeight: 1,
-      }}
-    >
-      {letters.map((ch, i) => {
-        const t0 = start + i * stagger;
-        const local = frame - t0;
-        const s = spring({
-          frame: local,
+    <div style={{position: 'absolute', top: 118, left: 220, right: 220, opacity, transform: `translateY(${y}px)`}}>
+      <div style={{fontFamily: MONO, fontSize: 44, letterSpacing: 14, color: TEAL}}>
+        AGILE OPS &nbsp;·&nbsp; SPRINT ENGINE
+      </div>
+      <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 150, color: INK, marginTop: 16, letterSpacing: -2}}>
+        Sprint Cycle
+      </div>
+      <div style={{display: 'flex', alignItems: 'center', marginTop: 24, gap: 28}}>
+        <div style={{width: 22, height: 22, borderRadius: 11, backgroundColor: TEAL, opacity: pulse, boxShadow: `0 0 30px ${TEAL}`}} />
+        <div style={{fontFamily: MONO, fontSize: 40, color: MUTED}}>
+          BACKLOG &nbsp;→&nbsp; 2-WEEK SPRINT &nbsp;·&nbsp; 14 DAYS &nbsp;·&nbsp; {TOTAL_PTS} PTS
+        </div>
+        <div style={{marginLeft: 'auto', display: 'flex', gap: 22}}>
+          {['SPRINT 14', '14 DAYS', `${TOTAL_PTS} PTS`].map((c) => (
+            <div
+              key={c}
+              style={{
+                fontFamily: MONO,
+                fontSize: 38,
+                fontWeight: 700,
+                color: CYAN,
+                border: `2px solid ${CYAN}`,
+                borderRadius: 12,
+                padding: '10px 28px',
+              }}
+            >
+              {c}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Backlog cards that fly into the ring
+// ---------------------------------------------------------------------------
+const BacklogCards: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const flowed = STORIES.filter((_, i) => frame >= FLOW_START + i * FLOW_STEP).length;
+  const remain = STORIES.length - flowed;
+  const headerS = spring({frame: frame - 10, fps, config: {damping: 200, stiffness: 90}});
+  return (
+    <div style={{position: 'absolute', inset: 0}}>
+      <div
+        style={{
+          position: 'absolute',
+          left: 220,
+          top: 610,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 26,
+          opacity: Math.min(1, headerS),
+        }}
+      >
+        <div style={{fontFamily: MONO, fontSize: 40, letterSpacing: 10, color: TEAL}}>PRODUCT BACKLOG</div>
+        <div
+          style={{
+            fontFamily: MONO,
+            fontSize: 36,
+            color: INK,
+            backgroundColor: 'rgba(45,212,191,0.12)',
+            border: `1px solid ${TEAL}`,
+            borderRadius: 10,
+            padding: '8px 22px',
+          }}
+        >
+          {remain} OPEN
+        </div>
+      </div>
+      {STORIES.map((s, i) => {
+        const enter = spring({frame: frame - (BACKLOG_ENTER + i * ENTER_STEP), fps, config: {damping: 200, stiffness: 110}});
+        if (enter <= 0.001) return null;
+        const flyStart = FLOW_START + i * FLOW_STEP;
+        const flyP = interpolate(frame, [flyStart, flyStart + FLOW_DUR], [0, 1], clamp01);
+        const ease = flyP * flyP * (3 - 2 * flyP);
+        const tx = slotX(i) - (CARD_W * 0.7) / 2;
+        const ty = slotY(i) - (CARD_H * 0.7) / 2;
+        const x = CARD_X + (tx - CARD_X) * ease;
+        const y = cardY(i) + (ty - cardY(i)) * ease - Math.sin(ease * Math.PI) * 170;
+        const scale = 1 - ease * 0.3;
+        const ex = interpolate(enter, [0, 1], [-80, 0]);
+        const eo = interpolate(enter, [0, 1], [0, 1]);
+        const doneDay = 2 + i * 1.6;
+        const ringProgress = interpolate(frame, [RING_START, RING_CLOSE], [0, 1], clamp01);
+        const done = ringProgress * N_DAYS >= doneDay && flyP >= 1;
+        const doneSpring = spring({
+          frame: frame - (flyStart + FLOW_DUR + (doneDay / N_DAYS) * (RING_CLOSE - RING_START - FLOW_DUR)),
           fps,
-          config: { damping: 17, stiffness: 130, mass: 1 },
+          config: {damping: 200, stiffness: 120},
         });
-        const x = interpolate(s, [0, 1], [-1150, 0]);
-        const opacity = interpolate(local, [0, 8], [0, 1], clampBoth);
-
-        const gActive = !plain && local > 2 && local < 18;
-        const gStep = Math.floor(Math.max(local, 0) / 2);
-        const gr = mulberry32(seed * 1000 + i * 131 + gStep * 17);
-        const gx = gActive ? (gr() - 0.5) * 30 : 0;
-        const gy = gActive ? (gr() - 0.5) * 12 : 0;
-
-        const ghosts =
-          !plain && local > 0 && local < 26
-            ? [3, 7].map((back, gi) => {
-                const ls = spring({
-                  frame: local - back,
-                  fps,
-                  config: { damping: 17, stiffness: 130, mass: 1 },
-                });
-                const gx2 = interpolate(ls, [0, 1], [-1150, 0]);
-                return (
-                  <span
-                    key={gi}
-                    style={{
-                      position: "absolute",
-                      left: 0,
-                      top: 0,
-                      transform: `translateX(${gx2 - x}px)`,
-                      opacity: gi === 0 ? 0.14 : 0.07,
-                      color,
-                    }}
-                  >
-                    {ch}
-                  </span>
-                );
-              })
-            : null;
-
-        const slices = gActive
-          ? [0, 1].map((si) => {
-              const top = gr() * 68;
-              const h = 8 + gr() * 18;
-              return (
-                <span
-                  key={`s${si}`}
+        return (
+          <React.Fragment key={s.id}>
+            {flyP >= 1 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: CARD_X,
+                  top: cardY(i),
+                  width: CARD_W,
+                  height: CARD_H,
+                  border: `2px dashed ${SLATE}`,
+                  borderRadius: 18,
+                  opacity: 0.35,
+                }}
+              />
+            )}
+            <div
+              style={{
+                position: 'absolute',
+                left: x,
+                top: y,
+                width: CARD_W,
+                height: CARD_H,
+                opacity: eo,
+                transform: `translateX(${ex}px) scale(${scale})`,
+                transformOrigin: 'left center',
+                backgroundColor: PANEL,
+                border: `1px solid ${HAIRLINE}`,
+                borderLeft: `10px solid ${done ? GREEN : flyP >= 1 ? TEAL : 'rgba(234,242,251,0.25)'}`,
+                borderRadius: 18,
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0 36px',
+                gap: 30,
+                boxShadow: flyP >= 1 ? `0 0 34px rgba(45,212,191,0.22)` : 'none',
+              }}
+            >
+              <div style={{fontFamily: MONO, fontSize: 34, color: MUTED, width: 170}}>{s.id}</div>
+              <div style={{flex: 1, fontFamily: FONT, fontWeight: 650, fontSize: 40, color: INK}}>{s.title}</div>
+              <div
+                style={{
+                  fontFamily: MONO,
+                  fontWeight: 700,
+                  fontSize: 38,
+                  color: '#04121A',
+                  backgroundColor: done ? GREEN : TEAL,
+                  borderRadius: 10,
+                  padding: '10px 24px',
+                  boxShadow: done ? `0 0 26px ${GREEN}` : `0 0 20px rgba(45,212,191,0.5)`,
+                }}
+              >
+                {s.pts} PTS
+              </div>
+              {done && doneSpring > 0.02 && (
+                <div
                   style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    transform: `translate(${(gr() - 0.5) * 38}px, 0)`,
-                    clipPath: `inset(${top}% 0 ${100 - top - h}% 0)`,
-                    opacity: 0.55,
-                    color: si === 0 ? accent : color,
+                    position: 'absolute',
+                    right: -24,
+                    top: -24,
+                    width: 84,
+                    height: 84,
+                    borderRadius: 42,
+                    backgroundColor: GREEN,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontFamily: FONT,
+                    fontWeight: 800,
+                    fontSize: 46,
+                    color: '#06281C',
+                    boxShadow: `0 0 40px ${GREEN}`,
+                    transform: `scale(${Math.min(1, doneSpring)})`,
                   }}
                 >
-                  {ch}
-                </span>
-              );
-            })
-          : null;
-
-        const charStyle: React.CSSProperties = textured
-          ? {
-              backgroundImage: `url("${grainUrl}")`,
-              backgroundSize: "240px 240px",
-              backgroundPosition: `${(frame * 1.5) % 240}px ${(frame * 0.8) % 240}px`,
-              WebkitBackgroundClip: "text",
-              backgroundClip: "text",
-              color: "transparent",
-            }
-          : { color };
-
-        return (
-          <span
-            key={i}
-            style={{
-              position: "relative",
-              display: "inline-block",
-              transform: `translate(${x + gx}px, ${gy}px)`,
-              opacity,
-            }}
-          >
-            {ghosts}
-            <span style={charStyle}>{ch}</span>
-            {slices}
-          </span>
+                  ✓
+                </div>
+              )}
+            </div>
+          </React.Fragment>
         );
       })}
     </div>
   );
 };
 
-/* =====================================================================
-   SlamText — "IS COMING" slams in: scale 128% -> 100% with spring
-   overshoot, motion-blur ghosts, 2-3 frame vibration after landing.
-   ===================================================================== */
-const SlamText: React.FC<{
-  text: string;
-  slam: number;
-  fontSize: number;
-  color: string;
-  fontFamily: string;
-  seed?: number;
-  plain?: boolean;
-  grainUrl?: string;
-}> = ({
-  text,
-  slam,
-  fontSize,
-  color,
-  fontFamily,
-  seed = 3,
-  plain = false,
-  grainUrl,
-}) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const local = frame - slam;
-  const s = spring({
-    frame: local,
-    fps,
-    config: { damping: 13, stiffness: 170, mass: 1 },
-  });
-  const scale = interpolate(s, [0, 1], [1.28, 1]);
-  const y = interpolate(s, [0, 1], [-46, 0]);
-  const opacity = interpolate(local, [0, 6], [0, 1], clampBoth);
-
-  const vib = !plain && local >= 22 && local <= 24;
-  const vr = mulberry32(seed * 77 + Math.max(local, 0) * 13);
-  const vx = vib ? (vr() - 0.5) * 14 : 0;
-  const vy = vib ? (vr() - 0.5) * 10 : 0;
-
-  const ghosts =
-    !plain && local > 0 && local < 14
-      ? [0.16, 0.08].map((op, gi) => (
-          <span
-            key={gi}
-            style={{
-              position: "absolute",
-              inset: 0,
-              transform: `scale(${scale + (gi + 1) * 0.045})`,
-              opacity: op,
-              color,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {text}
-          </span>
-        ))
-      : null;
-
-  const textStyle: React.CSSProperties = grainUrl
-    ? {
-        backgroundImage: `url("${grainUrl}")`,
-        backgroundSize: "240px 240px",
-        backgroundPosition: `${(frame * 1.5) % 240}px ${(frame * 0.8) % 240}px`,
-        WebkitBackgroundClip: "text",
-        backgroundClip: "text",
-        color: "transparent",
-      }
-    : { color };
-
-  return (
-    <div
-      style={{
-        position: "relative",
-        fontFamily,
-        fontSize,
-        fontWeight: 700,
-        letterSpacing: "0.08em",
-        textIndent: "0.08em",
-        textAlign: "center",
-        lineHeight: 1,
-        whiteSpace: "nowrap",
-        opacity,
-        transform: `translate(${vx}px, ${y + vy}px) scale(${scale})`,
-      }}
-    >
-      {ghosts}
-      <span style={textStyle}>{text}</span>
-    </div>
-  );
-};
-
-/* =====================================================================
-   LightSweep — narrow warm band travelling horizontally across frame.
-   ===================================================================== */
-const LightSweep: React.FC<{
-  progress: number;
-  accent: string;
-  width: number;
-}> = ({ progress, accent, width }) => {
-  const x = progress * (width + 400) - 200;
-  return (
-    <div
-      style={{
-        position: "absolute",
-        top: "-5%",
-        bottom: "-5%",
-        left: x - 90,
-        width: 180,
-        pointerEvents: "none",
-        background: `linear-gradient(90deg, transparent 0%, ${accent}59 32%, ${accent}B3 50%, ${accent}59 68%, transparent 100%)`,
-        mixBlendMode: "screen",
-        filter: "blur(7px)",
-      }}
-    />
-  );
-};
-
-/* =====================================================================
-   EndCard — final CTA with brand-style spacing + fade to black handled
-   by the parent.
-   ===================================================================== */
-const EndCard: React.FC<{
-  cta: string;
-  start: number;
-  fontFamily: string;
-  ink: string;
-}> = ({ cta, start, fontFamily, ink }) => {
-  const frame = useCurrentFrame();
-  const p = interpolate(frame, [start, start + 45], [0, 1], {
-    ...clampBoth,
-    easing: Easing.bezier(0.22, 1, 0.36, 1),
-  });
-  const y = interpolate(p, [0, 1], [26, 0]);
-  return (
-    <div
-      style={{
-        opacity: p,
-        transform: `translateY(${y}px)`,
-        fontFamily,
-        fontWeight: 300,
-        fontSize: 30,
-        letterSpacing: "0.32em",
-        textIndent: "0.32em",
-        color: ink,
-        textAlign: "center",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {cta}
-    </div>
-  );
-};
-
-/* The two-line hero stack, rendered in base or light-swept tone */
-const TypeStack: React.FC<{
-  cfg: KineticTypeConfig;
-  T: KineticTimings;
-  lit: boolean;
-}> = ({ cfg, T, lit }) => (
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      gap: 26,
-    }}
-  >
-    <GlitchText
-      text={cfg.mainWord}
-      start={T.mainStart}
-      fontSize={200}
-      color={cfg.ink}
-      accent={cfg.accent}
-      fontFamily={cfg.fontFamily}
-      plain={lit}
-      grainUrl={lit ? GRAIN_SVG : undefined}
-    />
-    <SlamText
-      text={cfg.subWord}
-      slam={T.slam}
-      fontSize={104}
-      color={cfg.ink}
-      fontFamily={cfg.fontFamily}
-      plain={lit}
-      grainUrl={lit ? GRAIN_SVG : undefined}
-    />
-  </div>
-);
-
-/* =====================================================================
-   HalloweenKineticType — the composition.
-   0.0-2.0s  date line breathing on near-black
-   2.0-4.5s  HALLOWEEN aggressive horizontal entrance + glitch
-   4.5-6.5s  IS COMING slam, overshoot, vibration
-   6.5-8.5s  orange light sweep reveals grain inside letters
-   8.5-10s   hard cut to "31.10"
-   10-12s    CTA end card, fade to black
-   ===================================================================== */
-export const HalloweenKineticType: React.FC<
-  Partial<KineticTypeConfig> & { timings?: Partial<KineticTimings> }
-> = (props) => {
-  const { timings, ...rest } = props;
-  const cfg: KineticTypeConfig = { ...DEFAULT_CONFIG, ...rest };
-  const T: KineticTimings = { ...DEFAULT_TIMINGS, ...(timings ?? {}) };
-  const frame = useCurrentFrame();
-  const { width, height } = useVideoConfig();
-
-  /* 0-2s: date line fade in, subtle breathing, drifts out as HALLOWEEN enters */
-  const dateIn = interpolate(frame, [10, 55], [0, 1], {
-    ...clampBoth,
-    easing: Easing.bezier(0.22, 1, 0.36, 1),
-  });
-  const dateOut = interpolate(frame, [T.mainStart, T.dateOut], [1, 0], clampBoth);
-  const dateBreathe =
-    0.9 + 0.1 * Math.sin((frame / 60) * Math.PI * 0.9);
-  const dateY = interpolate(frame, [0, T.dateOut], [10, -8], clampBoth);
-
-  /* 6.5-8.5s: sweep progress */
-  const sweepP = interpolate(frame, [T.sweepStart, T.sweepEnd], [0, 1], {
-    ...clampBoth,
-    easing: Easing.bezier(0.4, 0, 0.2, 1),
-  });
-
-  /* 8.5-10s: date mark scale settle */
-  const markScale = interpolate(
-    frame,
-    [T.cut, T.cut + 40],
-    [1.04, 1],
-    { ...clampBoth, easing: Easing.bezier(0.22, 1, 0.36, 1) }
-  );
-  const markOut = interpolate(frame, [T.ctaStart, T.ctaStart + 25], [1, 0], clampBoth);
-
-  /* 10-12s: fade to black */
-  const fadeBlack = interpolate(frame, [T.fadeStart, T.total - 1], [0, 1], clampBoth);
-
-  const showMain = frame >= T.mainStart - 8 && frame < T.cut;
-  const showSweepFx = frame >= T.sweepStart - 4 && frame < T.sweepEnd + 24;
-  const showMark = frame >= T.cut && frame < T.ctaStart + 26;
-  const showCta = frame >= T.ctaStart;
-
-  return (
-    <div
-      style={{
-        width,
-        height,
-        background: cfg.bg,
-        position: "relative",
-        overflow: "hidden",
-        fontFamily: cfg.fontFamily,
-      }}
-    >
-      <style>{FONT_FACE}</style>
-
-      {/* 0.0-2.0s — date line */}
-      {frame < T.dateOut && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: dateIn * dateOut * dateBreathe,
-            transform: `translateY(${dateY}px)`,
-          }}
+// ---------------------------------------------------------------------------
+// Sprint ring: day ticks, progress arc, orbiting particles, center HUD
+// ---------------------------------------------------------------------------
+const SprintRing: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const progress = interpolate(frame, [RING_START, RING_CLOSE], [0, 1], clamp01);
+  const dayFloat = progress * N_DAYS;
+  const dayNum = Math.min(N_DAYS, Math.max(1, Math.floor(dayFloat) + 1));
+  const ptsLeft = Math.round(TOTAL_PTS * (1 - progress));
+  const enterS = spring({frame: frame - 190, fps, config: {damping: 200, stiffness: 80}});
+  const finalGlow = interpolate(frame, [RING_CLOSE - 40, RING_CLOSE + 60], [0, 0.55], clamp01);
+  const ticks: React.ReactElement[] = [];
+  for (let d = 0; d < N_DAYS; d++) {
+    const a = ((-90 + d * (360 / N_DAYS)) * Math.PI) / 180;
+    const lit = d < dayFloat;
+    const s = spring({frame: frame - (TICK_START + d * TICK_STEP), fps, config: {damping: 200, stiffness: 120}});
+    if (s <= 0.001) continue;
+    const x1 = CX + (R - 16) * Math.cos(a);
+    const y1 = CY + (R - 16) * Math.sin(a);
+    const x2 = CX + (R + 16) * Math.cos(a);
+    const y2 = CY + (R + 16) * Math.sin(a);
+    const lx = CX + (R + 58) * Math.cos(a);
+    const ly = CY + (R + 58) * Math.sin(a);
+    ticks.push(
+      <g key={d} opacity={Math.min(1, s)}>
+        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={lit ? TEAL : SLATE} strokeWidth={lit ? 7 : 4} strokeLinecap="round" />
+        <circle cx={x2} cy={y2} r={lit ? 8 : 5} fill={lit ? TEAL : SLATE} />
+        <text
+          x={lx}
+          y={ly + 9}
+          fill={lit ? TEAL : MUTED}
+          fontSize={30}
+          fontFamily={MONO}
+          fontWeight={700}
+          textAnchor="middle"
         >
-          <TextReveal
-            text={cfg.dateLine}
-            start={0}
-            duration={1}
-            fontSize={34}
-            letterSpacing="0.5em"
-            fontWeight={300}
-            color={cfg.ink}
-            fontFamily={cfg.fontFamily}
+          D{d + 1}
+        </text>
+      </g>
+    );
+  }
+  const particles: React.ReactElement[] = [];
+  for (let i = 0; i < 20; i++) {
+    const base = random(`ag-part-a-${i}`) * Math.PI * 2;
+    const rr = R + (random(`ag-part-r-${i}`) - 0.5) * 56;
+    const speed = (0.0022 + random(`ag-part-s-${i}`) * 0.004) * (i % 2 === 0 ? 1 : -1);
+    const a = base + frame * speed;
+    const px = CX + rr * Math.cos(a);
+    const py = CY + rr * Math.sin(a);
+    const op = 0.25 + 0.45 * (0.5 + 0.5 * Math.sin(frame * 0.12 + i * 2.2));
+    const sz = 5 + random(`ag-part-z-${i}`) * 7;
+    particles.push(<circle key={i} cx={px} cy={py} r={sz} fill={i % 3 === 0 ? CYAN : TEAL} opacity={op} />);
+  }
+  const rot = frame * 0.18;
+  return (
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enterS)}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <circle cx={CX} cy={CY} r={R + 36} fill="none" stroke="rgba(45,212,191,0.16)" strokeWidth={2} />
+        <circle cx={CX} cy={CY} r={R} fill="none" stroke={TEAL} strokeWidth={26} opacity={finalGlow} filter="url(#agBlur14)" />
+        <g transform={`rotate(${rot} ${CX} ${CY})`}>
+          <circle
+            cx={CX}
+            cy={CY}
+            r={R - 190}
+            fill="none"
+            stroke="rgba(103,232,249,0.28)"
+            strokeWidth={3}
+            strokeDasharray="10 26"
           />
-        </div>
-      )}
-
-      {/* 2.0-8.5s — hero typography */}
-      {showMain && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            paddingBottom: 60,
-          }}
-        >
-          <TypeStack cfg={cfg} T={T} lit={false} />
-        </div>
-      )}
-
-      {/* 6.5-8.5s — light-swept duplicate, clipped by sweep progress */}
-      {showMain && showSweepFx && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            paddingBottom: 60,
-            clipPath: `inset(0 ${(1 - sweepP) * 100}% 0 0)`,
-          }}
-        >
-          <TypeStack cfg={cfg} T={T} lit />
-        </div>
-      )}
-      {showMain && showSweepFx && (
-        <LightSweep progress={sweepP} accent={cfg.accent} width={width} />
-      )}
-
-      {/* 8.5-10s — hard cut to date mark */}
-      {showMark && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: markOut,
-            transform: `scale(${markScale})`,
-          }}
-        >
-          <div
-            style={{
-              fontFamily: cfg.fontFamily,
-              fontWeight: 300,
-              fontSize: 170,
-              letterSpacing: "0.12em",
-              textIndent: "0.12em",
-              color: cfg.ink,
-            }}
-          >
-            {cfg.dateMark}
-          </div>
-        </div>
-      )}
-
-      {/* 10-12s — end card */}
-      {showCta && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "0 70px",
-          }}
-        >
-          <EndCard
-            cta={cfg.cta}
-            start={T.ctaStart}
-            fontFamily={cfg.fontFamily}
-            ink={cfg.ink}
-          />
-        </div>
-      )}
-
-      {/* vignette */}
+        </g>
+        <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(234,242,251,0.14)" strokeWidth={10} />
+        <circle
+          cx={CX}
+          cy={CY}
+          r={R}
+          fill="none"
+          stroke="url(#agRing)"
+          strokeWidth={12}
+          strokeLinecap="round"
+          pathLength={1}
+          strokeDasharray={1}
+          strokeDashoffset={1 - progress}
+          transform={`rotate(-90 ${CX} ${CY})`}
+          style={{filter: 'drop-shadow(0 0 18px rgba(45,212,191,0.65))'}}
+        />
+        {ticks}
+        {particles}
+      </svg>
       <div
         style={{
-          position: "absolute",
-          inset: 0,
-          pointerEvents: "none",
-          background:
-            "radial-gradient(ellipse at center, transparent 52%, rgba(0,0,0,0.6) 100%)",
+          position: 'absolute',
+          left: CX - 330,
+          top: CY - 200,
+          width: 660,
+          textAlign: 'center',
         }}
-      />
-
-      {/* animated film grain */}
-      <FilmGrain seed={11} cell={14} opacity={0.075} />
-
-      {/* final fade to black */}
-      {frame >= T.fadeStart && (
+      >
+        <div style={{fontFamily: MONO, fontSize: 40, letterSpacing: 12, color: TEAL}}>DAY</div>
         <div
           style={{
-            position: "absolute",
-            inset: 0,
-            background: "#000",
-            opacity: fadeBlack,
-            pointerEvents: "none",
+            fontFamily: MONO,
+            fontWeight: 800,
+            fontSize: 170,
+            color: INK,
+            lineHeight: 1,
+            textShadow: '0 0 40px rgba(45,212,191,0.45)',
           }}
-        />
-      )}
+        >
+          {String(dayNum).padStart(2, '0')}
+          <span style={{fontSize: 70, color: MUTED}}> / {N_DAYS}</span>
+        </div>
+        <div style={{fontFamily: MONO, fontSize: 40, color: MUTED, marginTop: 18}}>
+          {ptsLeft} PTS LEFT
+        </div>
+        <div
+          style={{
+            width: 420,
+            height: 16,
+            backgroundColor: 'rgba(234,242,251,0.10)',
+            borderRadius: 8,
+            margin: '26px auto 0',
+            overflow: 'hidden',
+          }}
+        >
+          <div style={{width: `${progress * 100}%`, height: '100%', background: 'linear-gradient(90deg,#2DD4BF,#67E8F9)', borderRadius: 8}} />
+        </div>
+      </div>
+      <div
+        style={{
+          position: 'absolute',
+          left: CX - 300,
+          top: CY + 240,
+          width: 600,
+          textAlign: 'center',
+          fontFamily: MONO,
+          fontSize: 34,
+          letterSpacing: 6,
+          color: MUTED,
+        }}
+      >
+        {progress >= 1 ? 'RING CLOSED · LOOPING TO SPRINT 15 →' : 'DAILY STANDUP · 09:15'}
+      </div>
     </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Burndown panel (right column): ideal vs actual, cursor, counters, throughput
+// ---------------------------------------------------------------------------
+const BurndownPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 230, fps, config: {damping: 200, stiffness: 80}});
+  const draw = interpolate(frame, [BURN_START, BURN_END], [0, 1], clamp01);
+  const curDay = draw * N_DAYS;
+  const ptsLeft = Math.round(interpolate(frame, [BURN_START, BURN_END], [TOTAL_PTS, 0], clamp01));
+  const commits = Math.floor(interpolate(frame, [200, 860], [0, 214], clamp01));
+  const prs = Math.floor(interpolate(frame, [240, 860], [0, 46], clamp01));
+  const deploys = Math.floor(interpolate(frame, [320, 860], [0, 12], clamp01));
+
+  const idealPath = `M ${dayX(0).toFixed(1)} ${ptsY(TOTAL_PTS).toFixed(1)} L ${dayX(N_DAYS).toFixed(1)} ${ptsY(0).toFixed(1)}`;
+  const actualD = DAY_POINTS.map(
+    (p, d) => `${d === 0 ? 'M' : 'L'} ${dayX(d).toFixed(1)} ${ptsY(p).toFixed(1)}`
+  ).join(' ');
+  const actualArea = `${actualD} L ${dayX(N_DAYS).toFixed(1)} ${BURNDOWN.yBot} L ${dayX(0).toFixed(1)} ${BURNDOWN.yBot} Z`;
+
+  const curIdx = Math.min(N_DAYS - 1, Math.floor(curDay));
+  const frac = curDay - curIdx;
+  const curP = DAY_POINTS[curIdx] + (DAY_POINTS[curIdx + 1] - DAY_POINTS[curIdx]) * frac;
+  const cxp = dayX(curDay);
+  const cyp = ptsY(curP);
+
+  const bars: React.ReactElement[] = [];
+  const barX0 = 2800;
+  const barW = 46;
+  const barGap = 12;
+  for (let d = 0; d < N_DAYS; d++) {
+    const s = spring({frame: frame - (420 + d * 18), fps, config: {damping: 200, stiffness: 120}});
+    if (s <= 0.001) continue;
+    const hSeed = 40 + random(`ag-bar-h-${d}`) * 110;
+    const pulse = 1 + 0.06 * Math.sin(frame * 0.15 + d * 1.3);
+    const h = hSeed * Math.min(1, s) * pulse;
+    const bx = barX0 + d * (barW + barGap);
+    bars.push(
+      <g key={d} opacity={Math.min(1, s)}>
+        <rect x={bx} y={1370 - h} width={barW} height={h} rx={6} fill="url(#agBar)" opacity={0.85} />
+        <text x={bx + barW / 2} y={1406} fill={MUTED} fontSize={24} fontFamily={MONO} textAnchor="middle">
+          {d + 1}
+        </text>
+      </g>
+    );
+  }
+
+  return (
+    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
+      <div style={{position: 'absolute', left: 2740, top: 380}}>
+        <div style={{fontFamily: MONO, fontSize: 40, letterSpacing: 10, color: TEAL}}>BURNDOWN</div>
+        <div style={{fontFamily: MONO, fontSize: 34, color: MUTED, marginTop: 10}}>
+          REMAINING WORK · PTS
+        </div>
+      </div>
+      <div
+        style={{
+          position: 'absolute',
+          left: 3470,
+          top: 380,
+          fontFamily: MONO,
+          fontWeight: 800,
+          fontSize: 96,
+          color: INK,
+          textShadow: '0 0 30px rgba(45,212,191,0.4)',
+        }}
+      >
+        {ptsLeft}
+      </div>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <rect
+          x={2740}
+          y={440}
+          width={880}
+          height={520}
+          rx={20}
+          fill={PANEL}
+          stroke={HAIRLINE}
+          strokeWidth={1.5}
+        />
+        <rect
+          x={2746}
+          y={446}
+          width={868}
+          height={508}
+          rx={16}
+          fill="none"
+          stroke="rgba(45,212,191,0.35)"
+          strokeWidth={2}
+          strokeDasharray="26 34"
+          strokeDashoffset={-frame * 1.4}
+        />
+        {[0, 12, 24, 36].map((p) => (
+          <g key={p}>
+            <line x1={BURNDOWN.x0} y1={ptsY(p)} x2={BURNDOWN.x1} y2={ptsY(p)} stroke="rgba(234,242,251,0.07)" strokeWidth={1.5} />
+            <text x={BURNDOWN.x0 - 18} y={ptsY(p) + 11} fill={MUTED} fontSize={28} fontFamily={MONO} textAnchor="end">
+              {p}
+            </text>
+          </g>
+        ))}
+        {[0, 7, 14].map((d) => (
+          <text key={d} x={dayX(d)} y={BURNDOWN.yBot + 48} fill={MUTED} fontSize={28} fontFamily={MONO} textAnchor="middle">
+            D{d + 1}
+          </text>
+        ))}
+        <path d={idealPath} fill="none" stroke={SLATE} strokeWidth={3} strokeDasharray="12 12" opacity={0.8} />
+        <path d={actualArea} fill="url(#agArea)" opacity={draw} />
+        <path
+          d={actualD}
+          fill="none"
+          stroke={TEAL}
+          strokeWidth={9}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          pathLength={1}
+          strokeDasharray={1}
+          strokeDashoffset={1 - draw}
+          style={{filter: 'drop-shadow(0 0 16px rgba(45,212,191,0.7))'}}
+        />
+        {draw > 0.004 && draw < 0.999 && (
+          <g>
+            <circle cx={cxp} cy={cyp} r={30} fill={TEAL} opacity={0.18} />
+            <circle cx={cxp} cy={cyp} r={13} fill="#FFFFFF" style={{filter: 'drop-shadow(0 0 12px rgba(255,255,255,0.9))'}} />
+          </g>
+        )}
+        <text x={BURNDOWN.x1 - 220} y={ptsY(0) - 26} fill={TEAL} fontSize={30} fontFamily={MONO} fontWeight={700}>
+          {draw >= 0.999 ? 'ZERO · D14 ✓' : `${Math.round(curP)} PTS`}
+        </text>
+        <text x={2740} y={1050} fill={MUTED} fontSize={30} fontFamily={MONO}>
+          COMMITS {commits} · PRs {prs} · DEPLOYS {deploys}
+        </text>
+        <rect x={2740} y={1090} width={880} height={380} rx={20} fill={PANEL} stroke={HAIRLINE} strokeWidth={1.5} />
+        <rect
+          x={2746}
+          y={1096}
+          width={868}
+          height={368}
+          rx={16}
+          fill="none"
+          stroke="rgba(103,232,249,0.30)"
+          strokeWidth={2}
+          strokeDasharray="22 40"
+          strokeDashoffset={frame * 1.1}
+        />
+        <text x={2780} y={1150} fill={TEAL} fontSize={32} fontFamily={MONO} letterSpacing={8}>
+          THROUGHPUT / DAY
+        </text>
+        {bars}
+      </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Live standup feed (cycling lines, per-frame ticker)
+// ---------------------------------------------------------------------------
+const STANDUP_LINES = [
+  'D04 · STANDUP 09:15 — 2 BLOCKERS, 0 STALE',
+  'STY-124 → IN REVIEW · NEEDS 1 APPROVAL',
+  'BLOCKER CLEARED · SEARCH INDEX LOCK RELEASED',
+  'D07 · STANDUP 09:15 — VELOCITY ON TRACK 22/36',
+  'STY-133 → DONE · PR #482 MERGED',
+  'RETRO ACTION ADDED · FLAKY TEST QUARANTINED',
+  'D11 · STANDUP 09:15 — 1 BLOCKER, CARRYOVER RISK 0',
+  'STY-139 → IN REVIEW · DOCS ATTACHED',
+  'D14 · STANDUP 09:15 — SPRINT REVIEW AT 14:00',
+  'VELOCITY 36/36 · ZERO CARRYOVER',
+];
+const StandupFeed: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - 300, fps, config: {damping: 200, stiffness: 90}});
+  const head = Math.floor(frame / 40) % STANDUP_LINES.length;
+  const live = 0.6 + 0.4 * Math.sin((frame / 60) * Math.PI * 2);
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: 2740,
+        top: 1500,
+        width: 880,
+        height: 250,
+        opacity: Math.min(1, enter),
+        backgroundColor: PANEL,
+        border: `1px solid ${HAIRLINE}`,
+        borderRadius: 20,
+        padding: '34px 44px',
+      }}
+    >
+      <div style={{display: 'flex', alignItems: 'center', gap: 22}}>
+        <div style={{width: 20, height: 20, borderRadius: 10, backgroundColor: GREEN, opacity: live, boxShadow: `0 0 26px ${GREEN}`}} />
+        <div style={{fontFamily: MONO, fontSize: 34, letterSpacing: 8, color: GREEN}}>LIVE STANDUP FEED</div>
+      </div>
+      <div style={{marginTop: 26}}>
+        {[0, 1, 2].map((k) => {
+          const line = STANDUP_LINES[(head + k) % STANDUP_LINES.length];
+          const fade = interpolate(k, [0, 2], [1, 0.45]);
+          return (
+            <div
+              key={`${head}-${k}`}
+              style={{
+                fontFamily: MONO,
+                fontSize: 34,
+                color: k === 0 ? INK : MUTED,
+                opacity: fade,
+                marginTop: k === 0 ? 0 : 14,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {line}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Review + Retro checkpoints
+// ---------------------------------------------------------------------------
+const Checkpoints: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const items = [
+    {at: REVIEW_AT, label: 'SPRINT REVIEW', sub: 'DEMO · STAKEHOLDERS', x: 930, color: BLUE},
+    {at: RETRO_AT, label: 'RETRO', sub: 'WHAT WORKED · FIX ONE THING', x: 2470, color: CYAN},
+  ];
+  return (
+    <div style={{position: 'absolute', inset: 0}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs />
+        <line
+          x1={1370}
+          y1={1705}
+          x2={2470}
+          y2={1705}
+          stroke={SLATE}
+          strokeWidth={3}
+          strokeDasharray="14 14"
+          opacity={interpolate(frame, [REVIEW_AT, REVIEW_AT + 40], [0, 0.7], clamp01)}
+        />
+      </svg>
+      {items.map((it) => {
+        const s = spring({frame: frame - it.at, fps, config: {damping: 200, stiffness: 100}});
+        if (s <= 0.001) return null;
+        return (
+          <div
+            key={it.label}
+            style={{
+              position: 'absolute',
+              left: it.x,
+              top: 1630,
+              width: 440,
+              height: 150,
+              opacity: Math.min(1, s),
+              transform: `translateY(${(1 - s) * 40}px) scale(${0.9 + s * 0.1})`,
+              backgroundColor: PANEL,
+              border: `2px solid ${it.color}`,
+              borderRadius: 20,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: `0 0 50px ${it.color}55`,
+            }}
+          >
+            <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 46, color: INK, letterSpacing: 2}}>
+              {it.label}
+            </div>
+            <div style={{fontFamily: MONO, fontSize: 28, color: it.color, marginTop: 10, letterSpacing: 3}}>
+              {it.sub}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Payoff banner: velocity payoff + loop stamp
+// ---------------------------------------------------------------------------
+const PayoffBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const enter = spring({frame: frame - PAYOFF_START, fps, config: {damping: 200, stiffness: 70}});
+  const opacity = interpolate(enter, [0, 1], [0, 1]);
+  const scale = interpolate(enter, [0, 1], [0.94, 1]);
+  const w = interpolate(frame, [PAYOFF_START, PAYOFF_START + 50], [0, 2100], clamp01);
+  const stampS = spring({frame: frame - (PAYOFF_START + 14), fps, config: {damping: 200, stiffness: 140}});
+  const pts = Math.round(interpolate(frame, [PAYOFF_START, PAYOFF_START + 45], [0, TOTAL_PTS], clamp01));
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 96,
+        left: 0,
+        right: 0,
+        display: 'flex',
+        justifyContent: 'center',
+        opacity,
+        transform: `scale(${scale})`,
+      }}
+    >
+      <div
+        style={{
+          position: 'relative',
+          backgroundColor: 'rgba(5,11,22,0.94)',
+          border: `2px solid ${TEAL}`,
+          borderRadius: 26,
+          padding: '40px 110px',
+          textAlign: 'center',
+          boxShadow: '0 0 110px rgba(45,212,191,0.35)',
+        }}
+      >
+        <div style={{fontFamily: MONO, fontSize: 40, letterSpacing: 14, color: TEAL}}>SPRINT 14 COMPLETE</div>
+        <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 92, color: INK, marginTop: 10}}>
+          VELOCITY {pts} / {TOTAL_PTS} PTS
+        </div>
+        <div style={{fontFamily: MONO, fontSize: 36, color: MUTED, marginTop: 12}}>
+          8/8 STORIES DONE &nbsp;·&nbsp; 0 CARRYOVER &nbsp;·&nbsp; LOOPING TO SPRINT 15 →
+        </div>
+        <div style={{width: w, maxWidth: '100%', height: 10, background: 'linear-gradient(90deg,#2DD4BF,#67E8F9,#60A5FA)', borderRadius: 5, margin: '26px auto 0'}} />
+        {stampS > 0.02 && (
+          <div
+            style={{
+              position: 'absolute',
+              right: 60,
+              top: -56,
+              transform: `rotate(10deg) scale(${Math.min(1, stampS)})`,
+              fontFamily: FONT,
+              fontWeight: 800,
+              fontSize: 54,
+              color: TEAL,
+              border: `5px solid ${TEAL}`,
+              borderRadius: 18,
+              padding: '14px 40px',
+              backgroundColor: 'rgba(5,11,22,0.9)',
+              boxShadow: '0 0 60px rgba(45,212,191,0.55)',
+              letterSpacing: 4,
+            }}
+          >
+            DONE ✓
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Ambient particle field: full-frame drifting motes, every region alive
+// ---------------------------------------------------------------------------
+const AmbientParticles: React.FC<{frame: number}> = ({frame}) => {
+  const parts: React.ReactElement[] = [];
+  for (let i = 0; i < 220; i++) {
+    const bx = random(`ag-amb-x-${i}`) * 3840;
+    const by = random(`ag-amb-y-${i}`) * 2160;
+    const spd = 0.4 + random(`ag-amb-s-${i}`) * 1.4;
+    const ang = random(`ag-amb-a-${i}`) * Math.PI * 2;
+    const drift = ((frame * spd) % 2400) - 200;
+    const px = (bx + Math.cos(ang) * drift + 3840) % 3840;
+    const py = (by + Math.sin(ang) * drift * 0.6 + 2160) % 2160;
+    const tw = 0.10 + 0.22 * (0.5 + 0.5 * Math.sin(frame * 0.14 + i * 1.7));
+    const sz = 3 + random(`ag-amb-z-${i}`) * 6;
+    const col = i % 4 === 0 ? CYAN : i % 4 === 1 ? TEAL : 'rgba(234,242,251,0.9)';
+    parts.push(<circle key={i} cx={px} cy={py} r={sz} fill={col} opacity={tw} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {parts}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Fine dither layer: tiny per-frame jittered specks (second noise octave)
+// ---------------------------------------------------------------------------
+const FineDither: React.FC<{frame: number}> = ({frame}) => {
+  const specks: React.ReactElement[] = [];
+  for (let i = 0; i < 2600; i++) {
+    const bx = random(`ag-dth-x-${i}`) * 3840;
+    const by = random(`ag-dth-y-${i}`) * 2160;
+    // per-frame jitter so the layer never sits still
+    const jx = (random(`ag-dth-jx-${frame}-${i}`) - 0.5) * 9;
+    const jy = (random(`ag-dth-jy-${frame}-${i}`) - 0.5) * 9;
+    const o = 0.015 + random(`ag-dth-o-${frame}-${i}`) * 0.035;
+    const s = 1.5 + random(`ag-dth-s-${i}`) * 2;
+    specks.push(
+      <rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#CFE9FF" opacity={o} />
+    );
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {specks}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Ticker tape: scrolling sprint-metrics strip along the bottom edge
+// ---------------------------------------------------------------------------
+const TICKER_ITEMS = [
+  'VELOCITY 36/36 PTS', 'ZERO CARRYOVER', '214 COMMITS', '46 PRS MERGED', '12 DEPLOYS',
+  'LEAD TIME 2.1D', 'MTTR 38MIN', 'SPRINT 14 · 14 DAYS', '8/8 STORIES DONE', 'UPTIME 99.98%',
+];
+const TickerTape: React.FC<{frame: number}> = ({frame}) => {
+  const unit = TICKER_ITEMS.join('   ◆   ') + '   ◆   ';
+  const unitW = unit.length * 21;
+  const x = -((frame * 7) % unitW);
+  const reps: React.ReactElement[] = [];
+  for (let r = 0; r < Math.ceil(3840 / unitW) + 1; r++) {
+    reps.push(
+      <text key={r} x={x + r * unitW} y={44} fill="rgba(103,232,249,0.55)" fontSize={30} fontFamily={MONO} letterSpacing={4}>
+        {unit}
+      </text>
+    );
+  }
+  return (
+    <div style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: 72, overflow: 'hidden', backgroundColor: 'rgba(3,7,14,0.72)', borderTop: `1px solid ${HAIRLINE}`}}>
+      <svg width={3840} height={72} style={{position: 'absolute', top: 0, left: 0}}>
+        {reps}
+      </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Corner HUD: framing brackets + live micro-labels
+// ---------------------------------------------------------------------------
+const CornerHud: React.FC<{frame: number}> = ({frame}) => {
+  const blink = 0.55 + 0.45 * Math.sin((frame / 60) * Math.PI * 2);
+  const corners = [
+    {x: 60, y: 60, sx: 1, sy: 1, label: 'AGILE-OPS · 4K60'},
+    {x: 3780, y: 60, sx: -1, sy: 1, label: 'REC ●'},
+    {x: 60, y: 2100, sx: 1, sy: -1, label: `F ${String(frame).padStart(4, '0')} / 0900`},
+    {x: 3780, y: 2100, sx: -1, sy: -1, label: '15.0S LOOP'},
+  ];
+  return (
+    <div style={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        {corners.map((c, i) => (
+          <g key={i} transform={`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}>
+            <path d="M 0 64 L 0 0 L 64 0" fill="none" stroke="rgba(45,212,191,0.55)" strokeWidth={5} />
+            <circle cx={0} cy={0} r={6} fill={TEAL} opacity={blink} />
+            <text x={c.sx === 1 ? 24 : -24} y={c.sy === 1 ? 108 : -84} fill="rgba(234,242,251,0.5)" fontSize={26} fontFamily={MONO} letterSpacing={3} textAnchor={c.sx === 1 ? 'start' : 'end'}>
+              {c.label}
+            </text>
+          </g>
+        ))}
+        {/* side rulers with per-frame marching ticks */}
+        {Array.from({length: 24}, (_, k) => {
+          const yy = 240 + k * 70;
+          const on = ((frame >> 2) + k) % 8 === 0;
+          return <rect key={`rl${k}`} x={28} y={yy} width={on ? 34 : 18} height={3} fill={on ? TEAL : 'rgba(234,242,251,0.18)'} opacity={on ? 0.9 : 0.5} />;
+        })}
+        {Array.from({length: 48}, (_, k) => {
+          const xx = 240 + k * 70;
+          const on = ((frame >> 2) + k) % 8 === 4;
+          return <rect key={`rt${k}`} x={xx} y={2062} width={3} height={on ? 30 : 16} fill={on ? TEAL : 'rgba(234,242,251,0.18)'} opacity={on ? 0.9 : 0.5} />;
+        })}
+      </svg>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Film grain (full-frame, re-seeded every frame) — 7000 rects, cinematic
+// ---------------------------------------------------------------------------
+const GRAIN_COUNT = 7000;
+const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
+  const dots: React.ReactElement[] = [];
+  for (let i = 0; i < GRAIN_COUNT; i++) {
+    const x = random(`ag-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`ag-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`ag-grain-o-${frame}-${i}`) * 0.06;
+    const s = 2 + random(`ag-grain-s-${frame}-${i}`) * 3;
+    dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {dots}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Main composition
+// ---------------------------------------------------------------------------
+export const AgileSprintCycle: React.FC = () => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+
+  return (
+    <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
+      <Background frame={frame} />
+      <TitleBar frame={frame} fps={fps} />
+      <BacklogCards frame={frame} fps={fps} />
+      <SprintRing frame={frame} fps={fps} />
+      <BurndownPanel frame={frame} fps={fps} />
+      <StandupFeed frame={frame} fps={fps} />
+      <Checkpoints frame={frame} fps={fps} />
+      <PayoffBanner frame={frame} fps={fps} />
+      <AmbientParticles frame={frame} />
+      <FineDither frame={frame} />
+      <TickerTape frame={frame} />
+      <CornerHud frame={frame} />
+      <FilmGrain frame={frame} />
+    </AbsoluteFill>
   );
 };
