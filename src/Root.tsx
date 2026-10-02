@@ -1,27 +1,27 @@
 import React from "react";
 import { Composition } from "remotion";
-import { AgileSprintCycle } from "./compositions/comp0";
-import { CreditScoreBuilding } from "./compositions/comp1";
-import { DebtPayoffJourney } from "./compositions/comp2";
-import { EmployeeOnboardingJourney } from "./compositions/comp3";
-import { InventoryReplenishmentCycle } from "./compositions/comp4";
-import { PriorAuthorizationFlow } from "./compositions/comp5";
-import { RetirementSavingsJourney } from "./compositions/comp6";
-import { VehicleMaintenanceSchedule } from "./compositions/comp7";
-import { PetAdoptionJourney } from "./compositions/comp8";
-import { CropGrowthCycle } from "./compositions/comp9";
+import { HowAHealthPlanWorks } from "./compositions/comp0";
+import { SmartHomeSetupFlow } from "./compositions/comp1";
+import { HomeInspectionProcess } from "./compositions/comp2";
+import { ExpenseReimbursementFlow } from "./compositions/comp3";
+import { CashFlowForecastCycle } from "./compositions/comp4";
+import { TelehealthVisitFlow } from "./compositions/comp5";
+import { OralHygieneDailyRoutine } from "./compositions/comp6";
+import { FluVaccinationJourney } from "./compositions/comp7";
+import { SavingsChallengeJourney } from "./compositions/comp8";
+import { EventRegistrationFlow } from "./compositions/comp9";
 
 export const RemotionRoot: React.FC = () => (
   <>
-    <Composition id="AgileSprintCycle" component={AgileSprintCycle} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="CreditScoreBuilding" component={CreditScoreBuilding} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="DebtPayoffJourney" component={DebtPayoffJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="EmployeeOnboardingJourney" component={EmployeeOnboardingJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="InventoryReplenishmentCycle" component={InventoryReplenishmentCycle} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="PriorAuthorizationFlow" component={PriorAuthorizationFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="RetirementSavingsJourney" component={RetirementSavingsJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="VehicleMaintenanceSchedule" component={VehicleMaintenanceSchedule} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="PetAdoptionJourney" component={PetAdoptionJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="CropGrowthCycle" component={CropGrowthCycle} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="HowAHealthPlanWorks" component={HowAHealthPlanWorks} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="SmartHomeSetupFlow" component={SmartHomeSetupFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="HomeInspectionProcess" component={HomeInspectionProcess} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="ExpenseReimbursementFlow" component={ExpenseReimbursementFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="CashFlowForecastCycle" component={CashFlowForecastCycle} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="TelehealthVisitFlow" component={TelehealthVisitFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="OralHygieneDailyRoutine" component={OralHygieneDailyRoutine} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="FluVaccinationJourney" component={FluVaccinationJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="SavingsChallengeJourney" component={SavingsChallengeJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="EventRegistrationFlow" component={EventRegistrationFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
   </>
 );
