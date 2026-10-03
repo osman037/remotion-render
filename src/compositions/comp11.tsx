@@ -1,515 +1,517 @@
 /**
- * FinancialNewsGraphics.tsx
+ * MedicationAdherenceCycle.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * A financial news broadcast package: index cards with animated counters,
- * an intraday chart, rotating headline lower thirds, a top-movers panel,
- * and a scrolling market ticker tape. All names are fictional.
- *
- * Register in Root.tsx:
- *   <Composition id="FinancialNewsGraphics" component={FinancialNewsGraphics}
- *     width={3840} height={2160} fps={60} durationInFrames={900} />
+ * A medication adherence week: pill bottle + weekly organizer, a reminder
+ * bell pulsing at each dose time, dose checks ticking day by day, a progress
+ * ring filling through the week — one missed dose gets a gentle nudge, the
+ * cycle recovers, the refill loop closes, and STAY ON TRACK lands the payoff.
+ * Calm lavender/sage. Deterministic.
  */
 
-import React, {useMemo} from 'react';
+import React from 'react';
 import {
   AbsoluteFill,
-  Easing,
   interpolate,
+  random,
   spring,
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette
+// Palette (calm lavender / sage)
 // ---------------------------------------------------------------------------
-const BG = '#070B16';
-const PANEL = 'rgba(12, 18, 36, 0.94)';
-const HAIRLINE = 'rgba(148, 163, 184, 0.22)';
-const INK = '#F2F5FA';
-const MUTED = 'rgba(190, 203, 224, 0.68)';
-const FAINT = 'rgba(148, 163, 184, 0.40)';
-const RED = '#EF4444';
-const GREEN = '#22C55E';
-const GOLD = '#FBBF24';
-const BLUE = '#3B82F6';
+const BG = '#101418';
+const INK = '#F2F0FA';
+const MUTED = 'rgba(242,240,250,0.64)';
+const FAINT = 'rgba(242,240,250,0.34)';
+const LAV = '#A78BFA';
+const SAGE = '#86EFAC';
+const AMBER = '#FBBF24';
+const PANEL = 'rgba(16,20,26,0.94)';
+const HAIRLINE = 'rgba(242,240,250,0.15)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
+const clamp01 = {extrapolateLeft: 'clamp' as const, extrapolateRight: 'clamp' as const};
 
 // ---------------------------------------------------------------------------
-// Data — fictional
+// Bitrate-proof scaffolding. Seed prefix: med
 // ---------------------------------------------------------------------------
-const INDICES = [
-  {name: 'TECH 100', base: 8412.55, chg: 1.24, color: GREEN},
-  {name: 'GLOBAL 500', base: 4208.31, chg: 0.86, color: GREEN},
-  {name: 'ENERGY 25', base: 1904.12, chg: -0.42, color: RED},
-];
-const MOVERS = [
-  {sym: 'HLX', name: 'HELIX LABS', chg: 6.42, up: true},
-  {sym: 'ORB', name: 'ORBITAL', chg: 4.18, up: true},
-  {sym: 'NWD', name: 'NORTHWIND', chg: 2.94, up: true},
-  {sym: 'VNT', name: 'VANTACORE', chg: -1.86, up: false},
-  {sym: 'FRN', name: 'FERNWORKS', chg: -3.24, up: false},
-];
-const TAPE = [
-  {sym: 'TECH 100', px: '8,412.55', chg: '+1.24%'},
-  {sym: 'GLOBAL 500', px: '4,208.31', chg: '+0.86%'},
-  {sym: 'ENERGY 25', px: '1,904.12', chg: '-0.42%'},
-  {sym: 'NWD', px: '142.80', chg: '+2.94%'},
-  {sym: 'HLX', px: '96.44', chg: '+6.42%'},
-  {sym: 'BLP', px: '210.15', chg: '+0.72%'},
-  {sym: 'VNT', px: '88.30', chg: '-1.86%'},
-  {sym: 'ORB', px: '64.92', chg: '+4.18%'},
-];
-const HEADLINES = [
-  {kicker: 'MARKETS', text: 'Tech rally lifts indexes to record close', tag: 'LIVE'},
-  {kicker: 'POLICY', text: 'Central bank holds rates steady, cites inflation progress', tag: 'UPDATE'},
-  {kicker: 'ENERGY', text: 'Energy sector slips as supply outlook weighs', tag: 'DEVELOPING'},
-];
-// intraday line for TECH 100 (fictional)
-const INTRA = Array.from({length: 60}, (_, i) => {
-  const base = 0.4 + (i / 59) * 1.1;
-  return base + Math.sin(i / 5) * 0.18 + Math.sin(i / 11 + 2) * 0.1;
-});
+const Background_med: React.FC<{frame: number}> = ({frame}) => {
+  const scanY = ((frame / 900) * (2160 + 480)) % (2160 + 480) - 240;
+  const dots: React.ReactElement[] = [];
+  for (let gy = 0; gy < 27; gy++) {
+    for (let gx = 0; gx < 48; gx++) {
+      const tw = 0.05 + 0.075 * (0.5 + 0.5 * Math.sin(frame * 0.11 + gx * 1.3 + gy * 2.1));
+      dots.push(
+        <circle key={`${gx}-${gy}`} cx={40 + gx * 80} cy={40 + gy * 80} r={2.2} fill="#DDD6FE" opacity={tw} />
+      );
+    }
+  }
+  return (
+    <>
+      <AbsoluteFill style={{backgroundColor: BG}} />
+      <AbsoluteFill style={{background: 'radial-gradient(circle at 50% 30%, rgba(167,139,250,0.13), rgba(167,139,250,0.03) 46%, rgba(16,20,24,0) 72%)'}} />
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        {dots}
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#medVig)" />
+        <rect x={0} y={scanY - 110} width={3840} height={220} fill="rgba(167,139,250,0.05)" />
+        <defs>
+          <radialGradient id="medVig" cx="50%" cy="50%" r="75%">
+            <stop offset="58%" stopColor="rgba(16,20,24,0)" />
+            <stop offset="100%" stopColor="rgba(6,8,10,0.74)" />
+          </radialGradient>
+        </defs>
+      </svg>
+    </>
+  );
+};
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-const prog = (frame: number, start: number, end: number) =>
-  clamp01((frame - start) / (end - start));
-const entr = (frame: number, delay: number, fps: number) =>
-  spring({
-    frame: Math.max(0, frame - delay),
-    fps,
-    config: {damping: 19, stiffness: 130},
-  });
-const rand = (seed: number) => {
-  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
+const AmbientParticles_med: React.FC<{frame: number}> = ({frame}) => {
+  const parts: React.ReactElement[] = [];
+  for (let i = 0; i < 220; i++) {
+    const bx = random(`med-amb-x-${i}`) * 3840;
+    const by = random(`med-amb-y-${i}`) * 2160;
+    const spd = 0.4 + random(`med-amb-s-${i}`) * 1.4;
+    const ang = random(`med-amb-a-${i}`) * Math.PI * 2;
+    const drift = ((frame * spd) % 2400) - 200;
+    const px = (bx + Math.cos(ang) * drift + 3840) % 3840;
+    const py = (by + Math.sin(ang) * drift * 0.6 + 2160) % 2160;
+    const tw = 0.10 + 0.22 * (0.5 + 0.5 * Math.sin(frame * 0.14 + i * 1.7));
+    const sz = 3 + random(`med-amb-z-${i}`) * 6;
+    const col = i % 4 === 0 ? LAV : i % 4 === 1 ? SAGE : 'rgba(242,240,250,0.9)';
+    parts.push(<circle key={i} cx={px} cy={py} r={sz} fill={col} opacity={tw} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {parts}
+    </svg>
+  );
+};
+
+const FineDither_med: React.FC<{frame: number}> = ({frame}) => {
+  const specks: React.ReactElement[] = [];
+  for (let i = 0; i < 2600; i++) {
+    const bx = random(`med-dth-x-${i}`) * 3840;
+    const by = random(`med-dth-y-${i}`) * 2160;
+    const jx = (random(`med-dth-jx-${frame}-${i}`) - 0.5) * 9;
+    const jy = (random(`med-dth-jy-${frame}-${i}`) - 0.5) * 9;
+    const o = 0.015 + random(`med-dth-o-${frame}-${i}`) * 0.035;
+    const s = 1.5 + random(`med-dth-s-${i}`) * 2;
+    specks.push(<rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#E9E4FF" opacity={o} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {specks}
+    </svg>
+  );
+};
+
+const TICKER_ITEMS_med = [
+  'DOSE DUE 8:00 AM',
+  'WEEK 34 · ADHERENCE 92%',
+  'MISSED A DOSE? TAKE WHEN REMEMBERED',
+  'NEVER DOUBLE UP',
+  'REFILL IN 3 DAYS',
+  'STREAK 21 DAYS',
+  'AM + PM DOSES',
+  'STAY ON TRACK',
+];
+const TickerTape_med: React.FC<{frame: number}> = ({frame}) => {
+  const unit = TICKER_ITEMS_med.join('   ◆   ') + '   ◆   ';
+  const unitW = unit.length * 20;
+  const x = -((frame * 7) % unitW);
+  const reps: React.ReactElement[] = [];
+  for (let r = 0; r < Math.ceil(3840 / unitW) + 1; r++) {
+    reps.push(
+      <text key={r} x={x + r * unitW} y={38} fill="rgba(167,139,250,0.62)" fontSize={27} fontFamily={MONO} letterSpacing={4}>
+        {unit}
+      </text>
+    );
+  }
+  return (
+    <div style={{position: 'absolute', left: 0, right: 0, top: 0, height: 56, overflow: 'hidden', backgroundColor: 'rgba(8,10,13,0.66)', borderBottom: '1px solid rgba(242,240,250,0.14)'}}>
+      <svg width={3840} height={56} style={{position: 'absolute', top: 0, left: 0}}>
+        {reps}
+      </svg>
+    </div>
+  );
+};
+
+const CornerHud_med: React.FC<{frame: number}> = ({frame}) => {
+  const blink = 0.55 + 0.45 * Math.sin((frame / 60) * Math.PI * 2);
+  const corners = [
+    {x: 60, y: 92, sx: 1, sy: 1},
+    {x: 3780, y: 92, sx: -1, sy: 1},
+    {x: 60, y: 2068, sx: 1, sy: -1},
+    {x: 3780, y: 2068, sx: -1, sy: -1},
+  ];
+  return (
+    <div style={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        {corners.map((c, i) => (
+          <g key={i} transform={`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}>
+            <path d="M 0 56 L 0 0 L 56 0" fill="none" stroke="rgba(167,139,250,0.55)" strokeWidth={5} />
+            <circle cx={0} cy={0} r={6} fill={LAV} opacity={blink} />
+          </g>
+        ))}
+        {Array.from({length: 24}, (_, k) => {
+          const yy = 280 + k * 68;
+          const on = ((frame >> 2) + k) % 8 === 0;
+          return <rect key={`rl${k}`} x={28} y={yy} width={on ? 32 : 17} height={3} fill={on ? LAV : 'rgba(242,240,250,0.18)'} opacity={on ? 0.9 : 0.5} />;
+        })}
+        {Array.from({length: 46}, (_, k) => {
+          const xx = 280 + k * 68;
+          const on = ((frame >> 2) + k) % 8 === 4;
+          return <rect key={`rt${k}`} x={xx} y={2036} width={3} height={on ? 28 : 15} fill={on ? LAV : 'rgba(242,240,250,0.18)'} opacity={on ? 0.9 : 0.5} />;
+        })}
+      </svg>
+    </div>
+  );
+};
+
+const FilmGrain_med: React.FC<{frame: number}> = ({frame}) => {
+  const dots: React.ReactElement[] = [];
+  for (let i = 0; i < 7000; i++) {
+    const x = random(`med-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`med-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`med-grain-o-${frame}-${i}`) * 0.06;
+    const s = 2 + random(`med-grain-s-${frame}-${i}`) * 3;
+    dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {dots}
+    </svg>
+  );
 };
 
 // ---------------------------------------------------------------------------
-// Background
+// Week model: day i ticks at 130 + i*42; Thursday (i=3) is missed, then made up
 // ---------------------------------------------------------------------------
-const Background: React.FC = () => (
-  <AbsoluteFill>
-    <svg width={3840} height={2160}>
-      <defs>
-        <radialGradient id="bgGlowA" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#1E3A8A" stopOpacity="0.5" />
-          <stop offset="100%" stopColor="#1E3A8A" stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id="vignette" cx="50%" cy="46%" r="75%">
-          <stop offset="55%" stopColor="#000000" stopOpacity="0" />
-          <stop offset="100%" stopColor="#000000" stopOpacity="0.6" />
-        </radialGradient>
-        <filter id="softBlur" x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="150" />
-        </filter>
-      </defs>
-      <ellipse cx={1920} cy={900} rx={1400} ry={800} fill="url(#bgGlowA)" filter="url(#softBlur)" />
-      <rect width={3840} height={2160} fill="url(#vignette)" />
-    </svg>
-  </AbsoluteFill>
-);
+const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+const MISSED = 3;
+const tickFrame = (i: number): number => 130 + i * 42;
+const isMissedWindow = (frame: number): boolean => frame >= tickFrame(MISSED) && frame < 560;
+const isMadeUp = (frame: number): boolean => frame >= 560;
+const dayDone = (frame: number, i: number): boolean =>
+  i === MISSED ? isMadeUp(frame) : frame >= tickFrame(i);
+const dosesTaken = (frame: number): number => DAYS.filter((_, i) => dayDone(frame, i)).length;
 
 // ---------------------------------------------------------------------------
-// Header
+// Title
 // ---------------------------------------------------------------------------
-const Header: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 10, fps);
-  const secs = Math.floor(frame / 60);
-  const clock = `09:${String(30 + Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`;
-  const pulse = 0.5 + 0.5 * Math.sin(frame * 0.15);
+const Title_med: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame, fps, config: {damping: 200, stiffness: 90}});
+  const fade = interpolate(frame, [0, 40], [0, 1], clamp01);
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 70,
-        left: 240,
-        right: 240,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        opacity: e,
-        transform: `translateY(${(1 - e) * 40}px)`,
-      }}
-    >
-      <div style={{display: 'flex', alignItems: 'center', gap: 36}}>
-        <div
-          style={{
-            width: 110,
-            height: 110,
-            borderRadius: 22,
-            background: 'linear-gradient(135deg,#EF4444,#991B1B)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontFamily: FONT,
-            fontSize: 56,
-            fontWeight: 800,
-            color: '#FFF',
-            boxShadow: '0 0 50px rgba(239,68,68,0.5)',
-          }}
-        >
-          FN
-        </div>
-        <div>
-          <div style={{fontFamily: FONT, fontSize: 64, fontWeight: 800, color: INK, letterSpacing: -1}}>
-            Financial News
-          </div>
-          <div style={{fontFamily: MONO, fontSize: 28, letterSpacing: 6, color: MUTED, marginTop: 6}}>
-            MARKET COVERAGE
-          </div>
-        </div>
+    <div style={{position: 'absolute', top: 104, left: 220, opacity: fade, transform: `translateY(${(1 - s) * 34}px)`}}>
+      <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 92, letterSpacing: -1}}>
+        MEDICATION ADHERENCE CYCLE
       </div>
-      <div style={{display: 'flex', alignItems: 'center', gap: 30}}>
-        <div
-          style={{
-            background: RED,
-            color: '#FFF',
-            fontFamily: MONO,
-            fontSize: 34,
-            fontWeight: 700,
-            letterSpacing: 4,
-            padding: '20px 40px',
-            borderRadius: 14,
-            opacity: 0.65 + 0.35 * pulse,
-            boxShadow: '0 0 40px rgba(239,68,68,0.6)',
-          }}
-        >
-          ● LIVE
-        </div>
-        <div style={{fontFamily: MONO, fontSize: 52, fontWeight: 700, color: INK}}>{clock} ET</div>
+      <div style={{color: MUTED, fontFamily: FONT, fontSize: 38, marginTop: 12}}>
+        One week, one dose at a time — <span style={{color: SAGE}}>missed is human, back on track is the win</span>
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Index cards
+// Station 1: pill bottle + reminder bell (left)
 // ---------------------------------------------------------------------------
-const IndexCards: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 60, fps);
+const BottlePanel_med: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - 60, fps, config: {damping: 200, stiffness: 90}});
+  if (s <= 0.001) return null;
+  // bell pulses at each dose time
+  const doseTs = DAYS.map((_, i) => tickFrame(i));
+  const nearDose = doseTs.some((t) => Math.abs(frame - t) < 26);
+  const pulse = nearDose ? 0.5 + 0.5 * Math.sin(frame * 0.5) : 0;
+  const nudge = isMissedWindow(frame) ? 0.5 + 0.5 * Math.sin(frame * 0.18) : 0;
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: 240,
-        right: 240,
-        top: 300,
-        display: 'flex',
-        gap: 28,
-        opacity: e,
-        transform: `translateY(${(1 - e) * 50}px)`,
-      }}
-    >
-      {INDICES.map((idx, i) => {
-        const ce = entr(frame, 100 + i * 80, fps);
-        const t = Easing.out(Easing.cubic)(prog(frame, 120 + i * 80, 420 + i * 80));
-        const val = idx.base * (1 + (idx.chg / 100) * t);
+    <g opacity={Math.min(1, s)} transform={`translate(${(1 - s) * -60},0)`}>
+      <rect x={180} y={380} width={680} height={700} rx={30} fill={PANEL} stroke={LAV} strokeWidth={4} />
+      <text x={240} y={462} fill={INK} fontSize={36} fontFamily={MONO} fontWeight={800} letterSpacing={3}>
+        DOSE KIT
+      </text>
+      <text x={240} y={510} fill={FAINT} fontSize={28} fontFamily={MONO} letterSpacing={2}>
+        LISINOPRIL 10MG · 1× DAILY · 8:00 AM
+      </text>
+      {/* reminder bell */}
+      <g transform="translate(520,660)">
+        {nearDose &&
+          [0, 1].map((k) => {
+            const ph = ((frame + k * 18) % 36) / 36;
+            return (
+              <circle key={k} r={60 + ph * 90} fill="none" stroke={LAV}
+                strokeWidth={8 * (1 - ph)} opacity={0.7 * (1 - ph) * (0.4 + pulse * 0.6)} />
+            );
+          })}
+        {nudge > 0 &&
+          [0, 1, 2].map((k) => {
+            const ph = ((frame * 0.7 + k * 30) % 90) / 90;
+            return (
+              <circle key={`n${k}`} r={60 + ph * 130} fill="none" stroke={AMBER}
+                strokeWidth={7 * (1 - ph)} opacity={0.65 * (1 - ph) * nudge} />
+            );
+          })}
+        <path d="M -52 30 A 60 60 0 0 1 52 30 L 52 44 L -52 44 Z" fill={LAV} opacity={0.92} />
+        <rect x={-14} y={-96} width={28} height={40} rx={12} fill={LAV} opacity={0.92} />
+        <circle cy={62} r={16} fill={SAGE} />
+        <text y={118} fill={nearDose ? LAV : MUTED} fontSize={28} fontFamily={MONO} textAnchor="middle" letterSpacing={3}>
+          {nearDose ? '◉ DOSE DUE' : 'REMINDER'}
+        </text>
+      </g>
+      {/* pill bottle */}
+      <g transform="translate(520,900)">
+        <rect x={-70} y={-120} width={140} height={52} rx={14} fill={FAINT} />
+        <rect x={-84} y={-68} width={168} height={190} rx={26} fill="#1C2230" stroke={LAV} strokeWidth={6} />
+        <rect x={-84} y={10} width={168} height={64} fill={LAV} opacity={0.85} />
+        <text y={58} fill={BG} fontSize={32} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+          10MG
+        </text>
+        {/* pills */}
+        {Array.from({length: 6}, (_, i) => (
+          <ellipse key={i} cx={-50 + (i % 3) * 50} cy={-40 + Math.floor(i / 3) * 36}
+            rx={20} ry={13} fill={SAGE} opacity={0.9}
+            transform={`rotate(${-20 + i * 14} ${-50 + (i % 3) * 50} ${-40 + Math.floor(i / 3) * 36})`} />
+        ))}
+      </g>
+      <text x={520} y={1050} fill={FAINT} fontSize={26} fontFamily={MONO} textAnchor="middle" letterSpacing={2}>
+        {isMissedWindow(frame) ? '— gentle nudge sent —' : 'bottle · organizer · bell'}
+      </text>
+    </g>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Station 2: weekly organizer grid — dose checks tick day by day
+// ---------------------------------------------------------------------------
+const Organizer_med: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - 110, fps, config: {damping: 200, stiffness: 90}});
+  if (s <= 0.001) return null;
+  return (
+    <g opacity={Math.min(1, s)}>
+      <rect x={940} y={380} width={1460} height={700} rx={30} fill={PANEL} stroke={HAIRLINE} strokeWidth={3} />
+      <text x={1000} y={462} fill={INK} fontSize={36} fontFamily={MONO} fontWeight={800} letterSpacing={3}>
+        WEEKLY ORGANIZER
+      </text>
+      <text x={1000} y={510} fill={FAINT} fontSize={28} fontFamily={MONO} letterSpacing={2}>
+        DOSES TAKEN: <tspan fill={SAGE} fontWeight={800}>{dosesTaken(frame)}</tspan> / 7
+      </text>
+      {DAYS.map((d, i) => {
+        const cx = 1040 + i * 195;
+        const done = dayDone(frame, i);
+        const missed = i === MISSED && isMissedWindow(frame);
+        const upcoming = frame >= tickFrame(i) - 20 && !done && !missed;
+        const border = done ? SAGE : missed ? AMBER : upcoming ? LAV : FAINT;
+        const tickS = spring({frame: frame - tickFrame(i) - (i === MISSED ? 430 : 0), fps, config: {damping: 170, stiffness: 130}});
         return (
-          <div
-            key={idx.name}
-            style={{
-              flex: 1,
-              background: PANEL,
-              border: `1px solid ${HAIRLINE}`,
-              borderLeft: `8px solid ${idx.color}`,
-              borderRadius: 20,
-              padding: '36px 48px',
-              opacity: ce,
-              boxShadow: '0 24px 70px rgba(0,0,0,0.45)',
-            }}
-          >
-            <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 5, color: MUTED, marginBottom: 14}}>
-              {idx.name}
-            </div>
-            <div style={{display: 'flex', alignItems: 'baseline', gap: 28}}>
-              <div style={{fontFamily: MONO, fontSize: 76, fontWeight: 700, color: INK}}>
-                {val.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-              </div>
-              <div style={{fontFamily: MONO, fontSize: 40, fontWeight: 700, color: idx.color}}>
-                {idx.chg > 0 ? '▲' : '▼'} {Math.abs(idx.chg).toFixed(2)}%
-              </div>
-            </div>
-          </div>
+          <g key={d}>
+            <rect x={cx - 82} y={580} width={164} height={400} rx={24}
+              fill={done ? 'rgba(134,239,172,0.08)' : missed ? 'rgba(251,191,36,0.08)' : 'rgba(242,240,250,0.03)'}
+              stroke={border} strokeWidth={done || missed ? 6 : 3} />
+            <text x={cx} y={648} fill={done ? INK : MUTED} fontSize={32} fontFamily={MONO}
+              fontWeight={800} textAnchor="middle" letterSpacing={2}>
+              {d}
+            </text>
+            {/* pill slot */}
+            <circle cx={cx} cy={760} r={44} fill="none" stroke={border} strokeWidth={5} opacity={0.9} />
+            {done && tickS > 0.001 && (
+              <g opacity={Math.min(1, tickS)} transform={`translate(${cx},760) scale(${Math.min(1, tickS)})`}>
+                <path d="M -22 0 l 16 16 l 32 -38" fill="none" stroke={SAGE} strokeWidth={12}
+                  strokeLinecap="round" strokeLinejoin="round" />
+              </g>
+            )}
+            {missed && (
+              <g>
+                <text x={cx} y={776} fill={AMBER} fontSize={52} fontFamily={MONO} fontWeight={900} textAnchor="middle">
+                  !
+                </text>
+                <text x={cx} y={880} fill={AMBER} fontSize={26} fontFamily={MONO} textAnchor="middle" letterSpacing={1}>
+                  MISSED
+                </text>
+                <text x={cx} y={916} fill={MUTED} fontSize={22} fontFamily={MONO} textAnchor="middle">
+                  nudge sent
+                </text>
+              </g>
+            )}
+            {done && (
+              <text x={cx} y={896} fill={SAGE} fontSize={26} fontFamily={MONO} textAnchor="middle" letterSpacing={1}>
+                {i === MISSED ? 'MADE UP ✓' : 'TAKEN ✓'}
+              </text>
+            )}
+            {!done && !missed && (
+              <text x={cx} y={896} fill={FAINT} fontSize={26} fontFamily={MONO} textAnchor="middle">
+                8:00 AM
+              </text>
+            )}
+          </g>
         );
       })}
-    </div>
+    </g>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Intraday chart
+// Station 3: progress ring fills through the week (right)
 // ---------------------------------------------------------------------------
-const IntraChart: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 200, fps);
-  const draw = prog(frame, 240, 640);
-  const W = 2200;
-  const H = 620;
-  const X = (i: number) => 60 + (i / (INTRA.length - 1)) * (W - 120);
-  const Y = (v: number) => H - 60 - (v / 1.8) * (H - 140);
-  const line = useMemo(
-    () => INTRA.map((v, i) => `${i === 0 ? 'M' : 'L'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' '),
-    [],
-  );
-  const area = `${line} L${X(INTRA.length - 1).toFixed(1)},${H - 60} L${X(0).toFixed(1)},${H - 60} Z`;
+const ProgressRing_med: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - 160, fps, config: {damping: 200, stiffness: 90}});
+  if (s <= 0.001) return null;
+  const taken = dosesTaken(frame);
+  const frac = taken / 7;
+  const R = 170;
+  const C = 2 * Math.PI * R;
+  const cx = 2820;
+  const cy = 700;
+  const pct = Math.floor(frac * 100);
+  const rot = frame * 0.004;
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: 240,
-        top: 640,
-        width: W,
-        height: 760,
-        background: PANEL,
-        border: `1px solid ${HAIRLINE}`,
-        borderRadius: 24,
-        opacity: e,
-        transform: `translateY(${(1 - e) * 50}px)`,
-        boxShadow: '0 30px 90px rgba(0,0,0,0.45)',
-        overflow: 'hidden',
-      }}
-    >
-      <div style={{display: 'flex', justifyContent: 'space-between', padding: '36px 56px 0 56px'}}>
-        <div style={{fontFamily: MONO, fontSize: 28, letterSpacing: 5, color: MUTED}}>
-          TECH 100 · INTRADAY
+    <g opacity={Math.min(1, s)}>
+      <rect x={2480} y={380} width={680} height={700} rx={30} fill={PANEL} stroke={HAIRLINE} strokeWidth={3} />
+      <text x={2540} y={462} fill={INK} fontSize={36} fontFamily={MONO} fontWeight={800} letterSpacing={3}>
+        WEEK PROGRESS
+      </text>
+      {/* tick ring */}
+      {Array.from({length: 60}, (_, i) => {
+        const a = (i / 60) * Math.PI * 2 + rot;
+        const on = i / 60 < frac;
+        return (
+          <rect key={i} x={cx + Math.cos(a) * (R + 34) - 3} y={cy + Math.sin(a) * (R + 34) - 12}
+            width={6} height={24} rx={3} fill={on ? SAGE : FAINT} opacity={on ? 0.95 : 0.4}
+            transform={`rotate(${(a * 180) / Math.PI + 90} ${cx + Math.cos(a) * (R + 34)} ${cy + Math.sin(a) * (R + 34)})`} />
+        );
+      })}
+      <circle cx={cx} cy={cy} r={R} fill="none" stroke="rgba(242,240,250,0.10)" strokeWidth={36} />
+      <circle cx={cx} cy={cy} r={R} fill="none" stroke={SAGE} strokeWidth={36}
+        strokeDasharray={C} strokeDashoffset={C * (1 - frac)} transform={`rotate(-90 ${cx} ${cy})`}
+        strokeLinecap="round" style={{filter: 'drop-shadow(0 0 18px rgba(134,239,172,0.55))'}} />
+      <text x={cx} y={cy + 8} fill={INK} fontSize={96} fontFamily={MONO} fontWeight={900} textAnchor="middle">
+        {pct}%
+      </text>
+      <text x={cx} y={cy + 56} fill={MUTED} fontSize={30} fontFamily={MONO} textAnchor="middle" letterSpacing={3}>
+        OF WEEK COMPLETE
+      </text>
+      <text x={cx} y={1000} fill={FAINT} fontSize={28} fontFamily={MONO} textAnchor="middle" letterSpacing={2}>
+        BEST STREAK <tspan fill={SAGE} fontWeight={800}>21 DAYS</tspan>
+      </text>
+    </g>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Station 4: refill loop closes (bottom-left)
+// ---------------------------------------------------------------------------
+const RefillLoop_med: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - 620, fps, config: {damping: 200, stiffness: 90}});
+  if (s <= 0.001) return null;
+  const pillsLeft = Math.max(3, 21 - dosesTaken(frame) - Math.floor(interpolate(frame, [620, 800], [0, 11], clamp01)));
+  const rot = (frame - 620) * 0.01;
+  const closed = frame >= 780;
+  return (
+    <g opacity={Math.min(1, s)}>
+      <rect x={180} y={1180} width={1320} height={520} rx={30} fill={PANEL} stroke={HAIRLINE} strokeWidth={3} />
+      <text x={240} y={1262} fill={INK} fontSize={36} fontFamily={MONO} fontWeight={800} letterSpacing={3}>
+        REFILL LOOP
+      </text>
+      <text x={240} y={1310} fill={FAINT} fontSize={28} fontFamily={MONO} letterSpacing={2}>
+        NEVER RUN DRY
+      </text>
+      {/* rotating dashed loop */}
+      <g transform={`translate(520,1470) rotate(${(rot * 180) / Math.PI})`}>
+        <circle r={110} fill="none" stroke={closed ? SAGE : LAV} strokeWidth={10}
+          strokeDasharray="34 22" opacity={0.9} />
+        <polygon points="0,-132 26,-96 -26,-96" fill={closed ? SAGE : LAV} />
+      </g>
+      {/* mini bottle */}
+      <g transform="translate(520,1470)">
+        <rect x={-34} y={-58} width={68} height={26} rx={8} fill={FAINT} />
+        <rect x={-42} y={-32} width={84} height={96} rx={14} fill="#1C2230" stroke={LAV} strokeWidth={5} />
+        <ellipse cx={0} cy={16} rx={18} ry={12} fill={SAGE} />
+      </g>
+      <text x={760} y={1440} fill={INK} fontSize={44} fontFamily={MONO} fontWeight={800}>
+        PILLS LEFT: <tspan fill={pillsLeft <= 5 ? AMBER : INK}>{pillsLeft}</tspan>
+      </text>
+      <text x={760} y={1500} fill={MUTED} fontSize={32} fontFamily={MONO}>
+        REFILL IN <tspan fill={LAV} fontWeight={800}>3 DAYS</tspan>
+      </text>
+      {closed && (
+        <g>
+          <rect x={760} y={1530} width={560} height={72} rx={36} fill="rgba(134,239,172,0.10)" stroke={SAGE} strokeWidth={3} />
+          <text x={1040} y={1578} fill={SAGE} fontSize={30} fontFamily={MONO} fontWeight={800} textAnchor="middle" letterSpacing={2}>
+            ✓ AUTO-REFILL SCHEDULED
+          </text>
+        </g>
+      )}
+    </g>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Station 5: daily adherence bars (bottom-right)
+// ---------------------------------------------------------------------------
+const AdherenceBars_med: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - 660, fps, config: {damping: 200, stiffness: 90}});
+  if (s <= 0.001) return null;
+  const L = 1640;
+  const Bb = 1620;
+  const maxH = 300;
+  return (
+    <g opacity={Math.min(1, s)}>
+      <rect x={1580} y={1180} width={1580} height={520} rx={30} fill={PANEL} stroke={HAIRLINE} strokeWidth={3} />
+      <text x={1640} y={1262} fill={INK} fontSize={36} fontFamily={MONO} fontWeight={800} letterSpacing={3}>
+        DAILY ADHERENCE
+      </text>
+      <text x={1640} y={1310} fill={FAINT} fontSize={28} fontFamily={MONO} letterSpacing={2}>
+        WEEK AVG <tspan fill={SAGE} fontWeight={800}>{Math.floor((dosesTaken(frame) / 7) * 100)}%</tspan>
+      </text>
+      {DAYS.map((d, i) => {
+        const done = dayDone(frame, i);
+        const missed = i === MISSED && isMissedWindow(frame);
+        const h = done ? maxH : missed ? maxH * 0.35 : 0;
+        const bx = L + i * 200;
+        const col = done ? SAGE : missed ? AMBER : 'rgba(242,240,250,0.12)';
+        return (
+          <g key={d}>
+            <rect x={bx} y={Bb - h} width={110} height={Math.max(2, h)} rx={12} fill={col} opacity={0.9} />
+            <text x={bx + 55} y={Bb + 48} fill={done ? INK : MUTED} fontSize={28} fontFamily={MONO}
+              fontWeight={800} textAnchor="middle">
+              {d}
+            </text>
+            {done && (
+              <text x={bx + 55} y={Bb - h - 22} fill={SAGE} fontSize={26} fontFamily={MONO} textAnchor="middle">
+                100%
+              </text>
+            )}
+          </g>
+        );
+      })}
+    </g>
+  );
+};
+
+const Payoff_med: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - 840, fps, config: {damping: 200, stiffness: 85}});
+  if (s <= 0.001) return null;
+  const pulse = 0.5 + 0.5 * Math.sin((frame - 840) * 0.1);
+  return (
+    <div style={{
+      position: 'absolute', left: 0, right: 0, bottom: 120, display: 'flex', justifyContent: 'center',
+      opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 50}px)`,
+    }}>
+      <div style={{
+        borderRadius: 30, padding: '34px 110px', background: 'rgba(18,16,28,0.95)',
+        border: `3px solid ${LAV}`, textAlign: 'center',
+        boxShadow: `0 0 ${50 + pulse * 50}px rgba(167,139,250,0.35)`,
+      }}>
+        <div style={{color: LAV, fontFamily: FONT, fontWeight: 800, fontSize: 64, letterSpacing: 1}}>
+          STAY ON TRACK
         </div>
-        <div style={{fontFamily: MONO, fontSize: 40, fontWeight: 700, color: GREEN}}>
-          ▲ +1.24% <span style={{color: FAINT, fontSize: 28}}>TODAY</span>
+        <div style={{color: INK, fontFamily: MONO, fontSize: 36, marginTop: 10}}>
+          7 of 7 doses · one nudge, zero guilt — <span style={{color: SAGE}}>the cycle continues</span>
         </div>
       </div>
-      <svg width={W} height={H}>
-        <defs>
-          <linearGradient id="intraArea" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#22C55E" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#22C55E" stopOpacity="0" />
-          </linearGradient>
-          <filter id="intraGlow" x="-20%" y="-60%" width="140%" height="220%">
-            <feGaussianBlur stdDeviation="12" />
-          </filter>
-        </defs>
-        <path d={area} fill="url(#intraArea)" opacity={draw} />
-        <path
-          d={line}
-          fill="none"
-          stroke={GREEN}
-          strokeWidth={8}
-          strokeLinecap="round"
-          filter="url(#intraGlow)"
-          strokeDasharray={6000}
-          strokeDashoffset={6000 * (1 - draw)}
-        />
-      </svg>
-      {/* rotating headline lower third */}
-      <HeadlineLowerThird frame={frame} fps={fps} />
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Rotating headline lower third
-// ---------------------------------------------------------------------------
-const HeadlineLowerThird: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const slot = Math.floor(frame / 300) % HEADLINES.length;
-  const local = frame % 300;
-  const inE = entr(local, 8, fps);
-  const outFade = local > 262 ? 1 - (local - 262) / 38 : 1;
-  const h = HEADLINES[slot];
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: 56,
-        right: 56,
-        bottom: 40,
-        opacity: Math.min(inE, Math.max(0, outFade)),
-        transform: `translateY(${(1 - inE) * 70}px)`,
-      }}
-    >
-      <div
-        style={{
-          background: 'rgba(4, 8, 18, 0.94)',
-          borderLeft: `10px solid ${RED}`,
-          borderRadius: 16,
-          padding: '30px 44px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 36,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-        }}
-      >
-        <div
-          style={{
-            background: RED,
-            color: '#FFF',
-            fontFamily: MONO,
-            fontSize: 28,
-            fontWeight: 700,
-            letterSpacing: 3,
-            padding: '14px 26px',
-            borderRadius: 10,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {h.tag}
-        </div>
-        <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 4, color: GOLD, whiteSpace: 'nowrap'}}>
-          {h.kicker}
-        </div>
-        <div style={{fontFamily: FONT, fontSize: 42, fontWeight: 700, color: INK}}>{h.text}</div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Top movers panel
-// ---------------------------------------------------------------------------
-const Movers: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 260, fps);
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: 2560,
-        top: 640,
-        width: 1040,
-        height: 760,
-        background: PANEL,
-        border: `1px solid ${HAIRLINE}`,
-        borderRadius: 24,
-        padding: '44px 52px',
-        opacity: e,
-        transform: `translateY(${(1 - e) * 50}px)`,
-        boxShadow: '0 30px 90px rgba(0,0,0,0.45)',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      <div style={{fontFamily: MONO, fontSize: 30, letterSpacing: 6, color: MUTED, marginBottom: 28}}>
-        TOP MOVERS
-      </div>
-      <div style={{flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly'}}>
-        {MOVERS.map((m, i) => {
-          const re = entr(frame, 320 + i * 70, fps);
-          return (
-            <div
-              key={m.sym}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                opacity: re,
-                transform: `translateX(${(1 - re) * 50}px)`,
-              }}
-            >
-              <div style={{display: 'flex', alignItems: 'center', gap: 26}}>
-                <div
-                  style={{
-                    width: 92,
-                    height: 92,
-                    borderRadius: 18,
-                    background: m.up ? 'rgba(34,197,94,0.14)' : 'rgba(239,68,68,0.14)',
-                    border: `1px solid ${m.up ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)'}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: MONO,
-                    fontSize: 30,
-                    fontWeight: 700,
-                    color: m.up ? GREEN : RED,
-                  }}
-                >
-                  {m.sym}
-                </div>
-                <div style={{fontFamily: FONT, fontSize: 34, fontWeight: 600, color: INK}}>{m.name}</div>
-              </div>
-              <div style={{fontFamily: MONO, fontSize: 44, fontWeight: 700, color: m.up ? GREEN : RED}}>
-                {m.up ? '+' : ''}{m.chg.toFixed(2)}%
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Ticker tape
-// ---------------------------------------------------------------------------
-const TickerTape: React.FC<{frame: number}> = ({frame}) => {
-  const items = [...TAPE, ...TAPE];
-  const x = interpolate(frame, [0, 900], [0, -50], {
-    easing: Easing.linear,
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 130,
-        height: 110,
-        background: 'rgba(3, 6, 14, 0.97)',
-        borderTop: `2px solid ${HAIRLINE}`,
-        borderBottom: `2px solid ${HAIRLINE}`,
-        overflow: 'hidden',
-        display: 'flex',
-        alignItems: 'center',
-      }}
-    >
-      <div style={{display: 'flex', transform: `translateX(${x}%)`, whiteSpace: 'nowrap'}}>
-        {items.map((t, i) => {
-          const up = !t.chg.startsWith('-');
-          return (
-            <div key={i} style={{display: 'flex', alignItems: 'center', padding: '0 60px'}}>
-              <span style={{fontFamily: MONO, fontSize: 40, fontWeight: 700, color: INK, marginRight: 28}}>
-                {t.sym}
-              </span>
-              <span style={{fontFamily: MONO, fontSize: 36, color: MUTED, marginRight: 28}}>{t.px}</span>
-              <span style={{fontFamily: MONO, fontSize: 36, fontWeight: 700, color: up ? GREEN : RED}}>
-                {t.chg}
-              </span>
-              <span style={{fontFamily: MONO, fontSize: 36, color: FAINT, marginLeft: 60}}>///</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Footer
-// ---------------------------------------------------------------------------
-const Footer: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const e = entr(frame, 60, fps);
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 40,
-        left: 240,
-        right: 240,
-        display: 'flex',
-        justifyContent: 'space-between',
-        fontFamily: MONO,
-        fontSize: 27,
-        letterSpacing: 4,
-        color: FAINT,
-        opacity: e,
-      }}
-    >
-      <span>DELAYED 15 MIN</span>
-      <span style={{color: MUTED}}>◈&nbsp;&nbsp;FICTIONAL DATA · DEMO ONLY</span>
-      <span>FINANCIAL NEWS · DEMO PREVIEW</span>
     </div>
   );
 };
@@ -517,20 +519,26 @@ const Footer: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 // ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const FinancialNewsGraphics: React.FC = () => {
+export const MedicationAdherenceCycle: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
-      <Background />
-      <Header frame={frame} fps={fps} />
-      <IndexCards frame={frame} fps={fps} />
-      <IntraChart frame={frame} fps={fps} />
-      <Movers frame={frame} fps={fps} />
-      <TickerTape frame={frame} />
-      <Footer frame={frame} fps={fps} />
+      <Background_med frame={frame} />
+      <AmbientParticles_med frame={frame} />
+      <Title_med frame={frame} fps={fps} />
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <BottlePanel_med frame={frame} fps={fps} />
+        <Organizer_med frame={frame} fps={fps} />
+        <ProgressRing_med frame={frame} fps={fps} />
+        <RefillLoop_med frame={frame} fps={fps} />
+        <AdherenceBars_med frame={frame} fps={fps} />
+      </svg>
+      <Payoff_med frame={frame} fps={fps} />
+      <TickerTape_med frame={frame} />
+      <CornerHud_med frame={frame} />
+      <FineDither_med frame={frame} />
+      <FilmGrain_med frame={frame} />
     </AbsoluteFill>
   );
 };
-
-export default FinancialNewsGraphics;
