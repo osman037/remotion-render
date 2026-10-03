@@ -1,15 +1,11 @@
 /**
- * AgileSprintCycle.tsx
+ * ForkliftCertificationJourney.tsx
  * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * A brand-neutral AGILE SPRINT visual for trainers, coaches and product-leadership
- * decks: backlog cards flow into a 2-week sprint ring, daily-standup tick marks
- * light the 14-day arc, a burndown line slopes to zero, review/retro checkpoints
- * land, and the ring closes with a velocity payoff that loops to the next sprint.
- * Deterministic seeded randomness only. Teal/blue palette, no tool UI, no brands.
- *
- * Register in Root.tsx:
- *   <Composition id="AgileSprintCycle" component={AgileSprintCycle}
- *     width={3840} height={2160} fps={60} durationInFrames={900} />
+ * The forklift certification journey: a forklift silhouette stands with
+ * safety cones, a pre-shift inspection checklist ticks off, the forklift
+ * weaves a slalom cone course for the skill test, a written-exam card
+ * stamps PASS, a certification seal badge appears, and the annual
+ * recertification ring closes. Deterministic.
  */
 
 import React from 'react';
@@ -23,903 +19,69 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (deep navy console, teal/blue accents)
+// Palette (safety orange / yellow on dark)
 // ---------------------------------------------------------------------------
-const BG = '#050B16';
-const INK = '#EAF2FB';
-const MUTED = 'rgba(234,242,251,0.60)';
-const TEAL = '#2DD4BF';
-const CYAN = '#67E8F9';
-const BLUE = '#60A5FA';
-const INDIGO = '#818CF8';
+const BG = '#14100A';
+const INK = '#FFF7E8';
+const MUTED = 'rgba(255,247,232,0.62)';
+const FAINT = 'rgba(255,247,232,0.32)';
+const ORANGE = '#F97316';
+const YELLOW = '#FACC15';
 const GREEN = '#34D399';
-const AMBER = '#FBBF24';
-const PANEL = 'rgba(9,15,29,0.88)';
-const HAIRLINE = 'rgba(234,242,251,0.14)';
-const SLATE = 'rgba(148,178,205,0.42)';
+const BLUE = '#38BDF8';
+const PANEL = 'rgba(24,18,10,0.94)';
+const HAIRLINE = 'rgba(255,247,232,0.14)';
 
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
-
-// ---------------------------------------------------------------------------
-// Timeline (frames at 60 fps) -> 900 frames = 15 s
-// ---------------------------------------------------------------------------
-const BACKLOG_ENTER = 40;   // backlog cards slide in
-const ENTER_STEP = 20;
-const FLOW_START = 210;     // cards fly from backlog into the ring
-const FLOW_STEP = 30;
-const FLOW_DUR = 80;
-const RING_START = 240;     // sprint ring arc begins
-const TICK_START = 250;     // day ticks begin
-const TICK_STEP = 24;
-const BURN_START = 260;     // burndown draws
-const BURN_END = 700;
-const RING_CLOSE = 800;     // ring arc completes -> loop
-const REVIEW_AT = 700;
-const RETRO_AT = 745;
-const PAYOFF_START = 800;
-
 const clamp01 = {extrapolateLeft: 'clamp' as const, extrapolateRight: 'clamp' as const};
 
 // ---------------------------------------------------------------------------
-// Data: 8 backlog stories -> 36 story points total
+// Bitrate-proof scaffolding. Seed prefix: fork
 // ---------------------------------------------------------------------------
-interface Story {
-  id: string;
-  title: string;
-  pts: number;
-}
-const STORIES: Story[] = [
-  {id: 'STY-118', title: 'Rate-limit hardening for public API', pts: 8},
-  {id: 'STY-121', title: 'Checkout retry flow on 3-D Secure', pts: 5},
-  {id: 'STY-124', title: 'CSV export for dashboard reports', pts: 3},
-  {id: 'STY-127', title: 'Auth session silent refresh', pts: 5},
-  {id: 'STY-129', title: 'Search index nightly backfill', pts: 8},
-  {id: 'STY-133', title: 'Billing proration edge cases', pts: 3},
-  {id: 'STY-136', title: 'Audit log 90-day retention', pts: 2},
-  {id: 'STY-139', title: 'Weekly digest notification batch', pts: 2},
-];
-const TOTAL_PTS = STORIES.reduce((a, s) => a + s.pts, 0); // 36
-const N_DAYS = 14;
-
-// ---------------------------------------------------------------------------
-// Ring geometry
-// ---------------------------------------------------------------------------
-const CX = 1920;
-const CY = 1180;
-const R = 680;
-const slotAngle = (k: number) => ((-67.5 + k * 45) * Math.PI) / 180;
-const slotX = (k: number) => CX + R * Math.cos(slotAngle(k));
-const slotY = (k: number) => CY + R * Math.sin(slotAngle(k));
-
-// Backlog slot origins (left panel)
-const CARD_W = 640;
-const CARD_H = 136;
-const CARD_X = 220;
-const cardY = (i: number) => 730 + i * 162;
-
-// Burndown geometry (right panel)
-const BURNDOWN = {x0: 2800, x1: 3560, yTop: 480, yBot: 900};
-const DAY_POINTS = [36, 33.5, 31, 28, 25.5, 23, 19, 16, 14, 11.5, 9, 6.5, 4, 1.5, 0];
-const dayX = (d: number) => BURNDOWN.x0 + (d / N_DAYS) * (BURNDOWN.x1 - BURNDOWN.x0);
-const ptsY = (p: number) => BURNDOWN.yBot - (p / TOTAL_PTS) * (BURNDOWN.yBot - BURNDOWN.yTop);
-
-// ---------------------------------------------------------------------------
-// SVG defs
-// ---------------------------------------------------------------------------
-const Defs: React.FC = () => (
-  <defs>
-    <radialGradient id="agGlow" cx="42%" cy="30%" r="80%">
-      <stop offset="0%" stopColor="rgba(45,212,191,0.13)" />
-      <stop offset="45%" stopColor="rgba(96,165,250,0.05)" />
-      <stop offset="100%" stopColor="rgba(5,11,22,0)" />
-    </radialGradient>
-    <radialGradient id="agVignette" cx="50%" cy="50%" r="76%">
-      <stop offset="58%" stopColor="rgba(3,6,13,0)" />
-      <stop offset="100%" stopColor="rgba(1,3,8,0.78)" />
-    </radialGradient>
-    <linearGradient id="agScan" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="rgba(45,212,191,0)" />
-      <stop offset="50%" stopColor="rgba(45,212,191,0.14)" />
-      <stop offset="100%" stopColor="rgba(45,212,191,0)" />
-    </linearGradient>
-    <linearGradient id="agRing" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stopColor={TEAL} />
-      <stop offset="55%" stopColor={CYAN} />
-      <stop offset="100%" stopColor={BLUE} />
-    </linearGradient>
-    <linearGradient id="agBar" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor={CYAN} />
-      <stop offset="100%" stopColor={TEAL} />
-    </linearGradient>
-    <linearGradient id="agArea" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor={TEAL} stopOpacity={0.30} />
-      <stop offset="100%" stopColor={TEAL} stopOpacity={0.02} />
-    </linearGradient>
-    <linearGradient id="agPayoff" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={TEAL} />
-      <stop offset="50%" stopColor={CYAN} />
-      <stop offset="100%" stopColor={BLUE} />
-    </linearGradient>
-    <filter id="agBlur60" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="60" />
-    </filter>
-    <filter id="agBlur14" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="14" />
-    </filter>
-  </defs>
-);
-
-// ---------------------------------------------------------------------------
-// Background: layered, drifting, never flat
-// ---------------------------------------------------------------------------
-const Background: React.FC<{frame: number}> = ({frame}) => {
-  const drift1 = Math.sin((frame / 900) * Math.PI * 2) * 80;
-  const drift2 = Math.cos((frame / 900) * Math.PI * 2) * 64;
-  const scanY = (frame / 900) * 2460 - 300;
-  const orbs: React.ReactElement[] = [];
-  for (let i = 0; i < 6; i++) {
-    const ox = random(`ag-orb-x-${i}`) * 3840;
-    const oy = random(`ag-orb-y-${i}`) * 2160;
-    const r = 240 + random(`ag-orb-r-${i}`) * 300;
-    const hue =
-      i % 3 === 0
-        ? 'rgba(45,212,191,0.09)'
-        : i % 3 === 1
-        ? 'rgba(96,165,250,0.08)'
-        : 'rgba(103,232,249,0.06)';
-    const mx = Math.sin((frame / 900) * Math.PI * 2 + i * 1.9) * 110;
-    const my = Math.cos((frame / 900) * Math.PI * 2 + i * 2.1) * 84;
-    orbs.push(<circle key={i} cx={ox + mx} cy={oy + my} r={r} fill={hue} filter="url(#agBlur60)" />);
-  }
+const Background_fork: React.FC<{frame: number}> = ({frame}) => {
+  const scanY = ((frame / 900) * (2160 + 480)) % (2160 + 480) - 240;
   const dots: React.ReactElement[] = [];
-  for (let gx = 60; gx < 3840; gx += 160) {
-    for (let gy = 60; gy < 2160; gy += 160) {
-      const jx = (random(`ag-dot-x-${gx}-${gy}`) - 0.5) * 24;
-      const jy = (random(`ag-dot-y-${gx}-${gy}`) - 0.5) * 24;
-      // per-frame shimmer: every dot breathes at its own phase so no region is static
-      const shimmer = 0.028 + 0.028 * (0.5 + 0.5 * Math.sin(frame * 0.11 + gx * 0.013 + gy * 0.017));
-      const rr = 2.0 + 1.1 * (0.5 + 0.5 * Math.sin(frame * 0.09 + gx * 0.021 - gy * 0.011));
+  for (let gy = 0; gy < 27; gy++) {
+    for (let gx = 0; gx < 48; gx++) {
+      const tw = 0.05 + 0.075 * (0.5 + 0.5 * Math.sin(frame * 0.11 + gx * 1.3 + gy * 2.1));
       dots.push(
-        <circle key={`${gx}-${gy}`} cx={gx + jx} cy={gy + jy} r={rr} fill="rgba(234,242,251,0.9)" opacity={shimmer} />
+        <circle key={`${gx}-${gy}`} cx={40 + gx * 80} cy={40 + gy * 80} r={2.2} fill="#FBD9A8" opacity={tw} />
       );
     }
   }
-  const hairlines: React.ReactElement[] = [];
-  for (let gx = 0; gx <= 3840; gx += 480) {
-    hairlines.push(<line key={`v${gx}`} x1={gx} y1={0} x2={gx} y2={2160} stroke="rgba(234,242,251,0.035)" strokeWidth={1} />);
-  }
-  for (let gy = 0; gy <= 2160; gy += 480) {
-    hairlines.push(<line key={`h${gy}`} x1={0} y1={gy} x2={3840} y2={gy} stroke="rgba(234,242,251,0.035)" strokeWidth={1} />);
-  }
-  // traveling pulse along the grid: a bright node that walks the frame perimeter every loop
-  const pulseT = (frame / 900);
-  const per = 2 * (3840 + 2160);
-  const pd = pulseT * per;
-  let ppx = 0;
-  let ppy = 0;
-  if (pd < 3840) {
-    ppx = pd; ppy = 0;
-  } else if (pd < 3840 + 2160) {
-    ppx = 3840; ppy = pd - 3840;
-  } else if (pd < 2 * 3840 + 2160) {
-    ppx = 3840 - (pd - 3840 - 2160); ppy = 2160;
-  } else {
-    ppx = 0; ppy = 2160 - (pd - 2 * 3840 - 2160);
-  }
-  // second sweep: vertical light column drifting horizontally across the frame
-  const colX = ((frame / 900) * 1.6 - 0.3) * 3840;
   return (
-    <div style={{position: 'absolute', inset: 0, backgroundColor: BG}}>
+    <>
+      <AbsoluteFill style={{backgroundColor: BG}} />
+      <AbsoluteFill style={{background: 'radial-gradient(circle at 50% 28%, rgba(249,115,22,0.14), rgba(250,204,21,0.04) 46%, rgba(20,16,10,0) 72%)'}} />
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <Defs />
-        <rect width={3840} height={2160} fill="url(#agGlow)" transform={`translate(${drift1},${drift2})`} />
-        {orbs}
-        <g transform={`translate(${drift1 * 0.4},${drift2 * 0.4})`}>{dots}</g>
-        {hairlines}
-        <rect x={0} y={scanY} width={3840} height={360} fill="url(#agScan)" />
-        <rect x={colX - 130} y={0} width={260} height={2160} fill="url(#agScan)" opacity={0.55} transform={`rotate(8 ${colX} 1080)`} />
-        <circle cx={ppx} cy={ppy} r={26} fill="rgba(45,212,191,0.5)" filter="url(#agBlur14)" />
-        <circle cx={ppx} cy={ppy} r={7} fill="rgba(103,232,249,0.85)" />
-        <rect width={3840} height={2160} fill="url(#agVignette)" />
+        {dots}
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#forkVig)" />
+        <rect x={0} y={scanY - 110} width={3840} height={220} fill="rgba(249,115,22,0.045)" />
+        <defs>
+          <radialGradient id="forkVig" cx="50%" cy="50%" r="75%">
+            <stop offset="58%" stopColor="rgba(20,16,10,0)" />
+            <stop offset="100%" stopColor="rgba(8,6,3,0.74)" />
+          </radialGradient>
+        </defs>
       </svg>
-    </div>
+    </>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Title bar
-// ---------------------------------------------------------------------------
-const TitleBar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const rise = spring({frame, fps, config: {damping: 200, stiffness: 90, mass: 1}});
-  const y = interpolate(rise, [0, 1], [60, 0]);
-  const opacity = interpolate(rise, [0, 1], [0, 1]);
-  const pulse = 0.72 + 0.28 * Math.sin((frame / 60) * Math.PI * 2);
-  return (
-    <div style={{position: 'absolute', top: 118, left: 220, right: 220, opacity, transform: `translateY(${y}px)`}}>
-      <div style={{fontFamily: MONO, fontSize: 44, letterSpacing: 14, color: TEAL}}>
-        AGILE OPS &nbsp;·&nbsp; SPRINT ENGINE
-      </div>
-      <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 150, color: INK, marginTop: 16, letterSpacing: -2}}>
-        Sprint Cycle
-      </div>
-      <div style={{display: 'flex', alignItems: 'center', marginTop: 24, gap: 28}}>
-        <div style={{width: 22, height: 22, borderRadius: 11, backgroundColor: TEAL, opacity: pulse, boxShadow: `0 0 30px ${TEAL}`}} />
-        <div style={{fontFamily: MONO, fontSize: 40, color: MUTED}}>
-          BACKLOG &nbsp;→&nbsp; 2-WEEK SPRINT &nbsp;·&nbsp; 14 DAYS &nbsp;·&nbsp; {TOTAL_PTS} PTS
-        </div>
-        <div style={{marginLeft: 'auto', display: 'flex', gap: 22}}>
-          {['SPRINT 14', '14 DAYS', `${TOTAL_PTS} PTS`].map((c) => (
-            <div
-              key={c}
-              style={{
-                fontFamily: MONO,
-                fontSize: 38,
-                fontWeight: 700,
-                color: CYAN,
-                border: `2px solid ${CYAN}`,
-                borderRadius: 12,
-                padding: '10px 28px',
-              }}
-            >
-              {c}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Backlog cards that fly into the ring
-// ---------------------------------------------------------------------------
-const BacklogCards: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const flowed = STORIES.filter((_, i) => frame >= FLOW_START + i * FLOW_STEP).length;
-  const remain = STORIES.length - flowed;
-  const headerS = spring({frame: frame - 10, fps, config: {damping: 200, stiffness: 90}});
-  return (
-    <div style={{position: 'absolute', inset: 0}}>
-      <div
-        style={{
-          position: 'absolute',
-          left: 220,
-          top: 610,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 26,
-          opacity: Math.min(1, headerS),
-        }}
-      >
-        <div style={{fontFamily: MONO, fontSize: 40, letterSpacing: 10, color: TEAL}}>PRODUCT BACKLOG</div>
-        <div
-          style={{
-            fontFamily: MONO,
-            fontSize: 36,
-            color: INK,
-            backgroundColor: 'rgba(45,212,191,0.12)',
-            border: `1px solid ${TEAL}`,
-            borderRadius: 10,
-            padding: '8px 22px',
-          }}
-        >
-          {remain} OPEN
-        </div>
-      </div>
-      {STORIES.map((s, i) => {
-        const enter = spring({frame: frame - (BACKLOG_ENTER + i * ENTER_STEP), fps, config: {damping: 200, stiffness: 110}});
-        if (enter <= 0.001) return null;
-        const flyStart = FLOW_START + i * FLOW_STEP;
-        const flyP = interpolate(frame, [flyStart, flyStart + FLOW_DUR], [0, 1], clamp01);
-        const ease = flyP * flyP * (3 - 2 * flyP);
-        const tx = slotX(i) - (CARD_W * 0.7) / 2;
-        const ty = slotY(i) - (CARD_H * 0.7) / 2;
-        const x = CARD_X + (tx - CARD_X) * ease;
-        const y = cardY(i) + (ty - cardY(i)) * ease - Math.sin(ease * Math.PI) * 170;
-        const scale = 1 - ease * 0.3;
-        const ex = interpolate(enter, [0, 1], [-80, 0]);
-        const eo = interpolate(enter, [0, 1], [0, 1]);
-        const doneDay = 2 + i * 1.6;
-        const ringProgress = interpolate(frame, [RING_START, RING_CLOSE], [0, 1], clamp01);
-        const done = ringProgress * N_DAYS >= doneDay && flyP >= 1;
-        const doneSpring = spring({
-          frame: frame - (flyStart + FLOW_DUR + (doneDay / N_DAYS) * (RING_CLOSE - RING_START - FLOW_DUR)),
-          fps,
-          config: {damping: 200, stiffness: 120},
-        });
-        return (
-          <React.Fragment key={s.id}>
-            {flyP >= 1 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: CARD_X,
-                  top: cardY(i),
-                  width: CARD_W,
-                  height: CARD_H,
-                  border: `2px dashed ${SLATE}`,
-                  borderRadius: 18,
-                  opacity: 0.35,
-                }}
-              />
-            )}
-            <div
-              style={{
-                position: 'absolute',
-                left: x,
-                top: y,
-                width: CARD_W,
-                height: CARD_H,
-                opacity: eo,
-                transform: `translateX(${ex}px) scale(${scale})`,
-                transformOrigin: 'left center',
-                backgroundColor: PANEL,
-                border: `1px solid ${HAIRLINE}`,
-                borderLeft: `10px solid ${done ? GREEN : flyP >= 1 ? TEAL : 'rgba(234,242,251,0.25)'}`,
-                borderRadius: 18,
-                display: 'flex',
-                alignItems: 'center',
-                padding: '0 36px',
-                gap: 30,
-                boxShadow: flyP >= 1 ? `0 0 34px rgba(45,212,191,0.22)` : 'none',
-              }}
-            >
-              <div style={{fontFamily: MONO, fontSize: 34, color: MUTED, width: 170}}>{s.id}</div>
-              <div style={{flex: 1, fontFamily: FONT, fontWeight: 650, fontSize: 40, color: INK}}>{s.title}</div>
-              <div
-                style={{
-                  fontFamily: MONO,
-                  fontWeight: 700,
-                  fontSize: 38,
-                  color: '#04121A',
-                  backgroundColor: done ? GREEN : TEAL,
-                  borderRadius: 10,
-                  padding: '10px 24px',
-                  boxShadow: done ? `0 0 26px ${GREEN}` : `0 0 20px rgba(45,212,191,0.5)`,
-                }}
-              >
-                {s.pts} PTS
-              </div>
-              {done && doneSpring > 0.02 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    right: -24,
-                    top: -24,
-                    width: 84,
-                    height: 84,
-                    borderRadius: 42,
-                    backgroundColor: GREEN,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: FONT,
-                    fontWeight: 800,
-                    fontSize: 46,
-                    color: '#06281C',
-                    boxShadow: `0 0 40px ${GREEN}`,
-                    transform: `scale(${Math.min(1, doneSpring)})`,
-                  }}
-                >
-                  ✓
-                </div>
-              )}
-            </div>
-          </React.Fragment>
-        );
-      })}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Sprint ring: day ticks, progress arc, orbiting particles, center HUD
-// ---------------------------------------------------------------------------
-const SprintRing: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const progress = interpolate(frame, [RING_START, RING_CLOSE], [0, 1], clamp01);
-  const dayFloat = progress * N_DAYS;
-  const dayNum = Math.min(N_DAYS, Math.max(1, Math.floor(dayFloat) + 1));
-  const ptsLeft = Math.round(TOTAL_PTS * (1 - progress));
-  const enterS = spring({frame: frame - 190, fps, config: {damping: 200, stiffness: 80}});
-  const finalGlow = interpolate(frame, [RING_CLOSE - 40, RING_CLOSE + 60], [0, 0.55], clamp01);
-  const ticks: React.ReactElement[] = [];
-  for (let d = 0; d < N_DAYS; d++) {
-    const a = ((-90 + d * (360 / N_DAYS)) * Math.PI) / 180;
-    const lit = d < dayFloat;
-    const s = spring({frame: frame - (TICK_START + d * TICK_STEP), fps, config: {damping: 200, stiffness: 120}});
-    if (s <= 0.001) continue;
-    const x1 = CX + (R - 16) * Math.cos(a);
-    const y1 = CY + (R - 16) * Math.sin(a);
-    const x2 = CX + (R + 16) * Math.cos(a);
-    const y2 = CY + (R + 16) * Math.sin(a);
-    const lx = CX + (R + 58) * Math.cos(a);
-    const ly = CY + (R + 58) * Math.sin(a);
-    ticks.push(
-      <g key={d} opacity={Math.min(1, s)}>
-        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={lit ? TEAL : SLATE} strokeWidth={lit ? 7 : 4} strokeLinecap="round" />
-        <circle cx={x2} cy={y2} r={lit ? 8 : 5} fill={lit ? TEAL : SLATE} />
-        <text
-          x={lx}
-          y={ly + 9}
-          fill={lit ? TEAL : MUTED}
-          fontSize={30}
-          fontFamily={MONO}
-          fontWeight={700}
-          textAnchor="middle"
-        >
-          D{d + 1}
-        </text>
-      </g>
-    );
-  }
-  const particles: React.ReactElement[] = [];
-  for (let i = 0; i < 20; i++) {
-    const base = random(`ag-part-a-${i}`) * Math.PI * 2;
-    const rr = R + (random(`ag-part-r-${i}`) - 0.5) * 56;
-    const speed = (0.0022 + random(`ag-part-s-${i}`) * 0.004) * (i % 2 === 0 ? 1 : -1);
-    const a = base + frame * speed;
-    const px = CX + rr * Math.cos(a);
-    const py = CY + rr * Math.sin(a);
-    const op = 0.25 + 0.45 * (0.5 + 0.5 * Math.sin(frame * 0.12 + i * 2.2));
-    const sz = 5 + random(`ag-part-z-${i}`) * 7;
-    particles.push(<circle key={i} cx={px} cy={py} r={sz} fill={i % 3 === 0 ? CYAN : TEAL} opacity={op} />);
-  }
-  const rot = frame * 0.18;
-  return (
-    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enterS)}}>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <Defs />
-        <circle cx={CX} cy={CY} r={R + 36} fill="none" stroke="rgba(45,212,191,0.16)" strokeWidth={2} />
-        <circle cx={CX} cy={CY} r={R} fill="none" stroke={TEAL} strokeWidth={26} opacity={finalGlow} filter="url(#agBlur14)" />
-        <g transform={`rotate(${rot} ${CX} ${CY})`}>
-          <circle
-            cx={CX}
-            cy={CY}
-            r={R - 190}
-            fill="none"
-            stroke="rgba(103,232,249,0.28)"
-            strokeWidth={3}
-            strokeDasharray="10 26"
-          />
-        </g>
-        <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(234,242,251,0.14)" strokeWidth={10} />
-        <circle
-          cx={CX}
-          cy={CY}
-          r={R}
-          fill="none"
-          stroke="url(#agRing)"
-          strokeWidth={12}
-          strokeLinecap="round"
-          pathLength={1}
-          strokeDasharray={1}
-          strokeDashoffset={1 - progress}
-          transform={`rotate(-90 ${CX} ${CY})`}
-          style={{filter: 'drop-shadow(0 0 18px rgba(45,212,191,0.65))'}}
-        />
-        {ticks}
-        {particles}
-      </svg>
-      <div
-        style={{
-          position: 'absolute',
-          left: CX - 330,
-          top: CY - 200,
-          width: 660,
-          textAlign: 'center',
-        }}
-      >
-        <div style={{fontFamily: MONO, fontSize: 40, letterSpacing: 12, color: TEAL}}>DAY</div>
-        <div
-          style={{
-            fontFamily: MONO,
-            fontWeight: 800,
-            fontSize: 170,
-            color: INK,
-            lineHeight: 1,
-            textShadow: '0 0 40px rgba(45,212,191,0.45)',
-          }}
-        >
-          {String(dayNum).padStart(2, '0')}
-          <span style={{fontSize: 70, color: MUTED}}> / {N_DAYS}</span>
-        </div>
-        <div style={{fontFamily: MONO, fontSize: 40, color: MUTED, marginTop: 18}}>
-          {ptsLeft} PTS LEFT
-        </div>
-        <div
-          style={{
-            width: 420,
-            height: 16,
-            backgroundColor: 'rgba(234,242,251,0.10)',
-            borderRadius: 8,
-            margin: '26px auto 0',
-            overflow: 'hidden',
-          }}
-        >
-          <div style={{width: `${progress * 100}%`, height: '100%', background: 'linear-gradient(90deg,#2DD4BF,#67E8F9)', borderRadius: 8}} />
-        </div>
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          left: CX - 300,
-          top: CY + 240,
-          width: 600,
-          textAlign: 'center',
-          fontFamily: MONO,
-          fontSize: 34,
-          letterSpacing: 6,
-          color: MUTED,
-        }}
-      >
-        {progress >= 1 ? 'RING CLOSED · LOOPING TO SPRINT 15 →' : 'DAILY STANDUP · 09:15'}
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Burndown panel (right column): ideal vs actual, cursor, counters, throughput
-// ---------------------------------------------------------------------------
-const BurndownPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const enter = spring({frame: frame - 230, fps, config: {damping: 200, stiffness: 80}});
-  const draw = interpolate(frame, [BURN_START, BURN_END], [0, 1], clamp01);
-  const curDay = draw * N_DAYS;
-  const ptsLeft = Math.round(interpolate(frame, [BURN_START, BURN_END], [TOTAL_PTS, 0], clamp01));
-  const commits = Math.floor(interpolate(frame, [200, 860], [0, 214], clamp01));
-  const prs = Math.floor(interpolate(frame, [240, 860], [0, 46], clamp01));
-  const deploys = Math.floor(interpolate(frame, [320, 860], [0, 12], clamp01));
-
-  const idealPath = `M ${dayX(0).toFixed(1)} ${ptsY(TOTAL_PTS).toFixed(1)} L ${dayX(N_DAYS).toFixed(1)} ${ptsY(0).toFixed(1)}`;
-  const actualD = DAY_POINTS.map(
-    (p, d) => `${d === 0 ? 'M' : 'L'} ${dayX(d).toFixed(1)} ${ptsY(p).toFixed(1)}`
-  ).join(' ');
-  const actualArea = `${actualD} L ${dayX(N_DAYS).toFixed(1)} ${BURNDOWN.yBot} L ${dayX(0).toFixed(1)} ${BURNDOWN.yBot} Z`;
-
-  const curIdx = Math.min(N_DAYS - 1, Math.floor(curDay));
-  const frac = curDay - curIdx;
-  const curP = DAY_POINTS[curIdx] + (DAY_POINTS[curIdx + 1] - DAY_POINTS[curIdx]) * frac;
-  const cxp = dayX(curDay);
-  const cyp = ptsY(curP);
-
-  const bars: React.ReactElement[] = [];
-  const barX0 = 2800;
-  const barW = 46;
-  const barGap = 12;
-  for (let d = 0; d < N_DAYS; d++) {
-    const s = spring({frame: frame - (420 + d * 18), fps, config: {damping: 200, stiffness: 120}});
-    if (s <= 0.001) continue;
-    const hSeed = 40 + random(`ag-bar-h-${d}`) * 110;
-    const pulse = 1 + 0.06 * Math.sin(frame * 0.15 + d * 1.3);
-    const h = hSeed * Math.min(1, s) * pulse;
-    const bx = barX0 + d * (barW + barGap);
-    bars.push(
-      <g key={d} opacity={Math.min(1, s)}>
-        <rect x={bx} y={1370 - h} width={barW} height={h} rx={6} fill="url(#agBar)" opacity={0.85} />
-        <text x={bx + barW / 2} y={1406} fill={MUTED} fontSize={24} fontFamily={MONO} textAnchor="middle">
-          {d + 1}
-        </text>
-      </g>
-    );
-  }
-
-  return (
-    <div style={{position: 'absolute', inset: 0, opacity: Math.min(1, enter)}}>
-      <div style={{position: 'absolute', left: 2740, top: 380}}>
-        <div style={{fontFamily: MONO, fontSize: 40, letterSpacing: 10, color: TEAL}}>BURNDOWN</div>
-        <div style={{fontFamily: MONO, fontSize: 34, color: MUTED, marginTop: 10}}>
-          REMAINING WORK · PTS
-        </div>
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          left: 3470,
-          top: 380,
-          fontFamily: MONO,
-          fontWeight: 800,
-          fontSize: 96,
-          color: INK,
-          textShadow: '0 0 30px rgba(45,212,191,0.4)',
-        }}
-      >
-        {ptsLeft}
-      </div>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <Defs />
-        <rect
-          x={2740}
-          y={440}
-          width={880}
-          height={520}
-          rx={20}
-          fill={PANEL}
-          stroke={HAIRLINE}
-          strokeWidth={1.5}
-        />
-        <rect
-          x={2746}
-          y={446}
-          width={868}
-          height={508}
-          rx={16}
-          fill="none"
-          stroke="rgba(45,212,191,0.35)"
-          strokeWidth={2}
-          strokeDasharray="26 34"
-          strokeDashoffset={-frame * 1.4}
-        />
-        {[0, 12, 24, 36].map((p) => (
-          <g key={p}>
-            <line x1={BURNDOWN.x0} y1={ptsY(p)} x2={BURNDOWN.x1} y2={ptsY(p)} stroke="rgba(234,242,251,0.07)" strokeWidth={1.5} />
-            <text x={BURNDOWN.x0 - 18} y={ptsY(p) + 11} fill={MUTED} fontSize={28} fontFamily={MONO} textAnchor="end">
-              {p}
-            </text>
-          </g>
-        ))}
-        {[0, 7, 14].map((d) => (
-          <text key={d} x={dayX(d)} y={BURNDOWN.yBot + 48} fill={MUTED} fontSize={28} fontFamily={MONO} textAnchor="middle">
-            D{d + 1}
-          </text>
-        ))}
-        <path d={idealPath} fill="none" stroke={SLATE} strokeWidth={3} strokeDasharray="12 12" opacity={0.8} />
-        <path d={actualArea} fill="url(#agArea)" opacity={draw} />
-        <path
-          d={actualD}
-          fill="none"
-          stroke={TEAL}
-          strokeWidth={9}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          pathLength={1}
-          strokeDasharray={1}
-          strokeDashoffset={1 - draw}
-          style={{filter: 'drop-shadow(0 0 16px rgba(45,212,191,0.7))'}}
-        />
-        {draw > 0.004 && draw < 0.999 && (
-          <g>
-            <circle cx={cxp} cy={cyp} r={30} fill={TEAL} opacity={0.18} />
-            <circle cx={cxp} cy={cyp} r={13} fill="#FFFFFF" style={{filter: 'drop-shadow(0 0 12px rgba(255,255,255,0.9))'}} />
-          </g>
-        )}
-        <text x={BURNDOWN.x1 - 220} y={ptsY(0) - 26} fill={TEAL} fontSize={30} fontFamily={MONO} fontWeight={700}>
-          {draw >= 0.999 ? 'ZERO · D14 ✓' : `${Math.round(curP)} PTS`}
-        </text>
-        <text x={2740} y={1050} fill={MUTED} fontSize={30} fontFamily={MONO}>
-          COMMITS {commits} · PRs {prs} · DEPLOYS {deploys}
-        </text>
-        <rect x={2740} y={1090} width={880} height={380} rx={20} fill={PANEL} stroke={HAIRLINE} strokeWidth={1.5} />
-        <rect
-          x={2746}
-          y={1096}
-          width={868}
-          height={368}
-          rx={16}
-          fill="none"
-          stroke="rgba(103,232,249,0.30)"
-          strokeWidth={2}
-          strokeDasharray="22 40"
-          strokeDashoffset={frame * 1.1}
-        />
-        <text x={2780} y={1150} fill={TEAL} fontSize={32} fontFamily={MONO} letterSpacing={8}>
-          THROUGHPUT / DAY
-        </text>
-        {bars}
-      </svg>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Live standup feed (cycling lines, per-frame ticker)
-// ---------------------------------------------------------------------------
-const STANDUP_LINES = [
-  'D04 · STANDUP 09:15 — 2 BLOCKERS, 0 STALE',
-  'STY-124 → IN REVIEW · NEEDS 1 APPROVAL',
-  'BLOCKER CLEARED · SEARCH INDEX LOCK RELEASED',
-  'D07 · STANDUP 09:15 — VELOCITY ON TRACK 22/36',
-  'STY-133 → DONE · PR #482 MERGED',
-  'RETRO ACTION ADDED · FLAKY TEST QUARANTINED',
-  'D11 · STANDUP 09:15 — 1 BLOCKER, CARRYOVER RISK 0',
-  'STY-139 → IN REVIEW · DOCS ATTACHED',
-  'D14 · STANDUP 09:15 — SPRINT REVIEW AT 14:00',
-  'VELOCITY 36/36 · ZERO CARRYOVER',
-];
-const StandupFeed: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const enter = spring({frame: frame - 300, fps, config: {damping: 200, stiffness: 90}});
-  const head = Math.floor(frame / 40) % STANDUP_LINES.length;
-  const live = 0.6 + 0.4 * Math.sin((frame / 60) * Math.PI * 2);
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: 2740,
-        top: 1500,
-        width: 880,
-        height: 250,
-        opacity: Math.min(1, enter),
-        backgroundColor: PANEL,
-        border: `1px solid ${HAIRLINE}`,
-        borderRadius: 20,
-        padding: '34px 44px',
-      }}
-    >
-      <div style={{display: 'flex', alignItems: 'center', gap: 22}}>
-        <div style={{width: 20, height: 20, borderRadius: 10, backgroundColor: GREEN, opacity: live, boxShadow: `0 0 26px ${GREEN}`}} />
-        <div style={{fontFamily: MONO, fontSize: 34, letterSpacing: 8, color: GREEN}}>LIVE STANDUP FEED</div>
-      </div>
-      <div style={{marginTop: 26}}>
-        {[0, 1, 2].map((k) => {
-          const line = STANDUP_LINES[(head + k) % STANDUP_LINES.length];
-          const fade = interpolate(k, [0, 2], [1, 0.45]);
-          return (
-            <div
-              key={`${head}-${k}`}
-              style={{
-                fontFamily: MONO,
-                fontSize: 34,
-                color: k === 0 ? INK : MUTED,
-                opacity: fade,
-                marginTop: k === 0 ? 0 : 14,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {line}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Review + Retro checkpoints
-// ---------------------------------------------------------------------------
-const Checkpoints: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const items = [
-    {at: REVIEW_AT, label: 'SPRINT REVIEW', sub: 'DEMO · STAKEHOLDERS', x: 930, color: BLUE},
-    {at: RETRO_AT, label: 'RETRO', sub: 'WHAT WORKED · FIX ONE THING', x: 2470, color: CYAN},
-  ];
-  return (
-    <div style={{position: 'absolute', inset: 0}}>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <Defs />
-        <line
-          x1={1370}
-          y1={1705}
-          x2={2470}
-          y2={1705}
-          stroke={SLATE}
-          strokeWidth={3}
-          strokeDasharray="14 14"
-          opacity={interpolate(frame, [REVIEW_AT, REVIEW_AT + 40], [0, 0.7], clamp01)}
-        />
-      </svg>
-      {items.map((it) => {
-        const s = spring({frame: frame - it.at, fps, config: {damping: 200, stiffness: 100}});
-        if (s <= 0.001) return null;
-        return (
-          <div
-            key={it.label}
-            style={{
-              position: 'absolute',
-              left: it.x,
-              top: 1630,
-              width: 440,
-              height: 150,
-              opacity: Math.min(1, s),
-              transform: `translateY(${(1 - s) * 40}px) scale(${0.9 + s * 0.1})`,
-              backgroundColor: PANEL,
-              border: `2px solid ${it.color}`,
-              borderRadius: 20,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: `0 0 50px ${it.color}55`,
-            }}
-          >
-            <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 46, color: INK, letterSpacing: 2}}>
-              {it.label}
-            </div>
-            <div style={{fontFamily: MONO, fontSize: 28, color: it.color, marginTop: 10, letterSpacing: 3}}>
-              {it.sub}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Payoff banner: velocity payoff + loop stamp
-// ---------------------------------------------------------------------------
-const PayoffBanner: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const enter = spring({frame: frame - PAYOFF_START, fps, config: {damping: 200, stiffness: 70}});
-  const opacity = interpolate(enter, [0, 1], [0, 1]);
-  const scale = interpolate(enter, [0, 1], [0.94, 1]);
-  const w = interpolate(frame, [PAYOFF_START, PAYOFF_START + 50], [0, 2100], clamp01);
-  const stampS = spring({frame: frame - (PAYOFF_START + 14), fps, config: {damping: 200, stiffness: 140}});
-  const pts = Math.round(interpolate(frame, [PAYOFF_START, PAYOFF_START + 45], [0, TOTAL_PTS], clamp01));
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 96,
-        left: 0,
-        right: 0,
-        display: 'flex',
-        justifyContent: 'center',
-        opacity,
-        transform: `scale(${scale})`,
-      }}
-    >
-      <div
-        style={{
-          position: 'relative',
-          backgroundColor: 'rgba(5,11,22,0.94)',
-          border: `2px solid ${TEAL}`,
-          borderRadius: 26,
-          padding: '40px 110px',
-          textAlign: 'center',
-          boxShadow: '0 0 110px rgba(45,212,191,0.35)',
-        }}
-      >
-        <div style={{fontFamily: MONO, fontSize: 40, letterSpacing: 14, color: TEAL}}>SPRINT 14 COMPLETE</div>
-        <div style={{fontFamily: FONT, fontWeight: 800, fontSize: 92, color: INK, marginTop: 10}}>
-          VELOCITY {pts} / {TOTAL_PTS} PTS
-        </div>
-        <div style={{fontFamily: MONO, fontSize: 36, color: MUTED, marginTop: 12}}>
-          8/8 STORIES DONE &nbsp;·&nbsp; 0 CARRYOVER &nbsp;·&nbsp; LOOPING TO SPRINT 15 →
-        </div>
-        <div style={{width: w, maxWidth: '100%', height: 10, background: 'linear-gradient(90deg,#2DD4BF,#67E8F9,#60A5FA)', borderRadius: 5, margin: '26px auto 0'}} />
-        {stampS > 0.02 && (
-          <div
-            style={{
-              position: 'absolute',
-              right: 60,
-              top: -56,
-              transform: `rotate(10deg) scale(${Math.min(1, stampS)})`,
-              fontFamily: FONT,
-              fontWeight: 800,
-              fontSize: 54,
-              color: TEAL,
-              border: `5px solid ${TEAL}`,
-              borderRadius: 18,
-              padding: '14px 40px',
-              backgroundColor: 'rgba(5,11,22,0.9)',
-              boxShadow: '0 0 60px rgba(45,212,191,0.55)',
-              letterSpacing: 4,
-            }}
-          >
-            DONE ✓
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Ambient particle field: full-frame drifting motes, every region alive
-// ---------------------------------------------------------------------------
-const AmbientParticles: React.FC<{frame: number}> = ({frame}) => {
+const AmbientParticles_fork: React.FC<{frame: number}> = ({frame}) => {
   const parts: React.ReactElement[] = [];
   for (let i = 0; i < 220; i++) {
-    const bx = random(`ag-amb-x-${i}`) * 3840;
-    const by = random(`ag-amb-y-${i}`) * 2160;
-    const spd = 0.4 + random(`ag-amb-s-${i}`) * 1.4;
-    const ang = random(`ag-amb-a-${i}`) * Math.PI * 2;
+    const bx = random(`fork-amb-x-${i}`) * 3840;
+    const by = random(`fork-amb-y-${i}`) * 2160;
+    const spd = 0.4 + random(`fork-amb-s-${i}`) * 1.4;
+    const ang = random(`fork-amb-a-${i}`) * Math.PI * 2;
     const drift = ((frame * spd) % 2400) - 200;
     const px = (bx + Math.cos(ang) * drift + 3840) % 3840;
     const py = (by + Math.sin(ang) * drift * 0.6 + 2160) % 2160;
     const tw = 0.10 + 0.22 * (0.5 + 0.5 * Math.sin(frame * 0.14 + i * 1.7));
-    const sz = 3 + random(`ag-amb-z-${i}`) * 6;
-    const col = i % 4 === 0 ? CYAN : i % 4 === 1 ? TEAL : 'rgba(234,242,251,0.9)';
+    const sz = 3 + random(`fork-amb-z-${i}`) * 6;
+    const col = i % 4 === 0 ? ORANGE : i % 4 === 1 ? YELLOW : 'rgba(255,247,232,0.9)';
     parts.push(<circle key={i} cx={px} cy={py} r={sz} fill={col} opacity={tw} />);
   }
   return (
@@ -929,22 +91,16 @@ const AmbientParticles: React.FC<{frame: number}> = ({frame}) => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// Fine dither layer: tiny per-frame jittered specks (second noise octave)
-// ---------------------------------------------------------------------------
-const FineDither: React.FC<{frame: number}> = ({frame}) => {
+const FineDither_fork: React.FC<{frame: number}> = ({frame}) => {
   const specks: React.ReactElement[] = [];
   for (let i = 0; i < 2600; i++) {
-    const bx = random(`ag-dth-x-${i}`) * 3840;
-    const by = random(`ag-dth-y-${i}`) * 2160;
-    // per-frame jitter so the layer never sits still
-    const jx = (random(`ag-dth-jx-${frame}-${i}`) - 0.5) * 9;
-    const jy = (random(`ag-dth-jy-${frame}-${i}`) - 0.5) * 9;
-    const o = 0.015 + random(`ag-dth-o-${frame}-${i}`) * 0.035;
-    const s = 1.5 + random(`ag-dth-s-${i}`) * 2;
-    specks.push(
-      <rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#CFE9FF" opacity={o} />
-    );
+    const bx = random(`fork-dth-x-${i}`) * 3840;
+    const by = random(`fork-dth-y-${i}`) * 2160;
+    const jx = (random(`fork-dth-jx-${frame}-${i}`) - 0.5) * 9;
+    const jy = (random(`fork-dth-jy-${frame}-${i}`) - 0.5) * 9;
+    const o = 0.015 + random(`fork-dth-o-${frame}-${i}`) * 0.035;
+    const s = 1.5 + random(`fork-dth-s-${i}`) * 2;
+    specks.push(<rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#FBD9A8" opacity={o} />);
   }
   return (
     <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
@@ -953,84 +109,76 @@ const FineDither: React.FC<{frame: number}> = ({frame}) => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// Ticker tape: scrolling sprint-metrics strip along the bottom edge
-// ---------------------------------------------------------------------------
-const TICKER_ITEMS = [
-  'VELOCITY 36/36 PTS', 'ZERO CARRYOVER', '214 COMMITS', '46 PRS MERGED', '12 DEPLOYS',
-  'LEAD TIME 2.1D', 'MTTR 38MIN', 'SPRINT 14 · 14 DAYS', '8/8 STORIES DONE', 'UPTIME 99.98%',
+const TICKER_ITEMS_fork = [
+  'PRE-SHIFT INSPECTION',
+  'CONE COURSE SLALOM',
+  'WRITTEN EXAM 96/100',
+  'CERTIFIED OPERATOR',
+  '12-MONTH RECERTIFICATION',
+  'SAFETY FIRST ALWAYS',
+  'LOAD LIMIT 5,000 LB',
+  'HORN BEFORE TURNS',
 ];
-const TickerTape: React.FC<{frame: number}> = ({frame}) => {
-  const unit = TICKER_ITEMS.join('   ◆   ') + '   ◆   ';
-  const unitW = unit.length * 21;
+const TickerTape_fork: React.FC<{frame: number}> = ({frame}) => {
+  const unit = TICKER_ITEMS_fork.join('   \u25C6   ') + '   \u25C6   ';
+  const unitW = unit.length * 20;
   const x = -((frame * 7) % unitW);
   const reps: React.ReactElement[] = [];
   for (let r = 0; r < Math.ceil(3840 / unitW) + 1; r++) {
     reps.push(
-      <text key={r} x={x + r * unitW} y={44} fill="rgba(103,232,249,0.55)" fontSize={30} fontFamily={MONO} letterSpacing={4}>
+      <text key={r} x={x + r * unitW} y={38} fill="rgba(249,115,22,0.62)" fontSize={27} fontFamily={MONO} letterSpacing={4}>
         {unit}
       </text>
     );
   }
   return (
-    <div style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: 72, overflow: 'hidden', backgroundColor: 'rgba(3,7,14,0.72)', borderTop: `1px solid ${HAIRLINE}`}}>
-      <svg width={3840} height={72} style={{position: 'absolute', top: 0, left: 0}}>
+    <div style={{position: 'absolute', left: 0, right: 0, top: 0, height: 56, overflow: 'hidden', backgroundColor: 'rgba(10,7,3,0.66)', borderBottom: '1px solid rgba(255,247,232,0.14)'}}>
+      <svg width={3840} height={56} style={{position: 'absolute', top: 0, left: 0}}>
         {reps}
       </svg>
     </div>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Corner HUD: framing brackets + live micro-labels
-// ---------------------------------------------------------------------------
-const CornerHud: React.FC<{frame: number}> = ({frame}) => {
+const CornerHud_fork: React.FC<{frame: number}> = ({frame}) => {
   const blink = 0.55 + 0.45 * Math.sin((frame / 60) * Math.PI * 2);
   const corners = [
-    {x: 60, y: 60, sx: 1, sy: 1, label: 'AGILE-OPS · 4K60'},
-    {x: 3780, y: 60, sx: -1, sy: 1, label: 'REC ●'},
-    {x: 60, y: 2100, sx: 1, sy: -1, label: `F ${String(frame).padStart(4, '0')} / 0900`},
-    {x: 3780, y: 2100, sx: -1, sy: -1, label: '15.0S LOOP'},
+    {x: 60, y: 92, sx: 1, sy: 1},
+    {x: 3780, y: 92, sx: -1, sy: 1},
+    {x: 60, y: 2068, sx: 1, sy: -1},
+    {x: 3780, y: 2068, sx: -1, sy: -1},
   ];
   return (
     <div style={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
         {corners.map((c, i) => (
           <g key={i} transform={`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}>
-            <path d="M 0 64 L 0 0 L 64 0" fill="none" stroke="rgba(45,212,191,0.55)" strokeWidth={5} />
-            <circle cx={0} cy={0} r={6} fill={TEAL} opacity={blink} />
-            <text x={c.sx === 1 ? 24 : -24} y={c.sy === 1 ? 108 : -84} fill="rgba(234,242,251,0.5)" fontSize={26} fontFamily={MONO} letterSpacing={3} textAnchor={c.sx === 1 ? 'start' : 'end'}>
-              {c.label}
-            </text>
+            <path d="M 0 56 L 0 0 L 56 0" fill="none" stroke="rgba(249,115,22,0.55)" strokeWidth={5} />
+            <circle cx={0} cy={0} r={6} fill={ORANGE} opacity={blink} />
           </g>
         ))}
-        {/* side rulers with per-frame marching ticks */}
         {Array.from({length: 24}, (_, k) => {
-          const yy = 240 + k * 70;
+          const yy = 280 + k * 68;
           const on = ((frame >> 2) + k) % 8 === 0;
-          return <rect key={`rl${k}`} x={28} y={yy} width={on ? 34 : 18} height={3} fill={on ? TEAL : 'rgba(234,242,251,0.18)'} opacity={on ? 0.9 : 0.5} />;
+          return <rect key={`rl${k}`} x={28} y={yy} width={on ? 32 : 17} height={3} fill={on ? ORANGE : 'rgba(255,247,232,0.18)'} opacity={on ? 0.9 : 0.5} />;
         })}
-        {Array.from({length: 48}, (_, k) => {
-          const xx = 240 + k * 70;
+        {Array.from({length: 46}, (_, k) => {
+          const xx = 280 + k * 68;
           const on = ((frame >> 2) + k) % 8 === 4;
-          return <rect key={`rt${k}`} x={xx} y={2062} width={3} height={on ? 30 : 16} fill={on ? TEAL : 'rgba(234,242,251,0.18)'} opacity={on ? 0.9 : 0.5} />;
+          return <rect key={`rt${k}`} x={xx} y={2036} width={3} height={on ? 28 : 15} fill={on ? ORANGE : 'rgba(255,247,232,0.18)'} opacity={on ? 0.9 : 0.5} />;
         })}
       </svg>
     </div>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Film grain (full-frame, re-seeded every frame) — 7000 rects, cinematic
-// ---------------------------------------------------------------------------
-const GRAIN_COUNT = 7000;
-const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
+const FilmGrain_fork: React.FC<{frame: number}> = ({frame}) => {
   const dots: React.ReactElement[] = [];
-  for (let i = 0; i < GRAIN_COUNT; i++) {
-    const x = random(`ag-grain-x-${frame}-${i}`) * 3840;
-    const y = random(`ag-grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`ag-grain-o-${frame}-${i}`) * 0.06;
-    const s = 2 + random(`ag-grain-s-${frame}-${i}`) * 3;
+  for (let i = 0; i < 7000; i++) {
+    const x = random(`fork-grain-x-${frame}-${i}`) * 3840;
+    const y = random(`fork-grain-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`fork-grain-o-${frame}-${i}`) * 0.06;
+    const s = 2 + random(`fork-grain-s-${frame}-${i}`) * 3;
     dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
   }
   return (
@@ -1041,27 +189,345 @@ const FilmGrain: React.FC<{frame: number}> = ({frame}) => {
 };
 
 // ---------------------------------------------------------------------------
+// Shared primitives: traffic cone + forklift silhouette (pure SVG)
+// ---------------------------------------------------------------------------
+const Cone_fork: React.FC<{x: number; y: number; s?: number; lit?: boolean}> = ({x, y, s = 1, lit = false}) => (
+  <g transform={`translate(${x},${y}) scale(${s})`}>
+    <rect x={-64} y={132} width={128} height={24} rx={8} fill={lit ? YELLOW : ORANGE}
+      style={lit ? {filter: 'drop-shadow(0 0 22px rgba(250,204,21,0.8))'} : undefined} />
+    <path d="M 0 -150 L -58 132 L 58 132 Z" fill={ORANGE} opacity={0.96} />
+    <path d="M -27 -64 L 27 -64 L 38 6 L -38 6 Z" fill={INK} opacity={0.92} />
+    <path d="M -42 66 L 42 66 L 50 112 L -50 112 Z" fill={INK} opacity={0.92} />
+  </g>
+);
+
+const Forklift_fork: React.FC<{x: number; y: number; s?: number; frame: number; moving?: boolean}> = ({x, y, s = 1, frame, moving = false}) => {
+  const wheelA = moving ? frame * 4.2 : 0;
+  return (
+    <g transform={`translate(${x},${y}) scale(${s})`}>
+      {/* rear + front wheels */}
+      <g transform={`rotate(${wheelA} 70 0)`}>
+        <circle cx={70} cy={0} r={76} fill="#1E1A12" stroke={FAINT} strokeWidth={8} />
+        {[0, 60, 120, 180, 240, 300].map((a) => (
+          <line key={a} x1={70} y1={0} x2={70 + 58 * Math.cos((a * Math.PI) / 180)} y2={58 * Math.sin((a * Math.PI) / 180)} stroke={FAINT} strokeWidth={10} />
+        ))}
+        <circle cx={70} cy={0} r={20} fill={FAINT} />
+      </g>
+      <g transform={`rotate(${wheelA} 250 0)`}>
+        <circle cx={250} cy={0} r={76} fill="#1E1A12" stroke={FAINT} strokeWidth={8} />
+        {[0, 60, 120, 180, 240, 300].map((a) => (
+          <line key={a} x1={250} y1={0} x2={250 + 58 * Math.cos((a * Math.PI) / 180)} y2={58 * Math.sin((a * Math.PI) / 180)} stroke={FAINT} strokeWidth={10} />
+        ))}
+        <circle cx={250} cy={0} r={20} fill={FAINT} />
+      </g>
+      {/* chassis */}
+      <rect x={-20} y={-170} width={330} height={120} rx={26} fill={ORANGE} />
+      <rect x={-20} y={-170} width={330} height={120} rx={26} fill="none" stroke={YELLOW} strokeWidth={5} opacity={0.7} />
+      {/* counterweight curve */}
+      <path d="M -20 -170 Q -96 -130 -96 -40 L -20 -40 Z" fill={ORANGE} />
+      {/* overhead guard */}
+      <rect x={10} y={-330} width={18} height={170} fill="#2A2318" />
+      <rect x={200} y={-330} width={18} height={170} fill="#2A2318" />
+      <rect x={-30} y={-352} width={290} height={30} rx={12} fill="#2A2318" />
+      {/* operator silhouette */}
+      <circle cx={130} cy={-252} r={34} fill="#3A2F1C" />
+      <path d="M 96 -218 L 96 -170 L 168 -170 L 168 -218 Q 132 -238 96 -218 Z" fill="#3A2F1C" />
+      {/* mast */}
+      <rect x={326} y={-420} width={26} height={380} fill="#2A2318" />
+      <rect x={362} y={-420} width={26} height={380} fill="#2A2318" />
+      {/* carriage + forks */}
+      <rect x={326} y={-96} width={80} height={30} fill={YELLOW} />
+      <rect x={326} y={-66} width={250} height={26} rx={8} fill={YELLOW} />
+      <rect x={326} y={-120} width={250} height={24} rx={8} fill={YELLOW} opacity={0.55} />
+      {/* headlight */}
+      <circle cx={310} cy={-140} r={16} fill={YELLOW} style={{filter: 'drop-shadow(0 0 18px rgba(250,204,21,0.9))'}} />
+    </g>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Title
+// ---------------------------------------------------------------------------
+const Title_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame, fps, config: {damping: 200, stiffness: 90}});
+  const fade = interpolate(frame, [0, 40], [0, 1], clamp01);
+  return (
+    <div style={{position: 'absolute', top: 104, left: 220, opacity: fade, transform: `translateY(${(1 - s) * 34}px)`}}>
+      <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 92, letterSpacing: -1}}>
+        FORKLIFT CERTIFICATION JOURNEY
+      </div>
+      <div style={{color: MUTED, fontFamily: FONT, fontSize: 38, marginTop: 12}}>
+        operator training &middot; from first cone to certified
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Intro scene: parked forklift + cones
+// ---------------------------------------------------------------------------
+const Intro_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const fade = interpolate(frame, [40, 120], [0, 1], clamp01);
+  if (fade <= 0) return null;
+  // scene slides away when the course starts (f400+)
+  const out = interpolate(frame, [560, 640], [1, 0], clamp01);
+  if (out <= 0) return null;
+  const s = spring({frame: frame - 60, fps, config: {damping: 200, stiffness: 90}});
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}} opacity={fade * out}>
+      <g transform={`translate(${(1 - s) * -400},0)`}>
+        <Forklift_fork x={1250} y={1420} s={1.35} frame={frame} />
+        <Cone_fork x={560} y={1300} s={1.6} lit={frame > 200} />
+        <Cone_fork x={2360} y={1330} s={1.35} lit={frame > 260} />
+        <Cone_fork x={2660} y={1290} s={1.7} lit={frame > 320} />
+        <text x={1250} y={1740} fill={FAINT} fontSize={34} fontFamily={MONO} letterSpacing={4} textAnchor="middle">
+          TRAINING UNIT 07 &middot; READY FOR INSPECTION
+        </text>
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Pre-shift inspection checklist
+// ---------------------------------------------------------------------------
+const CHECKS_fork = [
+  {label: 'TIRES & WHEELS', at: 200},
+  {label: 'FORKS & MAST', at: 240},
+  {label: 'BRAKES', at: 280},
+  {label: 'HYDRAULICS', at: 320},
+  {label: 'HORN & LIGHTS', at: 360},
+];
+const Inspection_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - 170, fps, config: {damping: 200, stiffness: 90}});
+  if (s <= 0.001) return null;
+  const out = interpolate(frame, [560, 640], [1, 0], clamp01);
+  if (out <= 0) return null;
+  const doneCount = CHECKS_fork.filter((c) => frame >= c.at + 24).length;
+  return (
+    <div style={{
+      position: 'absolute', left: 2400, top: 480, width: 1120, opacity: Math.min(1, s) * out,
+      transform: `translateX(${(1 - s) * 120}px)`,
+    }}>
+      <div style={{
+        borderRadius: 28, background: PANEL, border: `2px solid ${ORANGE}`, padding: '36px 48px',
+        boxShadow: '0 0 54px rgba(249,115,22,0.30)',
+      }}>
+        <div style={{color: ORANGE, fontFamily: MONO, fontWeight: 800, fontSize: 38, letterSpacing: 4}}>PRE-SHIFT INSPECTION</div>
+        <div style={{marginTop: 22, display: 'flex', flexDirection: 'column', gap: 16}}>
+          {CHECKS_fork.map((c) => {
+            const on = interpolate(frame, [c.at, c.at + 24], [0, 1], clamp01);
+            return (
+              <div key={c.label} style={{display: 'flex', alignItems: 'center', gap: 22, opacity: 0.35 + 0.65 * on}}>
+                <div style={{
+                  width: 54, height: 54, borderRadius: 14, background: on > 0.5 ? GREEN : 'transparent',
+                  border: `3px solid ${on > 0.5 ? GREEN : FAINT}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#04120B', fontSize: 34, fontWeight: 800,
+                }}>
+                  {on > 0.5 ? '\u2713' : ''}
+                </div>
+                <div style={{color: on > 0.5 ? INK : MUTED, fontFamily: MONO, fontSize: 38, letterSpacing: 2}}>{c.label}</div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{marginTop: 24, color: doneCount === 5 ? GREEN : MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 2}}>
+          {doneCount === 5 ? 'ALL CLEAR \u2014 PROCEED TO COURSE' : `${doneCount}/5 CHECKS COMPLETE`}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Skill-test cone course: forklift weaves the slalom
+// ---------------------------------------------------------------------------
+const COURSE_CONES_fork = [640, 1120, 1600, 2080, 2560, 3040];
+const Course_fork: React.FC<{frame: number; fps: number}> = ({frame}) => {
+  const fade = interpolate(frame, [600, 660], [0, 1], clamp01);
+  if (fade <= 0) return null;
+  const travel = interpolate(frame, [660, 830], [0, 1], clamp01);
+  const fx = interpolate(travel, [0, 1], [280, 3300], clamp01);
+  const fy = 1420 + Math.sin(travel * Math.PI * 5) * 200 - 160;
+  const doneCount = COURSE_CONES_fork.filter((cx) => fx > cx - 60).length;
+  const trail: React.ReactElement[] = [];
+  for (let k = 0; k < 26; k++) {
+    const tt = interpolate(frame, [Math.min(660 + k * 7, 829), 830], [0, 1], clamp01);
+    if (tt <= 0 || tt >= travel) continue;
+    const tx = interpolate(tt, [0, 1], [280, 3300], clamp01);
+    const ty = 1420 + Math.sin(tt * Math.PI * 5) * 200 - 160;
+    trail.push(<circle key={k} cx={tx + 260} cy={ty} r={10} fill={YELLOW} opacity={0.16 + 0.1 * Math.sin(k)} />);
+  }
+  return (
+    <>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}} opacity={fade}>
+        {/* course floor markings */}
+        <line x1={420} y1={1720} x2={3420} y2={1720} stroke={HAIRLINE} strokeWidth={6} strokeDasharray="40 30" />
+        <text x={420} y={1800} fill={FAINT} fontSize={30} fontFamily={MONO} letterSpacing={4}>SKILL TEST &middot; CONE SLALOM</text>
+        <text x={3420} y={1800} fill={doneCount === 6 ? GREEN : MUTED} fontSize={30} fontFamily={MONO} letterSpacing={4} textAnchor="end">
+          GATES {doneCount}/6
+        </text>
+        {/* dashed slalom guide */}
+        <path d={`M 280 1260 ${COURSE_CONES_fork.map((cx, i) => `L ${cx} ${1420 + (i % 2 === 0 ? -360 : 40)}`).join(' ')} L 3300 1260`}
+          fill="none" stroke="rgba(250,204,21,0.28)" strokeWidth={5} strokeDasharray="24 28" />
+        {COURSE_CONES_fork.map((cx, i) => {
+          const lit = fx > cx - 60;
+          const cy = 1420 + (i % 2 === 0 ? -360 : 40) - 60;
+          return <Cone_fork key={i} x={cx} y={cy} s={1.5} lit={lit} />;
+        })}
+        {trail}
+        <Forklift_fork x={fx} y={fy} s={1.0} frame={frame} moving={travel > 0 && travel < 1} />
+      </svg>
+      {doneCount === 6 && (
+        <div style={{
+          position: 'absolute', left: 1920 - 420, top: 560, width: 840, opacity: interpolate(frame, [845, 875], [0, 1], clamp01),
+          textAlign: 'center', borderRadius: 26, background: 'rgba(52,211,153,0.12)',
+          border: '5px solid rgba(52,211,153,0.9)', padding: '24px 40px',
+          boxShadow: '0 0 60px rgba(52,211,153,0.45)',
+        }}>
+          <div style={{color: GREEN, fontFamily: FONT, fontWeight: 800, fontSize: 84, letterSpacing: 4}}>COURSE CLEAR</div>
+          <div style={{color: INK, fontFamily: MONO, fontSize: 32, marginTop: 6}}>6/6 GATES &middot; ZERO CONES TOUCHED</div>
+        </div>
+      )}
+    </>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Written exam card with PASS stamp
+// ---------------------------------------------------------------------------
+const Exam_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - 600, fps, config: {damping: 200, stiffness: 90}});
+  if (s <= 0.001) return null;
+  const out = interpolate(frame, [800, 860], [1, 0], clamp01);
+  if (out <= 0) return null;
+  const score = Math.round(interpolate(frame, [620, 700], [0, 96], clamp01));
+  const stamp = spring({frame: frame - 700, fps, config: {damping: 200, stiffness: 90}});
+  return (
+    <div style={{
+      position: 'absolute', left: 260, top: 480, width: 940, opacity: Math.min(1, s) * out,
+      transform: `translateX(${(1 - s) * -120}px)`,
+    }}>
+      <div style={{
+        borderRadius: 28, background: PANEL, border: `2px solid ${BLUE}`, padding: '36px 48px',
+        boxShadow: '0 0 54px rgba(56,189,248,0.30)',
+      }}>
+        <div style={{color: BLUE, fontFamily: MONO, fontWeight: 800, fontSize: 38, letterSpacing: 4}}>WRITTEN EXAM</div>
+        <div style={{display: 'flex', alignItems: 'baseline', gap: 18, marginTop: 14}}>
+          <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 120}}>{score}</div>
+          <div style={{color: FAINT, fontFamily: MONO, fontSize: 48}}>/ 100</div>
+        </div>
+        <div style={{marginTop: 10, height: 22, borderRadius: 11, background: 'rgba(255,247,232,0.10)', overflow: 'hidden'}}>
+          <div style={{width: `${(score / 100) * 100}%`, height: '100%', background: BLUE}} />
+        </div>
+        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, marginTop: 12}}>SAFETY RULES &middot; LOAD CHARTS &middot; STABILITY</div>
+      </div>
+      {stamp > 0.001 && (
+        <div style={{
+          position: 'absolute', right: -70, top: 120, opacity: Math.min(1, stamp),
+          transform: `rotate(-10deg) scale(${0.55 + 0.45 * stamp})`,
+        }}>
+          <div style={{
+            borderRadius: 18, padding: '18px 46px', background: 'rgba(52,211,153,0.12)',
+            border: '5px solid rgba(52,211,153,0.95)', boxShadow: '0 0 50px rgba(52,211,153,0.45)',
+          }}>
+            <div style={{color: GREEN, fontFamily: FONT, fontWeight: 800, fontSize: 84, letterSpacing: 5}}>PASS</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Certification badge + annual recertification ring (payoff)
+// ---------------------------------------------------------------------------
+const Badge_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const s = spring({frame: frame - 800, fps, config: {damping: 200, stiffness: 85}});
+  if (s <= 0.001) return null;
+  const sealPulse = 0.5 + 0.5 * Math.sin((frame - 800) * 0.1);
+  const R = 190;
+  const C = 2 * Math.PI * R;
+  const months = Math.min(12, Math.round(interpolate(frame, [820, 890], [0, 12], clamp01)));
+  const sparks: React.ReactElement[] = [];
+  for (let i = 0; i < 40; i++) {
+    const ang = random(`fork-sp-a-${i}`) * Math.PI * 2;
+    const dist = 260 + random(`fork-sp-d-${i}`) * 260;
+    const t = interpolate(frame, [810, 900], [0, 1], clamp01);
+    const cx = 1920 + Math.cos(ang) * dist * t;
+    const cy = 1050 + Math.sin(ang) * dist * t * 0.7;
+    const col = i % 2 === 0 ? YELLOW : ORANGE;
+    sparks.push(<rect key={i} x={cx} y={cy} width={12} height={12} fill={col} opacity={(1 - t) * 0.9}
+      transform={`rotate(${ang * 57.3 + t * 300} ${cx} ${cy})`} />);
+  }
+  return (
+    <>
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+        {sparks}
+      </svg>
+      <div style={{
+        position: 'absolute', left: 1920 - 640, top: 420, width: 1280, opacity: Math.min(1, s),
+        transform: `scale(${0.85 + 0.15 * Math.min(1, s)})`, textAlign: 'center',
+      }}>
+        <svg width={1280} height={760} style={{overflow: 'visible'}}>
+          {/* recertification ring: 12 month segments */}
+          {Array.from({length: 12}, (_, m) => {
+            const a0 = (m / 12) * Math.PI * 2 - Math.PI / 2;
+            const a1 = ((m + 1) / 12) * Math.PI * 2 - Math.PI / 2;
+            const on = m < months;
+            const x0 = 640 + R * 1.28 * Math.cos(a0);
+            const y0 = 330 + R * 1.28 * Math.sin(a0);
+            const x1 = 640 + R * 1.28 * Math.cos(a1);
+            const y1 = 330 + R * 1.28 * Math.sin(a1);
+            return (
+              <path key={m} d={`M ${x0} ${y0} A ${R * 1.28} ${R * 1.28} 0 0 1 ${x1} ${y1}`}
+                fill="none" stroke={on ? YELLOW : 'rgba(255,247,232,0.14)'} strokeWidth={26} strokeLinecap="round"
+                style={on ? {filter: 'drop-shadow(0 0 14px rgba(250,204,21,0.8))'} : undefined} />
+            );
+          })}
+          {/* seal */}
+          <g style={{filter: `drop-shadow(0 0 ${30 + sealPulse * 30}px rgba(250,204,21,0.55))`}}>
+            <circle cx={640} cy={330} r={R} fill="rgba(250,204,21,0.10)" stroke={YELLOW} strokeWidth={10} />
+            <circle cx={640} cy={330} r={R - 34} fill="none" stroke={ORANGE} strokeWidth={5} strokeDasharray="18 14" />
+            <path d="M 640 210 L 676 292 L 764 296 L 696 352 L 716 440 L 640 392 L 564 440 L 584 352 L 516 296 L 604 292 Z"
+              fill={YELLOW} />
+            <text x={640} y={540} fill={INK} fontSize={54} fontFamily={FONT} fontWeight={800} letterSpacing={4} textAnchor="middle">
+              CERTIFIED OPERATOR
+            </text>
+            <text x={640} y={592} fill={MUTED} fontSize={32} fontFamily={MONO} letterSpacing={3} textAnchor="middle">
+              FORKLIFT &middot; CLASS IV/V
+            </text>
+          </g>
+        </svg>
+        <div style={{color: months === 12 ? YELLOW : MUTED, fontFamily: MONO, fontSize: 36, letterSpacing: 3, marginTop: 10}}>
+          VALID {months}/12 MONTHS &middot; ANNUAL RECERTIFICATION
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // Main composition
 // ---------------------------------------------------------------------------
-export const AgileSprintCycle: React.FC = () => {
+export const ForkliftCertificationJourney: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
-      <Background frame={frame} />
-      <TitleBar frame={frame} fps={fps} />
-      <BacklogCards frame={frame} fps={fps} />
-      <SprintRing frame={frame} fps={fps} />
-      <BurndownPanel frame={frame} fps={fps} />
-      <StandupFeed frame={frame} fps={fps} />
-      <Checkpoints frame={frame} fps={fps} />
-      <PayoffBanner frame={frame} fps={fps} />
-      <AmbientParticles frame={frame} />
-      <FineDither frame={frame} />
-      <TickerTape frame={frame} />
-      <CornerHud frame={frame} />
-      <FilmGrain frame={frame} />
+      <Background_fork frame={frame} />
+      <AmbientParticles_fork frame={frame} />
+      <Title_fork frame={frame} fps={fps} />
+      <Intro_fork frame={frame} fps={fps} />
+      <Inspection_fork frame={frame} fps={fps} />
+      <Course_fork frame={frame} fps={fps} />
+      <Exam_fork frame={frame} fps={fps} />
+      <Badge_fork frame={frame} fps={fps} />
+      <TickerTape_fork frame={frame} />
+      <CornerHud_fork frame={frame} />
+      <FineDither_fork frame={frame} />
+      <FilmGrain_fork frame={frame} />
     </AbsoluteFill>
   );
 };
