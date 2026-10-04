@@ -1,12 +1,11 @@
 /**
- * ProcurementApprovalCycle.tsx
- * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * The procurement approval cycle: a requisition card travels a glowing
- * pipeline through five stages — requester, manager approval, supplier,
- * goods receipt, finance payment — then the loop closes and a cost-saving
- * counter ticks up. Deterministic.
+ * LLCFormationJourney.tsx
+ * Remotion composition — 4K (3840x2160), 60 fps, 15 s (900 frames), no audio.
+ * The six legal steps of forming an LLC, from name search to EIN: a lightbulb
+ * idea travels a document rail — name approved, agent attached, articles filed
+ * with a state seal, operating agreement signed, EIN issued — and the business
+ * badge blooms "OFFICIALLY IN BUSINESS".
  */
-
 import React from 'react';
 import {
   AbsoluteFill,
@@ -18,516 +17,513 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (dark steel blue / amber)
+// Palette
 // ---------------------------------------------------------------------------
-const BG = '#0A0F1A';
-const INK = '#EEF4FC';
-const MUTED = 'rgba(238,244,252,0.62)';
-const FAINT = 'rgba(238,244,252,0.32)';
-const BLUE = '#38BDF8';
-const AMBER = '#FBBF24';
+const BG = '#0A0D16';
+const GRID = 'rgba(150,170,205,0.10)';
+const INK = '#EDF1F8';
+const MUTED = 'rgba(198,210,228,0.60)';
+const BLUE = '#6EA8FE';
+const GOLD = '#F5C451';
 const GREEN = '#34D399';
-const PANEL = 'rgba(11,16,28,0.94)';
-const HAIRLINE = 'rgba(238,244,252,0.14)';
-
+const PAPER = '#F4EDDA';
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
-const clamp01 = {extrapolateLeft: 'clamp' as const, extrapolateRight: 'clamp' as const};
 
 // ---------------------------------------------------------------------------
-// Bitrate-proof scaffolding. Seed prefix: proc
+// The six steps
 // ---------------------------------------------------------------------------
-const Background_proc: React.FC<{frame: number}> = ({frame}) => {
-  const scanY = ((frame / 900) * (2160 + 480)) % (2160 + 480) - 240;
-  const dots: React.ReactElement[] = [];
-  for (let gy = 0; gy < 27; gy++) {
-    for (let gx = 0; gx < 48; gx++) {
-      const tw = 0.05 + 0.075 * (0.5 + 0.5 * Math.sin(frame * 0.11 + gx * 1.3 + gy * 2.1));
-      dots.push(
-        <circle key={`${gx}-${gy}`} cx={40 + gx * 80} cy={40 + gy * 80} r={2.2} fill="#9FD6FA" opacity={tw} />
-      );
-    }
-  }
+const STEPS = [
+  {t: 'CHOOSE A NAME', s: 'Availability search clears "Sunrise Roasting LLC"'},
+  {t: 'APPOINT REGISTERED AGENT', s: 'Designated recipient for legal documents'},
+  {t: 'FILE ARTICLES OF ORGANIZATION', s: 'State stamps the formation document'},
+  {t: 'CREATE OPERATING AGREEMENT', s: 'Ownership rules signed by members'},
+  {t: 'GET AN EIN', s: 'IRS issues the federal tax ID'},
+  {t: 'OPEN FOR BUSINESS', s: 'Bank account, licenses, first invoice'},
+];
+const STEP_START = [90, 210, 340, 470, 600, 730];
+const STEP_DUR = 120;
+
+// ---------------------------------------------------------------------------
+// Shared scenery
+// ---------------------------------------------------------------------------
+const Defs: React.FC<{p: string}> = ({p}) => (
+  <defs>
+    <linearGradient id={`${p}paper`} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="#FBF7EA" />
+      <stop offset="100%" stopColor="#E4D9BC" />
+    </linearGradient>
+    <linearGradient id={`${p}gold`} x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stopColor="#FFE9A8" />
+      <stop offset="50%" stopColor={GOLD} />
+      <stop offset="100%" stopColor="#C8932B" />
+    </linearGradient>
+    <radialGradient id={`${p}vig`} cx="50%" cy="46%" r="78%">
+      <stop offset="58%" stopColor="rgba(10,13,22,0)" />
+      <stop offset="100%" stopColor="rgba(3,5,10,0.78)" />
+    </radialGradient>
+    <filter id={`${p}glow`} x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="b" />
+      <feMerge>
+        <feMergeNode in="b" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+);
+
+const Background: React.FC<{frame: number}> = ({frame}) => {
+  const scan = ((frame / 900) * (2160 + 300)) % (2160 + 300) - 150;
   return (
     <>
       <AbsoluteFill style={{backgroundColor: BG}} />
-      <AbsoluteFill style={{background: 'radial-gradient(circle at 50% 28%, rgba(56,189,248,0.13), rgba(251,191,36,0.04) 46%, rgba(10,15,26,0) 72%)'}} />
+      <AbsoluteFill
+        style={{
+          background:
+            'radial-gradient(circle at 62% 34%, rgba(245,196,81,0.09), rgba(245,196,81,0.02) 46%, rgba(10,13,22,0) 72%)',
+        }}
+      />
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        {dots}
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#procVig)" />
-        <rect x={0} y={scanY - 110} width={3840} height={220} fill="rgba(56,189,248,0.045)" />
-        <defs>
-          <radialGradient id="procVig" cx="50%" cy="50%" r="75%">
-            <stop offset="58%" stopColor="rgba(10,15,26,0)" />
-            <stop offset="100%" stopColor="rgba(3,5,11,0.74)" />
-          </radialGradient>
-        </defs>
+        <Defs p="llc" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#llcvig)" />
+        <rect x={0} y={scan - 90} width={3840} height={180} fill="rgba(245,196,81,0.028)" />
       </svg>
     </>
   );
 };
 
-const AmbientParticles_proc: React.FC<{frame: number}> = ({frame}) => {
-  const parts: React.ReactElement[] = [];
-  for (let i = 0; i < 220; i++) {
-    const bx = random(`proc-amb-x-${i}`) * 3840;
-    const by = random(`proc-amb-y-${i}`) * 2160;
-    const spd = 0.4 + random(`proc-amb-s-${i}`) * 1.4;
-    const ang = random(`proc-amb-a-${i}`) * Math.PI * 2;
-    const drift = ((frame * spd) % 2400) - 200;
-    const px = (bx + Math.cos(ang) * drift + 3840) % 3840;
-    const py = (by + Math.sin(ang) * drift * 0.6 + 2160) % 2160;
-    const tw = 0.10 + 0.22 * (0.5 + 0.5 * Math.sin(frame * 0.14 + i * 1.7));
-    const sz = 3 + random(`proc-amb-z-${i}`) * 6;
-    const col = i % 4 === 0 ? BLUE : i % 4 === 1 ? AMBER : 'rgba(238,244,252,0.9)';
-    parts.push(<circle key={i} cx={px} cy={py} r={sz} fill={col} opacity={tw} />);
+const Particles: React.FC<{frame: number}> = ({frame}) => {
+  const els: React.ReactElement[] = [];
+  for (let i = 0; i < 190; i++) {
+    const bx = random(`llc-p-x-${i}`) * 3840;
+    const by = random(`llc-p-y-${i}`) * 2160;
+    const spd = 0.3 + random(`llc-p-s-${i}`) * 1.0;
+    const ang = random(`llc-p-a-${i}`) * Math.PI * 2;
+    const dr = ((frame * spd) % 2200) - 180;
+    const px = (((bx + Math.cos(ang) * dr) % 3840) + 3840) % 3840;
+    const py = (((by + Math.sin(ang) * dr * 0.6) % 2160) + 2160) % 2160;
+    const tw = 0.07 + 0.18 * (0.5 + 0.5 * Math.sin(frame * 0.11 + i * 2.1));
+    const sz = 2.5 + random(`llc-p-z-${i}`) * 5;
+    els.push(<circle key={i} cx={px} cy={py} r={sz} fill={i % 3 === 0 ? GOLD : 'rgba(237,241,248,0.85)'} opacity={tw} />);
   }
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {parts}
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      {els}
     </svg>
   );
 };
 
-const FineDither_proc: React.FC<{frame: number}> = ({frame}) => {
-  const specks: React.ReactElement[] = [];
-  for (let i = 0; i < 2600; i++) {
-    const bx = random(`proc-dth-x-${i}`) * 3840;
-    const by = random(`proc-dth-y-${i}`) * 2160;
-    const jx = (random(`proc-dth-jx-${frame}-${i}`) - 0.5) * 9;
-    const jy = (random(`proc-dth-jy-${frame}-${i}`) - 0.5) * 9;
-    const o = 0.015 + random(`proc-dth-o-${frame}-${i}`) * 0.035;
-    const s = 1.5 + random(`proc-dth-s-${i}`) * 2;
-    specks.push(<rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#9FD6FA" opacity={o} />);
+const Dither: React.FC<{frame: number}> = ({frame}) => {
+  const els: React.ReactElement[] = [];
+  for (let i = 0; i < 2400; i++) {
+    const bx = random(`llc-d-x-${i}`) * 3840;
+    const by = random(`llc-d-y-${i}`) * 2160;
+    const jx = (random(`llc-d-jx-${frame}-${i}`) - 0.5) * 8;
+    const jy = (random(`llc-d-jy-${frame}-${i}`) - 0.5) * 8;
+    const o = 0.012 + random(`llc-d-o-${frame}-${i}`) * 0.03;
+    const s = 1.5 + random(`llc-d-s-${i}`) * 2;
+    els.push(<rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#E8DCC0" opacity={o} />);
   }
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {specks}
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      {els}
     </svg>
   );
 };
 
-const TICKER_ITEMS_proc = [
-  'REQ-2041 IN TRANSIT',
-  'APPROVAL SLA 4 HOURS',
-  'PO-8842 ISSUED',
-  '3-WAY MATCH OK',
-  'DOCK 7 RECEIVING',
-  'PAYMENT RELEASED $48,200',
-  'SAVINGS +$12,400',
-  'CYCLE TIME 6 DAYS',
+const Grain: React.FC<{frame: number}> = ({frame}) => {
+  const els: React.ReactElement[] = [];
+  for (let i = 0; i < 7000; i++) {
+    const x = random(`llc-g-x-${frame}-${i}`) * 3840;
+    const y = random(`llc-g-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`llc-g-o-${frame}-${i}`) * 0.06;
+    const s = 2 + random(`llc-g-s-${frame}-${i}`) * 3;
+    els.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {els}
+    </svg>
+  );
+};
+
+const TICKER = [
+  'CHOOSE A NAME', 'APPOINT A REGISTERED AGENT', 'FILE ARTICLES OF ORGANIZATION',
+  'OPERATING AGREEMENT', 'GET YOUR EIN', 'PROTECT YOUR PERSONAL ASSETS',
+  'LIMITED LIABILITY COMPANY', 'OPEN FOR BUSINESS',
 ];
-const TickerTape_proc: React.FC<{frame: number}> = ({frame}) => {
-  const unit = TICKER_ITEMS_proc.join('   \u25C6   ') + '   \u25C6   ';
-  const unitW = unit.length * 20;
-  const x = -((frame * 7) % unitW);
-  const reps: React.ReactElement[] = [];
-  for (let r = 0; r < Math.ceil(3840 / unitW) + 1; r++) {
-    reps.push(
-      <text key={r} x={x + r * unitW} y={38} fill="rgba(56,189,248,0.62)" fontSize={27} fontFamily={MONO} letterSpacing={4}>
-        {unit}
-      </text>
-    );
+const Ticker: React.FC<{frame: number}> = ({frame}) => {
+  const unit = 1000;
+  const off = -((frame * 3.0) % unit);
+  const row: React.ReactElement[] = [];
+  for (let r = 0; r < 2; r++) {
+    for (let i = 0; i < TICKER.length; i++) {
+      row.push(
+        <text key={`${r}-${i}`} x={off + r * unit + i * 640} y={46} fill="rgba(245,196,81,0.7)" fontSize={30} fontFamily={MONO} letterSpacing={2}>
+          {TICKER[i]} <tspan fill="rgba(245,196,81,0.35)"> /// </tspan>
+        </text>
+      );
+    }
   }
   return (
-    <div style={{position: 'absolute', left: 0, right: 0, top: 0, height: 56, overflow: 'hidden', backgroundColor: 'rgba(4,6,12,0.66)', borderBottom: '1px solid rgba(238,244,252,0.14)'}}>
-      <svg width={3840} height={56} style={{position: 'absolute', top: 0, left: 0}}>
-        {reps}
-      </svg>
-    </div>
+    <svg width={3840} height={80} style={{position: 'absolute', top: 0, left: 0}}>
+      {row}
+      <line x1={0} y1={76} x2={3840} y2={76} stroke="rgba(245,196,81,0.2)" strokeWidth={2} />
+    </svg>
   );
 };
 
-const CornerHud_proc: React.FC<{frame: number}> = ({frame}) => {
-  const blink = 0.55 + 0.45 * Math.sin((frame / 60) * Math.PI * 2);
-  const corners = [
-    {x: 60, y: 92, sx: 1, sy: 1},
-    {x: 3780, y: 92, sx: -1, sy: 1},
-    {x: 60, y: 2068, sx: 1, sy: -1},
-    {x: 3780, y: 2068, sx: -1, sy: -1},
+const Corners: React.FC<{frame: number}> = ({frame}) => {
+  const blink = 0.5 + 0.5 * Math.sin(frame * 0.1);
+  const items = [
+    {x: 60, y: 2090, t: `FRAME ${String(frame).padStart(4, '0')} / 0900`},
+    {x: 3300, y: 2090, t: 'LLC · FORMATION DESK'},
+    {x: 60, y: 130, t: 'STEP-BY-STEP FILING'},
   ];
   return (
-    <div style={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        {corners.map((c, i) => (
-          <g key={i} transform={`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}>
-            <path d="M 0 56 L 0 0 L 56 0" fill="none" stroke="rgba(56,189,248,0.55)" strokeWidth={5} />
-            <circle cx={0} cy={0} r={6} fill={BLUE} opacity={blink} />
-          </g>
-        ))}
-        {Array.from({length: 24}, (_, k) => {
-          const yy = 280 + k * 68;
-          const on = ((frame >> 2) + k) % 8 === 0;
-          return <rect key={`rl${k}`} x={28} y={yy} width={on ? 32 : 17} height={3} fill={on ? BLUE : 'rgba(238,244,252,0.18)'} opacity={on ? 0.9 : 0.5} />;
-        })}
-        {Array.from({length: 46}, (_, k) => {
-          const xx = 280 + k * 68;
-          const on = ((frame >> 2) + k) % 8 === 4;
-          return <rect key={`rt${k}`} x={xx} y={2036} width={3} height={on ? 28 : 15} fill={on ? BLUE : 'rgba(238,244,252,0.18)'} opacity={on ? 0.9 : 0.5} />;
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {items.map((c, i) => (
+        <g key={i}>
+          <circle cx={c.x} cy={c.y - 8} r={7} fill={GOLD} opacity={0.35 + blink * 0.55} />
+          <text x={c.x + 24} y={c.y} fill={MUTED} fontSize={26} fontFamily={MONO} letterSpacing={3}>
+            {c.t}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Title + step rail (left)
+// ---------------------------------------------------------------------------
+const Title: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [20, 60], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const rise = interpolate(frame, [20, 60], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  return (
+    <div style={{position: 'absolute', top: 130 + rise, left: 180, opacity: fade}}>
+      <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 92, letterSpacing: -1}}>
+        STARTING AN <span style={{color: GOLD}}>LLC</span>
+      </div>
+      <div style={{color: MUTED, fontFamily: FONT, fontSize: 38, marginTop: 10}}>
+        Six legal steps — from a name on paper to <span style={{color: INK, fontWeight: 700}}>officially in business</span>
+      </div>
+    </div>
+  );
+};
+
+const StepRail: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const fade = interpolate(frame, [50, 90], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const active = STEPS.findIndex((_, i) => frame >= STEP_START[i] && frame < STEP_START[i] + STEP_DUR + 40);
+  const prog = interpolate(frame, [STEP_START[0], STEP_START[5] + 60], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  return (
+    <div style={{position: 'absolute', left: 180, top: 460, opacity: fade}}>
+      <svg width={1150} height={1250}>
+        <line x1={34} y1={30} x2={34} y2={30 + 5 * 190} stroke="rgba(245,196,81,0.25)" strokeWidth={5} />
+        <line x1={34} y1={30} x2={34} y2={30 + 5 * 190 * prog} stroke={GOLD} strokeWidth={5} />
+        {STEPS.map((s, i) => {
+          const done = frame >= STEP_START[i] + STEP_DUR - 30;
+          const isActive = i === active;
+          const y = 30 + i * 190;
+          const col = done ? GREEN : isActive ? GOLD : 'rgba(198,210,228,0.4)';
+          return (
+            <g key={i}>
+              <circle cx={34} cy={y} r={26} fill={done ? GREEN : isActive ? GOLD : 'rgba(10,13,22,0.9)'} stroke={col} strokeWidth={3} filter="url(#llcglow)" />
+              {done && (
+                <path d="M 22 30 l 8 9 l 15 -17" transform={`translate(0, ${y - 30})`} stroke="#04120B" strokeWidth={6} fill="none" strokeLinecap="round" />
+              )}
+              {isActive && !done && (
+                <circle cx={34} cy={y} r={38} fill="none" stroke={GOLD} strokeWidth={2} opacity={0.5 + 0.4 * Math.sin(frame * 0.15)} />
+              )}
+              <text x={90} y={y - 8} fill={col} fontSize={38} fontFamily={FONT} fontWeight={800} letterSpacing={1}>
+                {i + 1}. {s.t}
+              </text>
+              <text x={90} y={y + 42} fill={MUTED} fontSize={29} fontFamily={FONT} opacity={isActive ? 1 : 0.75}>
+                {s.s}
+              </text>
+            </g>
+          );
         })}
       </svg>
     </div>
   );
 };
 
-const FilmGrain_proc: React.FC<{frame: number}> = ({frame}) => {
-  const dots: React.ReactElement[] = [];
-  for (let i = 0; i < 7000; i++) {
-    const x = random(`proc-grain-x-${frame}-${i}`) * 3840;
-    const y = random(`proc-grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`proc-grain-o-${frame}-${i}`) * 0.06;
-    const s = 2 + random(`proc-grain-s-${frame}-${i}`) * 3;
-    dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
-  }
+// ---------------------------------------------------------------------------
+// Stage (right): per-step document scenes
+// ---------------------------------------------------------------------------
+const STAGE_X = 1560;
+const STAGE_W = 2020;
+const STAGE_Y = 560;
+const STAGE_H = 1090;
+
+const StageFrame: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [50, 90], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {dots}
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, opacity: fade}}>
+      <rect x={STAGE_X} y={STAGE_Y} width={STAGE_W} height={STAGE_H} rx={40} fill="rgba(16,21,34,0.72)" stroke="rgba(245,196,81,0.35)" strokeWidth={3} />
+      {Array.from({length: 24}, (_, i) => {
+        const on = ((frame >> 3) + i) % 24 === 12;
+        return <rect key={i} x={STAGE_X + 60 + i * 78} y={STAGE_Y + STAGE_H - 40} width={on ? 34 : 10} height={14} fill={on ? GOLD : 'rgba(245,196,81,0.18)'} rx={7} />;
+      })}
     </svg>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Pipeline model: 5 stages. Packet moves node to node. Deterministic.
-// ---------------------------------------------------------------------------
-const STAGES_proc = ['REQUESTER', 'MANAGER', 'SUPPLIER', 'GOODS RECEIPT', 'FINANCE'];
-const PIPE_Y = 1050;
-const NX = (i: number) => 420 + i * 750; // 420, 1170, 1920, 2670, 3420
-
-// packet x as a function of frame: staged travel with dwell at each node
-const packetX = (frame: number): number => {
-  if (frame < 150) return NX(0);
-  if (frame < 310) return interpolate(frame, [150, 310], [NX(0), NX(1)], clamp01);
-  if (frame < 380) return NX(1);
-  if (frame < 500) return interpolate(frame, [380, 500], [NX(1), NX(2)], clamp01);
-  if (frame < 560) return NX(2);
-  if (frame < 680) return interpolate(frame, [560, 680], [NX(2), NX(3)], clamp01);
-  if (frame < 730) return NX(3);
-  if (frame < 850) return interpolate(frame, [730, 850], [NX(3), NX(4)], clamp01);
-  return NX(4);
-};
-
-// node status: 0 pending, 1 active, 2 done — from packet progress
-const nodeStatus = (frame: number, i: number): number => {
-  const arrived = [150, 310, 500, 680, 850][i];
-  const left = [150, 380, 560, 730, 899][i];
-  if (frame >= left) return 2;
-  if (frame >= arrived - 20) return 1;
-  return 0;
-};
-
-// ---------------------------------------------------------------------------
-// Title
-// ---------------------------------------------------------------------------
-const Title_proc: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame, fps, config: {damping: 200, stiffness: 90}});
-  const fade = interpolate(frame, [0, 40], [0, 1], clamp01);
+// Step 1: name search — magnifier sweeps, "AVAILABLE" stamp
+const StepName: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const t = frame - STEP_START[0];
+  const s = spring({frame: t, fps, config: {damping: 200, stiffness: 100}});
+  if (s <= 0.001) return null;
+  const sweep = interpolate(t, [10, 80], [-200, 700], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const stamp = spring({frame: t - 85, fps, config: {damping: 14, stiffness: 260}});
+  const cx = STAGE_X + STAGE_W / 2;
   return (
-    <div style={{position: 'absolute', top: 104, left: 220, opacity: fade, transform: `translateY(${(1 - s) * 34}px)`}}>
-      <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 92, letterSpacing: -1}}>
-        PROCUREMENT APPROVAL CYCLE
-      </div>
-      <div style={{color: MUTED, fontFamily: FONT, fontSize: 38, marginTop: 12}}>
-        requisition to payment &middot; 5 stages &middot; one glowing pipeline
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Stage node icon (pure SVG primitives)
-// ---------------------------------------------------------------------------
-const NodeIcon_proc: React.FC<{i: number; x: number; y: number; status: number}> = ({i, x, y, status}) => {
-  const col = status === 2 ? GREEN : status === 1 ? AMBER : FAINT;
-  const glow = status === 2 ? 'rgba(52,211,153,0.55)' : status === 1 ? 'rgba(251,191,36,0.55)' : 'rgba(238,244,252,0.15)';
-  let glyph: React.ReactElement | null = null;
-  if (i === 0) {
-    glyph = (
-      <g>
-        <circle cx={x} cy={y - 26} r={30} fill={col} opacity={0.9} />
-        <path d={`M ${x - 52} ${y + 52} A 56 44 0 0 1 ${x + 52} ${y + 52} Z`} fill={col} opacity={0.9} />
-      </g>
-    );
-  } else if (i === 1) {
-    glyph = (
-      <g>
-        <rect x={x - 44} y={y - 40} width={88} height={80} rx={10} fill="none" stroke={col} strokeWidth={8} />
-        <path d={`M ${x - 26} ${y + 6} L ${x - 8} ${y + 24} L ${x + 30} ${y - 16}`} fill="none" stroke={col} strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" />
-        <rect x={x - 10} y={y - 66} width={20} height={30} fill={col} />
-      </g>
-    );
-  } else if (i === 2) {
-    glyph = (
-      <g>
-        <rect x={x - 48} y={y - 30} width={96} height={76} rx={6} fill="none" stroke={col} strokeWidth={8} />
-        <line x1={x - 48} y1={y - 6} x2={x + 48} y2={y - 6} stroke={col} strokeWidth={8} />
-        <line x1={x} y1={y - 30} x2={x} y2={y + 46} stroke={col} strokeWidth={8} />
-      </g>
-    );
-  } else if (i === 3) {
-    glyph = (
-      <g>
-        <rect x={x - 44} y={y - 48} width={88} height={104} rx={10} fill="none" stroke={col} strokeWidth={8} />
-        <rect x={x - 24} y={y - 70} width={48} height={30} rx={6} fill={col} />
-        <path d={`M ${x - 24} ${y + 2} L ${x - 10} ${y + 16} L ${x + 26} ${y - 14}`} fill="none" stroke={col} strokeWidth={9} strokeLinecap="round" strokeLinejoin="round" />
-        <line x1={x - 24} y1={y + 30} x2={x + 24} y2={y + 30} stroke={col} strokeWidth={6} strokeLinecap="round" />
-      </g>
-    );
-  } else {
-    glyph = (
-      <g>
-        <circle cx={x} cy={y} r={52} fill="none" stroke={col} strokeWidth={9} />
-        <text x={x} y={y + 30} fill={col} fontSize={64} fontFamily={MONO} fontWeight={800} textAnchor="middle">$</text>
-      </g>
-    );
-  }
-  return (
-    <g>
-      <circle cx={x} cy={y} r={118} fill={PANEL} stroke={col} strokeWidth={6}
-        style={{filter: `drop-shadow(0 0 26px ${glow})`}} />
-      {glyph}
+    <g opacity={Math.min(1, s)}>
+      <rect x={cx - 520} y={STAGE_Y + 220} width={1040} height={200} rx={24} fill="url(#llcpaper)" />
+      <text x={cx} y={STAGE_Y + 300} fill="#1A2030" fontSize={64} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+        Sunrise Roasting LLC
+      </text>
+      <text x={cx} y={STAGE_Y + 372} fill="rgba(26,32,48,0.6)" fontSize={34} fontFamily={MONO} textAnchor="middle" letterSpacing={3}>
+        NAME AVAILABILITY SEARCH
+      </text>
+      <line x1={cx - 520 + sweep} y1={STAGE_Y + 220} x2={cx - 520 + sweep} y2={STAGE_Y + 420} stroke={BLUE} strokeWidth={6} opacity={0.7} />
+      {stamp > 0.01 && (
+        <g transform={`translate(${cx}, ${STAGE_Y + 560}) rotate(-8) scale(${Math.min(1, stamp)})`} opacity={Math.min(1, stamp)}>
+          <rect x={-300} y={-70} width={600} height={140} rx={20} fill="none" stroke={GREEN} strokeWidth={8} />
+          <text y={26} fill={GREEN} fontSize={72} fontFamily={FONT} fontWeight={800} textAnchor="middle" letterSpacing={4}>
+            AVAILABLE
+          </text>
+        </g>
+      )}
     </g>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Main pipeline: track, flow dashes, nodes, traveling packet
-// ---------------------------------------------------------------------------
-const Pipeline_proc: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const fade = interpolate(frame, [90, 160], [0, 1], clamp01);
-  if (fade <= 0) return null;
-  const px = packetX(frame);
-  const nodes: React.ReactElement[] = [];
-  for (let i = 0; i < 5; i++) {
-    const st = nodeStatus(frame, i);
-    nodes.push(
-      <g key={i}>
-        <NodeIcon_proc i={i} x={NX(i)} y={PIPE_Y} status={st} />
-        <text x={NX(i)} y={PIPE_Y + 210} fill={st === 0 ? FAINT : st === 1 ? AMBER : GREEN} fontSize={32} fontFamily={MONO} fontWeight={800} letterSpacing={3} textAnchor="middle">
-          {STAGES_proc[i]}
+// Step 2: registered agent badge attaches
+const StepAgent: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const t = frame - STEP_START[1];
+  const s = spring({frame: t, fps, config: {damping: 200, stiffness: 100}});
+  if (s <= 0.001) return null;
+  const link = interpolate(t, [30, 70], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const cx = STAGE_X + STAGE_W / 2;
+  return (
+    <g opacity={Math.min(1, s)}>
+      <rect x={cx - 460} y={STAGE_Y + 180} width={420} height={300} rx={24} fill="rgba(110,168,254,0.10)" stroke={BLUE} strokeWidth={3} />
+      <circle cx={cx - 250} cy={STAGE_Y + 300} r={54} fill="none" stroke={BLUE} strokeWidth={5} />
+      <circle cx={cx - 250} cy={STAGE_Y + 282} r={20} fill={BLUE} />
+      <path d={`M ${cx - 288} ${STAGE_Y + 340} a 38 30 0 0 1 76 0`} fill={BLUE} />
+      <text x={cx - 250} y={STAGE_Y + 430} fill={INK} fontSize={34} fontFamily={FONT} fontWeight={700} textAnchor="middle">
+        Your LLC
+      </text>
+      <line x1={cx - 40} y1={STAGE_Y + 330} x2={cx - 40 + 480 * link} y2={STAGE_Y + 330} stroke={GOLD} strokeWidth={6} strokeDasharray="16 12" />
+      {link > 0.9 && (
+        <g>
+          <rect x={cx + 40} y={STAGE_Y + 180} width={420} height={300} rx={24} fill="rgba(245,196,81,0.10)" stroke={GOLD} strokeWidth={3} filter="url(#llcglow)" />
+          <text x={cx + 250} y={STAGE_Y + 300} fill={GOLD} fontSize={44} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+            REGISTERED
+          </text>
+          <text x={cx + 250} y={STAGE_Y + 352} fill={GOLD} fontSize={44} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+            AGENT
+          </text>
+          <text x={cx + 250} y={STAGE_Y + 420} fill={MUTED} fontSize={30} fontFamily={FONT} textAnchor="middle">
+            receives legal mail
+          </text>
+        </g>
+      )}
+      <text x={cx} y={STAGE_Y + 600} fill={MUTED} fontSize={36} fontFamily={FONT} textAnchor="middle">
+        A designated person or service — required in every state
+      </text>
+    </g>
+  );
+};
+
+// Step 3: articles filed, state seal stamps
+const StepFile: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const t = frame - STEP_START[2];
+  const s = spring({frame: t, fps, config: {damping: 200, stiffness: 100}});
+  if (s <= 0.001) return null;
+  const seal = spring({frame: t - 70, fps, config: {damping: 12, stiffness: 280}});
+  const cx = STAGE_X + STAGE_W / 2;
+  return (
+    <g opacity={Math.min(1, s)}>
+      <g transform={`translate(${cx - 300}, ${STAGE_Y + 130}) rotate(${(1 - Math.min(1, s)) * -6})`}>
+        <rect x={0} y={0} width={600} height={760} rx={18} fill="url(#llcpaper)" stroke="rgba(26,32,48,0.25)" strokeWidth={3} />
+        <text x={300} y={100} fill="#1A2030" fontSize={44} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+          ARTICLES OF
         </text>
-        <text x={NX(i)} y={PIPE_Y + 258} fill={FAINT} fontSize={26} fontFamily={MONO} letterSpacing={2} textAnchor="middle">
-          {st === 2 ? 'COMPLETE' : st === 1 ? 'IN PROGRESS' : 'QUEUED'}
+        <text x={300} y={160} fill="#1A2030" fontSize={44} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+          ORGANIZATION
+        </text>
+        {[230, 310, 390, 470, 550].map((y) => (
+          <rect key={y} x={80} y={y} width={440 - (y % 3) * 60} height={22} rx={11} fill="rgba(26,32,48,0.28)" />
+        ))}
+      </g>
+      {seal > 0.01 && (
+        <g transform={`translate(${cx + 260}, ${STAGE_Y + 640}) scale(${Math.min(1.25, seal)})`} opacity={Math.min(1, seal)}>
+          <circle r={130} fill="none" stroke={GOLD} strokeWidth={10} />
+          <circle r={104} fill="none" stroke={GOLD} strokeWidth={3} />
+          <text y={-8} fill={GOLD} fontSize={40} fontFamily={FONT} fontWeight={800} textAnchor="middle">STATE</text>
+          <text y={42} fill={GOLD} fontSize={40} fontFamily={FONT} fontWeight={800} textAnchor="middle">SEAL</text>
+        </g>
+      )}
+      <text x={cx} y={STAGE_Y + 990} fill={GREEN} fontSize={40} fontFamily={MONO} fontWeight={700} textAnchor="middle" opacity={seal > 0.9 ? 1 : 0}>
+        ✓ FILED — YOUR LLC LEGALLY EXISTS
+      </text>
+    </g>
+  );
+};
+
+// Step 4: operating agreement signatures
+const StepAgreement: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const t = frame - STEP_START[3];
+  const s = spring({frame: t, fps, config: {damping: 200, stiffness: 100}});
+  if (s <= 0.001) return null;
+  const cx = STAGE_X + STAGE_W / 2;
+  const sigs = [0, 1].map((k) => interpolate(t - (25 + k * 30), [0, 40], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
+  return (
+    <g opacity={Math.min(1, s)}>
+      <rect x={cx - 330} y={STAGE_Y + 120} width={660} height={700} rx={18} fill="url(#llcpaper)" />
+      <text x={cx} y={STAGE_Y + 220} fill="#1A2030" fontSize={44} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+        OPERATING AGREEMENT
+      </text>
+      {['Ownership split: 60 / 40', 'Voting rights defined', 'Profit distribution rules'].map((row, i) => (
+        <g key={i}>
+          <circle cx={cx - 250} cy={STAGE_Y + 330 + i * 90} r={18} fill="none" stroke="#1A2030" strokeWidth={4} opacity={sigs[0] > 0.5 || i === 0 ? 1 : 0.3} />
+          {i === 0 && sigs[0] > 0.5 && <path d={`M ${cx - 260} ${STAGE_Y + 330} l 8 9 l 16 -18`} stroke={GREEN} strokeWidth={7} fill="none" strokeLinecap="round" />}
+          <text x={cx - 210} y={STAGE_Y + 344 + i * 90} fill="#1A2030" fontSize={36} fontFamily={FONT}>
+            {row}
+          </text>
+        </g>
+      ))}
+      {[0, 1].map((k) => (
+        <g key={k} opacity={sigs[k]}>
+          <line x1={cx - 260 + k * 330} y1={STAGE_Y + 700} x2={cx - 60 + k * 330} y2={STAGE_Y + 700} stroke="#1A2030" strokeWidth={3} />
+          <text x={cx - 160 + k * 330} y={STAGE_Y + 660} fill="#2A4BD7" fontSize={52} fontFamily={FONT} fontStyle="italic" textAnchor="middle"
+            style={{fontFamily: "'Brush Script MT', cursive"}}>
+            {k === 0 ? 'A. Rivera' : 'J. Chen'}
+          </text>
+          <text x={cx - 160 + k * 330} y={STAGE_Y + 745} fill="rgba(26,32,48,0.6)" fontSize={28} fontFamily={MONO} textAnchor="middle">
+            MEMBER {k + 1}
+          </text>
+        </g>
+      ))}
+    </g>
+  );
+};
+
+// Step 5: EIN card issues
+const StepEIN: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const t = frame - STEP_START[4];
+  const s = spring({frame: t, fps, config: {damping: 200, stiffness: 100}});
+  if (s <= 0.001) return null;
+  const cx = STAGE_X + STAGE_W / 2;
+  const digits = '12-3456789'.split('');
+  return (
+    <g opacity={Math.min(1, s)}>
+      <g transform={`translate(${cx}, ${STAGE_Y + 420}) scale(${0.8 + Math.min(1, s) * 0.2})`}>
+        <rect x={-460} y={-190} width={920} height={380} rx={28} fill="#0E2A52" stroke={BLUE} strokeWidth={4} filter="url(#llcglow)" />
+        <text x={-400} y={-110} fill={MUTED} fontSize={34} fontFamily={MONO} letterSpacing={5}>
+          FEDERAL TAX ID — EIN
+        </text>
+        <g>
+          {digits.map((d, i) => {
+            const on = interpolate(t - (20 + i * 8), [0, 14], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+            return (
+              <text key={i} x={-400 + i * 82} y={40} fill={on > 0.5 ? '#FFFFFF' : 'rgba(255,255,255,0.18)'} fontSize={96} fontFamily={MONO} fontWeight={800}>
+                {d}
+              </text>
+            );
+          })}
+        </g>
+        <text x={-400} y={130} fill={MUTED} fontSize={32} fontFamily={FONT}>
+          Issued by the IRS — free, in minutes
         </text>
       </g>
+    </g>
+  );
+};
+
+// Step 6: payoff — business badge blooms
+const StepOpen: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const t = frame - STEP_START[5];
+  const s = spring({frame: t, fps, config: {damping: 200, stiffness: 95}});
+  if (s <= 0.001) return null;
+  const cx = STAGE_X + STAGE_W / 2;
+  const cy = STAGE_Y + 430;
+  const rays: React.ReactElement[] = [];
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2 + frame * 0.01;
+    const r1 = 210;
+    const r2 = 210 + 60 * (0.5 + 0.5 * Math.sin(frame * 0.12 + i));
+    rays.push(
+      <line key={i} x1={cx + Math.cos(a) * r1} y1={cy + Math.sin(a) * r1} x2={cx + Math.cos(a) * r2} y2={cy + Math.sin(a) * r2} stroke={GOLD} strokeWidth={8} strokeLinecap="round" opacity={0.7} />
     );
   }
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}} opacity={fade}>
-      <defs>
-        <linearGradient id="procFlow" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor={BLUE} />
-          <stop offset="100%" stopColor={AMBER} />
-        </linearGradient>
-      </defs>
-      {/* base track */}
-      <line x1={NX(0)} y1={PIPE_Y} x2={NX(4)} y2={PIPE_Y} stroke={HAIRLINE} strokeWidth={14} strokeLinecap="round" />
-      {/* completed glow up to packet */}
-      {px > NX(0) && (
-        <line x1={NX(0)} y1={PIPE_Y} x2={px} y2={PIPE_Y} stroke="url(#procFlow)" strokeWidth={14} strokeLinecap="round"
-          style={{filter: 'drop-shadow(0 0 20px rgba(56,189,248,0.7))'}} />
-      )}
-      {/* flowing dashes */}
-      <line x1={NX(0)} y1={PIPE_Y} x2={NX(4)} y2={PIPE_Y} stroke="rgba(56,189,248,0.55)" strokeWidth={4}
-        strokeDasharray="28 34" strokeDashoffset={-frame * 2.2} />
-      {nodes}
-      {/* traveling requisition packet */}
-      {frame >= 130 && frame < 880 && (
-        <g transform={`translate(${px},${PIPE_Y - 230})`}>
-          <rect x={-120} y={-70} width={240} height={140} rx={20} fill={PANEL} stroke={BLUE} strokeWidth={5}
-            style={{filter: 'drop-shadow(0 0 26px rgba(56,189,248,0.7))'}} />
-          <text x={0} y={-12} fill={BLUE} fontSize={40} fontFamily={MONO} fontWeight={800} textAnchor="middle">REQ-2041</text>
-          <text x={0} y={36} fill={MUTED} fontSize={28} fontFamily={MONO} textAnchor="middle">$48,200</text>
-          <line x1={0} y1={70} x2={0} y2={104} stroke={BLUE} strokeWidth={5} />
-        </g>
-      )}
+    <g opacity={Math.min(1, s)}>
+      {rays}
+      <g transform={`translate(${cx}, ${cy}) scale(${0.6 + Math.min(1, s) * 0.4})`}>
+        <circle r={200} fill="url(#llcgold)" filter="url(#llcglow)" />
+        <circle r={168} fill="none" stroke="#7A5A12" strokeWidth={4} />
+        <text y={-14} fill="#3A2C08" fontSize={52} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+          OFFICIALLY
+        </text>
+        <text y={52} fill="#3A2C08" fontSize={52} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+          IN BUSINESS
+        </text>
+      </g>
+      <text x={cx} y={STAGE_Y + 800} fill={INK} fontSize={42} fontFamily={FONT} textAnchor="middle">
+        Bank account <tspan fill={GOLD}>•</tspan> licenses <tspan fill={GOLD}>•</tspan> first invoice
+      </text>
+      <text x={cx} y={STAGE_Y + 870} fill={GREEN} fontSize={44} fontFamily={MONO} fontWeight={700} textAnchor="middle">
+        Sunrise Roasting LLC — est. today
+      </text>
+    </g>
+  );
+};
+
+const Stage: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const cur = STEPS.findIndex((_, i) => frame >= STEP_START[i] && (i === 5 || frame < STEP_START[i + 1]));
+  const show = cur >= 0 ? cur : -1;
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <Defs p="llcs" />
+      {show === 0 && <StepName frame={frame} fps={fps} />}
+      {show === 1 && <StepAgent frame={frame} fps={fps} />}
+      {show === 2 && <StepFile frame={frame} fps={fps} />}
+      {show === 3 && <StepAgreement frame={frame} fps={fps} />}
+      {show === 4 && <StepEIN frame={frame} fps={fps} />}
+      {show === 5 && <StepOpen frame={frame} fps={fps} />}
     </svg>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Manager APPROVED stamp
-// ---------------------------------------------------------------------------
-const ApproveStamp_proc: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 340, fps, config: {damping: 200, stiffness: 90}});
-  if (s <= 0.001) return null;
+const Footer: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [120, 170], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
-    <div style={{
-      position: 'absolute', left: NX(1) - 260, top: 560, width: 520, opacity: Math.min(1, s),
-      transform: `rotate(-10deg) scale(${0.55 + 0.45 * s})`,
-    }}>
-      <div style={{
-        borderRadius: 20, padding: '22px 30px', textAlign: 'center',
-        background: 'rgba(52,211,153,0.10)', border: '5px solid rgba(52,211,153,0.95)',
-        boxShadow: '0 0 60px rgba(52,211,153,0.45)',
-      }}>
-        <div style={{color: GREEN, fontFamily: FONT, fontWeight: 800, fontSize: 76, letterSpacing: 5}}>APPROVED</div>
-        <div style={{color: INK, fontFamily: MONO, fontSize: 30, marginTop: 4}}>MGR SIGN-OFF &middot; 3.2 HRS</div>
-      </div>
+    <div style={{position: 'absolute', bottom: 44, left: 0, width: 3840, textAlign: 'center', color: 'rgba(150,170,205,0.5)', fontFamily: FONT, fontSize: 26, opacity: fade}}>
+      General information only — rules and fees vary by state. Not legal advice.
     </div>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Supplier PO card
-// ---------------------------------------------------------------------------
-const PoCard_proc: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 510, fps, config: {damping: 200, stiffness: 90}});
-  if (s <= 0.001) return null;
-  return (
-    <div style={{
-      position: 'absolute', left: NX(2) - 270, top: 1380, width: 540, opacity: Math.min(1, s),
-      transform: `translateY(${(1 - s) * 50}px)`,
-    }}>
-      <div style={{
-        borderRadius: 24, background: PANEL, border: `2px solid ${AMBER}`, padding: '28px 40px',
-        boxShadow: '0 0 44px rgba(251,191,36,0.30)',
-      }}>
-        <div style={{color: AMBER, fontFamily: MONO, fontWeight: 800, fontSize: 44}}>PO-8842 ISSUED</div>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, marginTop: 8}}>240 UNITS &middot; NET-30 TERMS</div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Goods receipt dock checklist
-// ---------------------------------------------------------------------------
-const DockCheck_proc: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 660, fps, config: {damping: 200, stiffness: 90}});
-  if (s <= 0.001) return null;
-  const rows = [
-    {label: 'QTY VERIFIED', at: 680},
-    {label: 'QUALITY PASS', at: 712},
-    {label: 'DOCK 7 SCANNED', at: 744},
-  ];
-  return (
-    <div style={{
-      position: 'absolute', left: NX(3) - 280, top: 460, width: 560, opacity: Math.min(1, s),
-      transform: `translateY(${(1 - s) * 50}px)`,
-    }}>
-      <div style={{
-        borderRadius: 24, background: PANEL, border: `2px solid ${BLUE}`, padding: '28px 40px',
-        boxShadow: '0 0 44px rgba(56,189,248,0.30)',
-      }}>
-        <div style={{color: BLUE, fontFamily: MONO, fontWeight: 800, fontSize: 36, letterSpacing: 3}}>GOODS RECEIPT</div>
-        <div style={{marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12}}>
-          {rows.map((r) => {
-            const on = interpolate(frame, [r.at, r.at + 24], [0, 1], clamp01);
-            return (
-              <div key={r.label} style={{display: 'flex', alignItems: 'center', gap: 18, opacity: 0.35 + 0.65 * on}}>
-                <div style={{
-                  width: 44, height: 44, borderRadius: 12, background: on > 0.5 ? GREEN : 'transparent',
-                  border: `3px solid ${on > 0.5 ? GREEN : FAINT}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#04120B', fontSize: 28, fontWeight: 800,
-                }}>
-                  {on > 0.5 ? '\u2713' : ''}
-                </div>
-                <div style={{color: on > 0.5 ? INK : MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 2}}>{r.label}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Finance payment pulse
-// ---------------------------------------------------------------------------
-const PayPulse_proc: React.FC<{frame: number; fps: number}> = ({frame}) => {
-  const fade = interpolate(frame, [780, 820], [0, 1], clamp01);
-  if (fade <= 0) return null;
-  const pulses: React.ReactElement[] = [];
-  for (let k = 0; k < 4; k++) {
-    const p = interpolate(frame, [790 + k * 60, 790 + k * 60 + 110], [0, 1], clamp01);
-    if (p > 0 && p < 1) {
-      pulses.push(
-        <circle key={k} cx={NX(4)} cy={PIPE_Y} r={130 + p * 420} fill="none" stroke={AMBER}
-          strokeWidth={12 * (1 - p) + 2} opacity={(1 - p) * fade} />
-      );
-    }
-  }
-  return (
-    <>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-        {pulses}
-      </svg>
-      <div style={{
-        position: 'absolute', left: NX(4) - 300, top: 1380, width: 600, opacity: fade, textAlign: 'center',
-      }}>
-        <div style={{
-          borderRadius: 24, background: PANEL, border: `2px solid ${AMBER}`, padding: '28px 40px',
-          boxShadow: '0 0 44px rgba(251,191,36,0.35)',
-        }}>
-          <div style={{color: AMBER, fontFamily: MONO, fontWeight: 800, fontSize: 52}}>$48,200</div>
-          <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, marginTop: 8, letterSpacing: 2}}>PAYMENT RELEASED</div>
-        </div>
-      </div>
-    </>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Closed loop + cost-saving counter payoff
-// ---------------------------------------------------------------------------
-const ClosedLoop_proc: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 800, fps, config: {damping: 200, stiffness: 85}});
-  if (s <= 0.001) return null;
-  const draw = interpolate(frame, [800, 870], [0, 1], clamp01);
-  const saved = Math.round(interpolate(frame, [800, 890], [0, 12400], clamp01));
-  const savedStr = saved.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return (
-    <>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}} opacity={Math.min(1, s)}>
-        <path d={`M ${NX(4)} ${PIPE_Y - 150} C ${NX(4) - 400} 220, ${NX(0) + 400} 220, ${NX(0)} ${PIPE_Y - 150}`}
-          fill="none" stroke={GREEN} strokeWidth={7}
-          pathLength={1} strokeDasharray={1} strokeDashoffset={1 - draw}
-          style={{filter: 'drop-shadow(0 0 16px rgba(52,211,153,0.7))'}} />
-        <text x={1920} y={300} fill={GREEN} fontSize={30} fontFamily={MONO} letterSpacing={5} textAnchor="middle" opacity={draw}>
-          LOOP CLOSED &middot; REQ ARCHIVED
-        </text>
-      </svg>
-      <div style={{
-        position: 'absolute', left: 0, right: 0, bottom: 150, display: 'flex', justifyContent: 'center',
-        opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 60}px)`,
-      }}>
-        <div style={{
-          borderRadius: 30, padding: '34px 100px', background: 'rgba(8,16,12,0.95)',
-          border: `3px solid ${GREEN}`, textAlign: 'center',
-          boxShadow: '0 0 60px rgba(52,211,153,0.40)',
-        }}>
-          <div style={{color: FAINT, fontFamily: MONO, fontSize: 28, letterSpacing: 4}}>COST SAVINGS THIS QUARTER</div>
-          <div style={{color: GREEN, fontFamily: MONO, fontWeight: 800, fontSize: 96, marginTop: 6}}>+${savedStr}</div>
-          <div style={{color: INK, fontFamily: MONO, fontSize: 32, marginTop: 8}}>VS. MANUAL PROCESSING BASELINE</div>
-        </div>
-      </div>
-    </>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Main composition
-// ---------------------------------------------------------------------------
-export const ProcurementApprovalCycle: React.FC = () => {
+export const LLCFormationJourney: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
-      <Background_proc frame={frame} />
-      <AmbientParticles_proc frame={frame} />
-      <Title_proc frame={frame} fps={fps} />
-      <Pipeline_proc frame={frame} fps={fps} />
-      <ApproveStamp_proc frame={frame} fps={fps} />
-      <PoCard_proc frame={frame} fps={fps} />
-      <DockCheck_proc frame={frame} fps={fps} />
-      <PayPulse_proc frame={frame} fps={fps} />
-      <ClosedLoop_proc frame={frame} fps={fps} />
-      <TickerTape_proc frame={frame} />
-      <CornerHud_proc frame={frame} />
-      <FineDither_proc frame={frame} />
-      <FilmGrain_proc frame={frame} />
+      <Background frame={frame} />
+      <Particles frame={frame} />
+      <Title frame={frame} />
+      <StepRail frame={frame} fps={fps} />
+      <StageFrame frame={frame} />
+      <Stage frame={frame} fps={fps} />
+      <Ticker frame={frame} />
+      <Dither frame={frame} />
+      <Grain frame={frame} />
+      <Corners frame={frame} />
+      <Footer frame={frame} />
     </AbsoluteFill>
   );
 };
