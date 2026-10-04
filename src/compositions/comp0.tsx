@@ -1,16 +1,15 @@
 /**
- * BuyNowPayLaterSchedule.tsx
- * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * The buy-now-pay-later schedule: a $480 checkout total splits into four
- * interest-free payments on a six-week timeline. The 0% INTEREST stamp
- * lands, autopay pulses fire each chip in sequence, the timeline drains to
- * zero, and the arc resolves with PAID IN FULL. Deterministic.
+ * DollarCostAveragingFlow.tsx
+ * Remotion composition — 4K (3840x2160), 60 fps, 15 s (900 frames), no audio.
+ * A fixed $200 monthly investment rides a volatile price curve: chips drop at
+ * each buy, shares pile up faster in dips, the average-cost line lands below
+ * the starting price, and the DCA portfolio beats lump-sum at the payoff.
  */
-
 import React from 'react';
 import {
   AbsoluteFill,
   interpolate,
+  interpolateColors,
   random,
   spring,
   useCurrentFrame,
@@ -18,457 +17,504 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (deep navy, violet / fuchsia)
+// Palette
 // ---------------------------------------------------------------------------
-const BG = '#0D0B1E';
-const INK = '#F2EEFF';
-const MUTED = 'rgba(242,238,255,0.62)';
-const FAINT = 'rgba(242,238,255,0.32)';
-const VIOLET = '#A78BFA';
-const FUCHSIA = '#F472B6';
+const BG = '#060B12';
+const GRID = 'rgba(148,180,220,0.10)';
+const AXIS = 'rgba(148,180,220,0.55)';
+const INK = '#EDF3FA';
+const MUTED = 'rgba(196,212,232,0.62)';
 const GREEN = '#34D399';
-const AMBER = '#FBBF24';
-const PANEL = 'rgba(14,11,34,0.94)';
-const HAIRLINE = 'rgba(242,238,255,0.14)';
-
+const GOLD = '#FBBF24';
+const BLUE = '#5AC8FA';
+const RED = '#F87171';
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
-const clamp01 = {extrapolateLeft: 'clamp' as const, extrapolateRight: 'clamp' as const};
 
 // ---------------------------------------------------------------------------
-// Bitrate-proof scaffolding. Seed prefix: bnpl
+// Deterministic market model: 13 monthly points, 12 buys of $200.
 // ---------------------------------------------------------------------------
-const Background_bnpl: React.FC<{frame: number}> = ({frame}) => {
-  const scanY = ((frame / 900) * (2160 + 480)) % (2160 + 480) - 240;
-  const dots: React.ReactElement[] = [];
-  for (let gy = 0; gy < 27; gy++) {
-    for (let gx = 0; gx < 48; gx++) {
-      const tw = 0.05 + 0.075 * (0.5 + 0.5 * Math.sin(frame * 0.11 + gx * 1.3 + gy * 2.1));
-      dots.push(
-        <circle key={`${gx}-${gy}`} cx={40 + gx * 80} cy={40 + gy * 80} r={2.2} fill="#D9C9FF" opacity={tw} />
+const PRICES = [100, 108, 92, 97, 85, 94, 88, 102, 110, 96, 104, 112, 118];
+const BUY = 200;
+const N_BUYS = 12;
+const MONTHS = ['SEP', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP'];
+
+function buysUpTo(k: number) {
+  let invested = 0;
+  let shares = 0;
+  for (let i = 1; i <= k; i++) {
+    invested += BUY;
+    shares += BUY / PRICES[i];
+  }
+  return {invested, shares, avg: invested / Math.max(shares, 1e-6)};
+}
+const FINAL = buysUpTo(N_BUYS);
+const FINAL_VALUE = FINAL.shares * PRICES[12];
+const GAIN = FINAL_VALUE - FINAL.invested;
+const LUMP_SHARES = BUY * N_BUYS / PRICES[0];
+const LUMP_VALUE = LUMP_SHARES * PRICES[12];
+
+// Smooth curve through monthly points (cosine interpolation, 10 sub-steps).
+function curvePoints(): {x: number; y: number}[] {
+  return [];
+}
+const PL = 300;
+const PR = 3540;
+const PT = 600;
+const PB = 1540;
+const PW = PR - PL;
+const PH = PB - PT;
+const PMIN = 70;
+const PMAX = 130;
+const xFor = (t: number) => PL + (t / 12) * PW; // t in months 0..12
+const yFor = (p: number) => PB - ((p - PMIN) / (PMAX - PMIN)) * PH;
+
+function curvePath(): string {
+  let d = '';
+  const SUB = 12;
+  for (let i = 0; i <= 12 * SUB; i++) {
+    const t = i / SUB;
+    const i0 = Math.min(11, Math.floor(t));
+    const f = t - i0;
+    const e = 0.5 - 0.5 * Math.cos(f * Math.PI);
+    const p = PRICES[i0] + (PRICES[i0 + 1] - PRICES[i0]) * e;
+    d += `${i === 0 ? 'M' : 'L'} ${xFor(t).toFixed(1)} ${yFor(p).toFixed(1)} `;
+  }
+  return d;
+}
+const LINE = curvePath();
+const AREA = `${LINE} L ${xFor(12).toFixed(1)} ${PB} L ${xFor(0).toFixed(1)} ${PB} Z`;
+
+// ---------------------------------------------------------------------------
+// Shared scenery
+// ---------------------------------------------------------------------------
+const Defs: React.FC<{p: string}> = ({p}) => (
+  <defs>
+    <linearGradient id={`${p}line`} x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={BLUE} />
+      <stop offset="55%" stopColor={GREEN} />
+      <stop offset="100%" stopColor={GOLD} />
+    </linearGradient>
+    <linearGradient id={`${p}area`} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor={GREEN} stopOpacity={0.30} />
+      <stop offset="60%" stopColor={GREEN} stopOpacity={0.07} />
+      <stop offset="100%" stopColor={GREEN} stopOpacity={0} />
+    </linearGradient>
+    <radialGradient id={`${p}vig`} cx="50%" cy="46%" r="78%">
+      <stop offset="58%" stopColor="rgba(6,11,18,0)" />
+      <stop offset="100%" stopColor="rgba(2,4,9,0.78)" />
+    </radialGradient>
+    <filter id={`${p}glow`} x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="b" />
+      <feMerge>
+        <feMergeNode in="b" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+);
+
+const Background: React.FC<{frame: number}> = ({frame}) => {
+  const scan = ((frame / 900) * (2160 + 300)) % (2160 + 300) - 150;
+  return (
+    <>
+      <AbsoluteFill style={{backgroundColor: BG}} />
+      <AbsoluteFill
+        style={{
+          background:
+            'radial-gradient(circle at 50% 30%, rgba(52,211,153,0.10), rgba(52,211,153,0.03) 45%, rgba(6,11,18,0) 72%)',
+        }}
+      />
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs p="dca" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#dcavig)" />
+        <rect x={0} y={scan - 90} width={3840} height={180} fill="rgba(52,211,153,0.030)" />
+      </svg>
+    </>
+  );
+};
+
+const Particles: React.FC<{frame: number}> = ({frame}) => {
+  const els: React.ReactElement[] = [];
+  for (let i = 0; i < 200; i++) {
+    const bx = random(`dca-p-x-${i}`) * 3840;
+    const by = random(`dca-p-y-${i}`) * 2160;
+    const spd = 0.3 + random(`dca-p-s-${i}`) * 1.1;
+    const ang = random(`dca-p-a-${i}`) * Math.PI * 2;
+    const dr = ((frame * spd) % 2200) - 180;
+    const px = (((bx + Math.cos(ang) * dr) % 3840) + 3840) % 3840;
+    const py = (((by + Math.sin(ang) * dr * 0.6) % 2160) + 2160) % 2160;
+    const tw = 0.08 + 0.2 * (0.5 + 0.5 * Math.sin(frame * 0.12 + i * 1.7));
+    const sz = 2.5 + random(`dca-p-z-${i}`) * 5;
+    const col = i % 3 === 0 ? GREEN : i % 3 === 1 ? 'rgba(237,243,250,0.9)' : BLUE;
+    els.push(<circle key={i} cx={px} cy={py} r={sz} fill={col} opacity={tw} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      {els}
+    </svg>
+  );
+};
+
+const Dither: React.FC<{frame: number}> = ({frame}) => {
+  const els: React.ReactElement[] = [];
+  for (let i = 0; i < 2400; i++) {
+    const bx = random(`dca-d-x-${i}`) * 3840;
+    const by = random(`dca-d-y-${i}`) * 2160;
+    const jx = (random(`dca-d-jx-${frame}-${i}`) - 0.5) * 8;
+    const jy = (random(`dca-d-jy-${frame}-${i}`) - 0.5) * 8;
+    const o = 0.012 + random(`dca-d-o-${frame}-${i}`) * 0.03;
+    const s = 1.5 + random(`dca-d-s-${i}`) * 2;
+    els.push(
+      <rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#BFE9D2" opacity={o} />
+    );
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      {els}
+    </svg>
+  );
+};
+
+const Grain: React.FC<{frame: number}> = ({frame}) => {
+  const els: React.ReactElement[] = [];
+  for (let i = 0; i < 7000; i++) {
+    const x = random(`dca-g-x-${frame}-${i}`) * 3840;
+    const y = random(`dca-g-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`dca-g-o-${frame}-${i}`) * 0.06;
+    const s = 2 + random(`dca-g-s-${frame}-${i}`) * 3;
+    els.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {els}
+    </svg>
+  );
+};
+
+const TICKER = [
+  'INVEST $200 EVERY MONTH', 'BUY MORE SHARES WHEN PRICES FALL', 'IGNORE MARKET TIMING',
+  'AVERAGE COST PER SHARE', 'STAY CONSISTENT', 'VOLATILITY BECOMES OPPORTUNITY',
+  'TIME IN THE MARKET', 'AUTOMATIC INVESTING', 'DISCIPLINE BEATS PREDICTION',
+];
+const Ticker: React.FC<{frame: number}> = ({frame}) => {
+  const unit = 900;
+  const off = -((frame * 3.2) % unit);
+  const row: React.ReactElement[] = [];
+  for (let r = 0; r < 2; r++) {
+    for (let i = 0; i < TICKER.length; i++) {
+      row.push(
+        <text
+          key={`${r}-${i}`}
+          x={off + r * unit + i * 620}
+          y={46}
+          fill="rgba(52,211,153,0.75)"
+          fontSize={30}
+          fontFamily={MONO}
+          letterSpacing={2}
+        >
+          {TICKER[i]} <tspan fill="rgba(52,211,153,0.35)"> /// </tspan>
+        </text>
       );
     }
   }
   return (
-    <>
-      <AbsoluteFill style={{backgroundColor: BG}} />
-      <AbsoluteFill style={{background: 'radial-gradient(circle at 50% 26%, rgba(167,139,250,0.14), rgba(244,114,182,0.04) 46%, rgba(13,11,30,0) 72%)'}} />
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        {dots}
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#bnplVig)" />
-        <rect x={0} y={scanY - 110} width={3840} height={220} fill="rgba(167,139,250,0.045)" />
-        <defs>
-          <radialGradient id="bnplVig" cx="50%" cy="50%" r="75%">
-            <stop offset="58%" stopColor="rgba(13,11,30,0)" />
-            <stop offset="100%" stopColor="rgba(5,4,14,0.74)" />
-          </radialGradient>
-        </defs>
-      </svg>
-    </>
-  );
-};
-
-const AmbientParticles_bnpl: React.FC<{frame: number}> = ({frame}) => {
-  const parts: React.ReactElement[] = [];
-  for (let i = 0; i < 220; i++) {
-    const bx = random(`bnpl-amb-x-${i}`) * 3840;
-    const by = random(`bnpl-amb-y-${i}`) * 2160;
-    const spd = 0.4 + random(`bnpl-amb-s-${i}`) * 1.4;
-    const ang = random(`bnpl-amb-a-${i}`) * Math.PI * 2;
-    const drift = ((frame * spd) % 2400) - 200;
-    const px = (bx + Math.cos(ang) * drift + 3840) % 3840;
-    const py = (by + Math.sin(ang) * drift * 0.6 + 2160) % 2160;
-    const tw = 0.10 + 0.22 * (0.5 + 0.5 * Math.sin(frame * 0.14 + i * 1.7));
-    const sz = 3 + random(`bnpl-amb-z-${i}`) * 6;
-    const col = i % 4 === 0 ? VIOLET : i % 4 === 1 ? FUCHSIA : 'rgba(242,238,255,0.9)';
-    parts.push(<circle key={i} cx={px} cy={py} r={sz} fill={col} opacity={tw} />);
-  }
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {parts}
+    <svg width={3840} height={80} style={{position: 'absolute', top: 0, left: 0}}>
+      {row}
+      <line x1={0} y1={76} x2={3840} y2={76} stroke="rgba(52,211,153,0.22)" strokeWidth={2} />
     </svg>
   );
 };
 
-const FineDither_bnpl: React.FC<{frame: number}> = ({frame}) => {
-  const specks: React.ReactElement[] = [];
-  for (let i = 0; i < 2600; i++) {
-    const bx = random(`bnpl-dth-x-${i}`) * 3840;
-    const by = random(`bnpl-dth-y-${i}`) * 2160;
-    const jx = (random(`bnpl-dth-jx-${frame}-${i}`) - 0.5) * 9;
-    const jy = (random(`bnpl-dth-jy-${frame}-${i}`) - 0.5) * 9;
-    const o = 0.015 + random(`bnpl-dth-o-${frame}-${i}`) * 0.035;
-    const s = 1.5 + random(`bnpl-dth-s-${i}`) * 2;
-    specks.push(<rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#D9C9FF" opacity={o} />);
-  }
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {specks}
-    </svg>
-  );
-};
-
-const TICKER_ITEMS_bnpl = [
-  'SPLIT INTO 4 PAYMENTS',
-  '0% APR NO INTEREST',
-  'AUTOPAY EVERY 2 WEEKS',
-  'NO LATE FEES',
-  'PAY IN 6 WEEKS',
-  'CHECKOUT TOTAL $480',
-  'NEVER PAY INTEREST',
-  'PAY ON TIME EVERY TIME',
-];
-const TickerTape_bnpl: React.FC<{frame: number}> = ({frame}) => {
-  const unit = TICKER_ITEMS_bnpl.join('   \u25C6   ') + '   \u25C6   ';
-  const unitW = unit.length * 20;
-  const x = -((frame * 7) % unitW);
-  const reps: React.ReactElement[] = [];
-  for (let r = 0; r < Math.ceil(3840 / unitW) + 1; r++) {
-    reps.push(
-      <text key={r} x={x + r * unitW} y={38} fill="rgba(167,139,250,0.62)" fontSize={27} fontFamily={MONO} letterSpacing={4}>
-        {unit}
-      </text>
-    );
-  }
-  return (
-    <div style={{position: 'absolute', left: 0, right: 0, top: 0, height: 56, overflow: 'hidden', backgroundColor: 'rgba(6,4,16,0.66)', borderBottom: '1px solid rgba(242,238,255,0.14)'}}>
-      <svg width={3840} height={56} style={{position: 'absolute', top: 0, left: 0}}>
-        {reps}
-      </svg>
-    </div>
-  );
-};
-
-const CornerHud_bnpl: React.FC<{frame: number}> = ({frame}) => {
-  const blink = 0.55 + 0.45 * Math.sin((frame / 60) * Math.PI * 2);
-  const corners = [
-    {x: 60, y: 92, sx: 1, sy: 1},
-    {x: 3780, y: 92, sx: -1, sy: 1},
-    {x: 60, y: 2068, sx: 1, sy: -1},
-    {x: 3780, y: 2068, sx: -1, sy: -1},
+const Corners: React.FC<{frame: number}> = ({frame}) => {
+  const blink = 0.5 + 0.5 * Math.sin(frame * 0.1);
+  const items = [
+    {x: 60, y: 2090, t: `FRAME ${String(frame).padStart(4, '0')} / 0900`},
+    {x: 3300, y: 2090, t: 'DCA · STRATEGY LAB'},
+    {x: 60, y: 130, t: 'LIVE MARKET SIM'},
   ];
   return (
-    <div style={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        {corners.map((c, i) => (
-          <g key={i} transform={`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}>
-            <path d="M 0 56 L 0 0 L 56 0" fill="none" stroke="rgba(167,139,250,0.55)" strokeWidth={5} />
-            <circle cx={0} cy={0} r={6} fill={VIOLET} opacity={blink} />
-          </g>
-        ))}
-        {Array.from({length: 24}, (_, k) => {
-          const yy = 280 + k * 68;
-          const on = ((frame >> 2) + k) % 8 === 0;
-          return <rect key={`rl${k}`} x={28} y={yy} width={on ? 32 : 17} height={3} fill={on ? VIOLET : 'rgba(242,238,255,0.18)'} opacity={on ? 0.9 : 0.5} />;
-        })}
-        {Array.from({length: 46}, (_, k) => {
-          const xx = 280 + k * 68;
-          const on = ((frame >> 2) + k) % 8 === 4;
-          return <rect key={`rt${k}`} x={xx} y={2036} width={3} height={on ? 28 : 15} fill={on ? VIOLET : 'rgba(242,238,255,0.18)'} opacity={on ? 0.9 : 0.5} />;
-        })}
-      </svg>
-    </div>
-  );
-};
-
-const FilmGrain_bnpl: React.FC<{frame: number}> = ({frame}) => {
-  const dots: React.ReactElement[] = [];
-  for (let i = 0; i < 7000; i++) {
-    const x = random(`bnpl-grain-x-${frame}-${i}`) * 3840;
-    const y = random(`bnpl-grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`bnpl-grain-o-${frame}-${i}`) * 0.06;
-    const s = 2 + random(`bnpl-grain-s-${frame}-${i}`) * 3;
-    dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
-  }
-  return (
     <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {dots}
+      {items.map((c, i) => (
+        <g key={i}>
+          <circle cx={c.x} cy={c.y - 8} r={7} fill={GREEN} opacity={0.35 + blink * 0.55} />
+          <text x={c.x + 24} y={c.y} fill={MUTED} fontSize={26} fontFamily={MONO} letterSpacing={3}>
+            {c.t}
+          </text>
+        </g>
+      ))}
     </svg>
   );
 };
-
-// ---------------------------------------------------------------------------
-// Payment plan model: 4 x $120 over 6 weeks. Deterministic.
-// ---------------------------------------------------------------------------
-const PAYMENTS_bnpl = [
-  {label: 'TODAY', due: 'DUE NOW', amount: 120},
-  {label: 'WEEK 2', due: 'OCT 17', amount: 120},
-  {label: 'WEEK 4', due: 'OCT 31', amount: 120},
-  {label: 'WEEK 6', due: 'NOV 14', amount: 120},
-];
-const TOTAL_bnpl = 480;
-const TL_L = 300;
-const TL_R = 3540;
-const TL_Y = 1180;
-const nodeX = (i: number) => TL_L + i * ((TL_R - TL_L) / 3);
 
 // ---------------------------------------------------------------------------
 // Title
 // ---------------------------------------------------------------------------
-const Title_bnpl: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame, fps, config: {damping: 200, stiffness: 90}});
-  const fade = interpolate(frame, [0, 40], [0, 1], clamp01);
+const Title: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [20, 60], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const rise = interpolate(frame, [20, 60], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
-    <div style={{position: 'absolute', top: 104, left: 220, opacity: fade, transform: `translateY(${(1 - s) * 34}px)`}}>
+    <div style={{position: 'absolute', top: 130 + rise, left: 180, opacity: fade}}>
       <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 92, letterSpacing: -1}}>
-        BUY NOW, PAY LATER SCHEDULE
+        DOLLAR-COST AVERAGING
       </div>
-      <div style={{color: MUTED, fontFamily: FONT, fontSize: 38, marginTop: 12}}>
-        4 interest-free payments &middot; every 2 weeks &middot; 0% APR, always
+      <div style={{color: MUTED, fontFamily: FONT, fontSize: 38, marginTop: 10}}>
+        The same <span style={{color: GREEN, fontWeight: 700}}>$200 every month</span> — buy more shares when prices fall
       </div>
     </div>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Hero total card: splits into 4 chips that fly to the timeline
-// ---------------------------------------------------------------------------
-const HeroTotal_bnpl: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 60, fps, config: {damping: 200, stiffness: 90}});
-  if (s <= 0.001) return null;
-  // card dissolves as chips leave (f160 -> f360)
-  const gone = interpolate(frame, [300, 380], [1, 0], clamp01);
-  if (gone <= 0.001) return null;
+const LiveHud: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [40, 80], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const buyIdx = Math.min(N_BUYS, Math.max(0, Math.floor((frame - 90) / 52)));
+  const {shares, avg} = buysUpTo(buyIdx);
   return (
-    <div style={{
-      position: 'absolute', left: 1520, top: 380, width: 800, opacity: Math.min(1, s) * gone,
-      transform: `translateY(${(1 - s) * 60}px) scale(${0.92 + 0.08 * Math.min(1, s)})`,
-    }}>
-      <div style={{
-        borderRadius: 32, background: PANEL, border: `2px solid ${VIOLET}`,
-        padding: '44px 60px', textAlign: 'center',
-        boxShadow: '0 0 60px rgba(167,139,250,0.35)',
-      }}>
-        <div style={{color: FAINT, fontFamily: MONO, fontSize: 28, letterSpacing: 4}}>CHECKOUT TOTAL</div>
-        <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 150, marginTop: 8}}>$480.00</div>
-        <div style={{color: MUTED, fontFamily: FONT, fontSize: 34, marginTop: 10}}>SPLITTING INTO 4 PAYMENTS</div>
+    <div style={{position: 'absolute', top: 150, right: 180, textAlign: 'right', opacity: fade}}>
+      <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, letterSpacing: 3}}>AVG COST / SHARE</div>
+      <div style={{color: GREEN, fontFamily: MONO, fontWeight: 800, fontSize: 88, textShadow: '0 0 30px rgba(52,211,153,0.45)'}}>
+        ${buyIdx === 0 ? '—' : avg.toFixed(2)}
+      </div>
+      <div style={{color: MUTED, fontFamily: MONO, fontSize: 28, marginTop: 6}}>
+        SHARES OWNED <span style={{color: INK}}>{shares.toFixed(2)}</span>
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Timeline + payment chips
+// Price chart with monthly buy chips
 // ---------------------------------------------------------------------------
-const Timeline_bnpl: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const fade = interpolate(frame, [150, 220], [0, 1], clamp01);
-  if (fade <= 0) return null;
-  // drain sweep across the timeline during autopay phase
-  const drain = interpolate(frame, [470, 700], [0, 1], clamp01);
-  const drainX = TL_L + drain * (TL_R - TL_L);
-  const chips: React.ReactElement[] = [];
-  for (let i = 0; i < 4; i++) {
-    const start = 180 + i * 34;
-    const fly = interpolate(frame, [start, start + 70], [0, 1], clamp01);
-    const ease = 1 - Math.pow(1 - fly, 3);
-    const x = interpolate(ease, [0, 1], [1920, nodeX(i)], clamp01);
-    const y = interpolate(ease, [0, 1], [620, 900], clamp01);
-    // autopay pulse for this chip
-    const fire = 480 + i * 60;
-    const p = interpolate(frame, [fire, fire + 90], [0, 1], clamp01);
-    const done = interpolate(frame, [fire + 30, fire + 48], [0, 1], clamp01);
-    const cx = nodeX(i);
-    chips.push(
-      <g key={i} opacity={fly <= 0 ? 0 : 1}>
-        {/* autopay pulse ring */}
-        {p > 0 && p < 1 && (
-          <circle cx={cx} cy={990} r={70 + p * 430} fill="none" stroke={FUCHSIA} strokeWidth={10 * (1 - p) + 2} opacity={1 - p} />
-        )}
-        {p > 0 && p < 1 && (
-          <circle cx={cx} cy={990} r={70 + p * 260} fill="none" stroke={VIOLET} strokeWidth={6 * (1 - p) + 1} opacity={(1 - p) * 0.8} />
-        )}
-        {/* chip card */}
-        <g transform={`translate(${x - 210},${y}) scale(${1 + p * 0.08})`}>
-          <rect x={0} y={0} width={420} height={180} rx={26}
-            fill={done >= 1 ? 'rgba(20,40,30,0.96)' : PANEL}
-            stroke={done >= 1 ? GREEN : VIOLET} strokeWidth={3}
-            style={{filter: `drop-shadow(0 0 ${done >= 1 ? 24 : 14}px ${done >= 1 ? 'rgba(52,211,153,0.5)' : 'rgba(167,139,250,0.4)'})`}} />
-          <text x={210} y={66} fill={done >= 1 ? GREEN : FAINT} fontSize={24} fontFamily={MONO} letterSpacing={3} textAnchor="middle">
-            {PAYMENTS_bnpl[i].due}
-          </text>
-          <text x={210} y={126} fill={INK} fontSize={56} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-            $120.00
-          </text>
-          {/* paid check overlay */}
-          {done > 0 && (
-            <g opacity={done}>
-              <circle cx={372} cy={28} r={34} fill={GREEN} />
-              <path d="M 358 28 L 368 40 L 388 16" fill="none" stroke="#04120B" strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" />
-            </g>
-          )}
-        </g>
-        {/* node on timeline */}
-        <circle cx={cx} cy={TL_Y} r={22} fill={BG} stroke={done >= 1 ? GREEN : frame >= fire ? FUCHSIA : VIOLET} strokeWidth={6} />
-        {done >= 1 && <circle cx={cx} cy={TL_Y} r={9} fill={GREEN} />}
-        <text x={cx} y={TL_Y + 96} fill={done >= 1 ? GREEN : MUTED} fontSize={34} fontFamily={MONO} fontWeight={800} letterSpacing={3} textAnchor="middle">
-          {PAYMENTS_bnpl[i].label}
-        </text>
+const Chart: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const draw = interpolate(frame, [60, 700], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const gridFade = interpolate(frame, [40, 90], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const TICKS = [80, 90, 100, 110, 120];
+  const front = draw * 12;
+
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <Defs p="dcac" />
+      <g opacity={gridFade}>
+        {TICKS.map((p) => (
+          <g key={p}>
+            <line x1={PL} y1={yFor(p)} x2={PR} y2={yFor(p)} stroke={GRID} strokeWidth={1.5} />
+            <text x={PL - 26} y={yFor(p) + 12} fill={MUTED} fontSize={30} fontFamily={MONO} textAnchor="end">
+              ${p}
+            </text>
+          </g>
+        ))}
+        {MONTHS.map((m, i) => (
+          <g key={i}>
+            <line x1={xFor(i)} y1={PB} x2={xFor(i)} y2={PB + 14} stroke={AXIS} strokeWidth={1.5} />
+            <text x={xFor(i)} y={PB + 58} fill={MUTED} fontSize={26} fontFamily={MONO} textAnchor="middle" letterSpacing={2}>
+              {m}
+            </text>
+          </g>
+        ))}
+        <line x1={PL} y1={PB} x2={PR} y2={PB} stroke={AXIS} strokeWidth={2} />
+        <line x1={PL} y1={PT} x2={PL} y2={PB} stroke={AXIS} strokeWidth={2} />
       </g>
-    );
-  }
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}} opacity={fade}>
-      {/* base track */}
-      <line x1={TL_L} y1={TL_Y} x2={TL_R} y2={TL_Y} stroke={HAIRLINE} strokeWidth={10} strokeLinecap="round" />
-      {/* progress ticks */}
-      {Array.from({length: 40}, (_, k) => {
-        const xx = TL_L + k * ((TL_R - TL_L) / 39);
-        const lit = xx <= drainX;
-        return <rect key={k} x={xx - 3} y={TL_Y - 26} width={6} height={52} fill={lit ? FUCHSIA : 'rgba(242,238,255,0.16)'} rx={3} />;
+
+      {/* area + line, clipped to drawn portion */}
+      <clipPath id="dcaclip">
+        <rect x={PL - 6} y={PT - 80} width={draw * PW + 12} height={PH + 90} />
+      </clipPath>
+      <g clipPath="url(#dcaclip)">
+        <path d={AREA} fill="url(#dcacarea)" opacity={0.9} />
+      </g>
+      <path
+        d={LINE}
+        fill="none"
+        stroke="url(#dcacline)"
+        strokeWidth={7}
+        strokeLinecap="round"
+        pathLength={1}
+        strokeDasharray={1}
+        strokeDashoffset={1 - draw}
+        style={{filter: 'drop-shadow(0 0 14px rgba(52,211,153,0.5))'}}
+      />
+
+      {/* buy chips */}
+      {Array.from({length: N_BUYS}, (_, k) => {
+        const i = k + 1;
+        const start = 90 + k * 52;
+        const s = spring({frame: frame - start, fps, config: {damping: 200, stiffness: 110}});
+        if (s <= 0.001) return null;
+        const px = xFor(i);
+        const py = yFor(PRICES[i]);
+        const sh = BUY / PRICES[i];
+        const drop = (1 - s) * 260;
+        return (
+          <g key={i} opacity={Math.min(1, s)}>
+            <g transform={`translate(${px}, ${py + drop})`}>
+              <line x1={0} y1={-drop} x2={0} y2={0} stroke={GREEN} strokeWidth={2.5} opacity={0.5} strokeDasharray="8 8" />
+              <circle r={46} fill="rgba(8,14,20,0.94)" stroke={GREEN} strokeWidth={3} filter="url(#dcacglow)" />
+              <text y={-2} fill={GREEN} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+                $200
+              </text>
+              <text y={26} fill={MUTED} fontSize={24} fontFamily={MONO} textAnchor="middle">
+                {sh.toFixed(1)} SH
+              </text>
+              <circle r={9} fill={GREEN} cy={0} opacity={0.9} />
+            </g>
+          </g>
+        );
       })}
-      {/* drain sweep line */}
-      {drain > 0 && drain < 1 && (
+
+      {/* live cursor at the drawing front */}
+      {draw > 0.01 && draw < 0.995 && (
         <g>
-          <line x1={TL_L} y1={TL_Y} x2={drainX} y2={TL_Y} stroke={FUCHSIA} strokeWidth={10} strokeLinecap="round"
-            style={{filter: 'drop-shadow(0 0 18px rgba(244,114,182,0.8))'}} />
-          <circle cx={drainX} cy={TL_Y} r={30} fill={FUCHSIA} opacity={0.9} />
+          {(() => {
+            const i0 = Math.min(11, Math.floor(front));
+            const f = front - i0;
+            const e = 0.5 - 0.5 * Math.cos(f * Math.PI);
+            const p = PRICES[i0] + (PRICES[i0 + 1] - PRICES[i0]) * e;
+            const cx = xFor(front);
+            const cy = yFor(p);
+            return (
+              <g>
+                <circle cx={cx} cy={cy} r={30} fill={GOLD} opacity={0.18} />
+                <circle cx={cx} cy={cy} r={12} fill="#FFFFFF" style={{filter: 'drop-shadow(0 0 12px rgba(255,255,255,0.9))'}} />
+                <text x={cx + 30} y={cy - 26} fill={INK} fontSize={32} fontFamily={MONO} fontWeight={700}>
+                  ${p.toFixed(0)}
+                </text>
+              </g>
+            );
+          })()}
         </g>
       )}
-      {drain >= 1 && (
-        <line x1={TL_L} y1={TL_Y} x2={TL_R} y2={TL_Y} stroke={GREEN} strokeWidth={10} strokeLinecap="round"
-          style={{filter: 'drop-shadow(0 0 18px rgba(52,211,153,0.7))'}} />
-      )}
-      {chips}
-      <text x={TL_L} y={TL_Y - 70} fill={FAINT} fontSize={28} fontFamily={MONO} letterSpacing={4}>6-WEEK TIMELINE</text>
-      <text x={TL_R} y={TL_Y - 70} fill={FAINT} fontSize={28} fontFamily={MONO} letterSpacing={4} textAnchor="end">SCHEDULE 4 OF 4</text>
+
+      {/* avg-cost dashed line after all buys */}
+      {(() => {
+        const a = interpolate(frame, [720, 760], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+        if (a <= 0) return null;
+        const y = yFor(FINAL.avg);
+        return (
+          <g opacity={a}>
+            <line x1={PL} y1={y} x2={PR} y2={y} stroke={GREEN} strokeWidth={3} strokeDasharray="18 14" opacity={0.9} />
+            <rect x={PL + 20} y={y - 78} width={430} height={64} rx={12} fill="rgba(8,14,20,0.92)" stroke={GREEN} strokeWidth={2} />
+            <text x={PL + 44} y={y - 34} fill={GREEN} fontSize={34} fontFamily={MONO} fontWeight={700}>
+              AVG ${FINAL.avg.toFixed(2)}
+            </text>
+          </g>
+        );
+      })()}
     </svg>
   );
 };
 
 // ---------------------------------------------------------------------------
-// 0% INTEREST stamp slams in
+// Bottom stat strip: invested / shares / value counters
 // ---------------------------------------------------------------------------
-const Stamp_bnpl: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 360, fps, config: {damping: 200, stiffness: 90}});
-  if (s <= 0.001) return null;
-  const ringP = interpolate(frame, [392, 462], [0, 1], clamp01);
-  const wobble = Math.sin((frame - 400) * 0.08) * 0.02 * (1 - s);
+const BottomStrip: React.FC<{frame: number}> = ({frame}) => {
+  const buyIdx = Math.min(N_BUYS, Math.max(0, Math.floor((frame - 90) / 52)));
+  const {invested, shares} = buysUpTo(buyIdx);
+  const priceNow = PRICES[Math.min(12, Math.max(0, Math.round(((frame - 60) / 640) * 12)))] ?? PRICES[0];
+  const value = frame > 700 ? FINAL_VALUE : shares * priceNow;
+  const cells = [
+    {label: 'TOTAL INVESTED', v: `$${invested.toLocaleString('en-US')}`, c: BLUE},
+    {label: 'SHARES OWNED', v: shares.toFixed(2), c: GREEN},
+    {label: 'PORTFOLIO VALUE', v: `$${value.toLocaleString('en-US', {maximumFractionDigits: 0})}`, c: GOLD},
+  ];
+  const fade = interpolate(frame, [60, 110], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
-    <div style={{
-      position: 'absolute', left: 1920 - 560, top: 1330, width: 1120, opacity: Math.min(1, s),
-      transform: `rotate(${-12 + wobble}deg) scale(${0.6 + 0.4 * s})`,
-    }}>
-      <div style={{
-        borderRadius: 28, padding: '30px 40px', textAlign: 'center',
-        background: 'rgba(244,114,182,0.10)', border: '6px solid rgba(244,114,182,0.9)',
-        boxShadow: '0 0 70px rgba(244,114,182,0.45), inset 0 0 40px rgba(244,114,182,0.12)',
-      }}>
-        <div style={{color: FUCHSIA, fontFamily: FONT, fontWeight: 800, fontSize: 110, letterSpacing: 6}}>0% INTEREST</div>
-        <div style={{color: INK, fontFamily: MONO, fontSize: 34, marginTop: 6, letterSpacing: 2}}>NO INTEREST &middot; NO HIDDEN FEES &middot; EVER</div>
-      </div>
-      {ringP > 0 && ringP < 1 && (
-        <div style={{
-          position: 'absolute', inset: -30, borderRadius: 40, pointerEvents: 'none',
-          border: `${Math.max(2, 14 * (1 - ringP))}px solid rgba(244,114,182,${1 - ringP})`,
-          transform: `scale(${1 + ringP * 0.12})`,
-        }} />
-      )}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Remaining balance gauge (right side) draining to zero
-// ---------------------------------------------------------------------------
-const Balance_bnpl: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 420, fps, config: {damping: 200, stiffness: 90}});
-  if (s <= 0.001) return null;
-  let paid = 0;
-  for (let i = 0; i < 4; i++) {
-    if (frame >= 480 + i * 60 + 30) paid++;
-  }
-  const balance = TOTAL_bnpl - paid * 120;
-  const frac = balance / TOTAL_bnpl;
-  const BH = 640;
-  return (
-    <div style={{position: 'absolute', right: 260, top: 360, opacity: Math.min(1, s), textAlign: 'center'}}>
-      <div style={{color: FAINT, fontFamily: MONO, fontSize: 26, letterSpacing: 4}}>REMAINING BALANCE</div>
-      <div style={{color: balance === 0 ? GREEN : INK, fontFamily: MONO, fontWeight: 800, fontSize: 96, marginTop: 8}}>
-        ${balance}.00
-      </div>
-      <svg width={260} height={BH + 60} style={{marginTop: 16}}>
-        <rect x={105} y={10} width={50} height={BH} rx={25} fill="rgba(242,238,255,0.08)" />
-        <rect x={105} y={10 + (1 - frac) * BH} width={50} height={Math.max(0, frac * BH)} rx={25} fill={balance === 0 ? GREEN : FUCHSIA}
-          style={{filter: `drop-shadow(0 0 16px ${balance === 0 ? 'rgba(52,211,153,0.7)' : 'rgba(244,114,182,0.7)'})`}} />
-        {[0, 120, 240, 360, 480].map((v) => (
-          <g key={v}>
-            <line x1={80} y1={10 + BH - (v / 480) * BH} x2={180} y2={10 + BH - (v / 480) * BH} stroke="rgba(242,238,255,0.22)" strokeWidth={2} />
-            <text x={70} y={16 + BH - (v / 480) * BH} fill={FAINT} fontSize={24} fontFamily={MONO} textAnchor="end">${v}</text>
-          </g>
-        ))}
-      </svg>
-      <div style={{color: paid === 4 ? GREEN : MUTED, fontFamily: MONO, fontSize: 30, marginTop: 10, letterSpacing: 2}}>
-        {paid === 4 ? 'AUTOPAY COMPLETE' : `AUTOPAY ${paid}/4`}
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// PAID IN FULL payoff
-// ---------------------------------------------------------------------------
-const Payoff_bnpl: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 730, fps, config: {damping: 200, stiffness: 85}});
-  if (s <= 0.001) return null;
-  const pulse = 0.5 + 0.5 * Math.sin((frame - 730) * 0.12);
-  const confetti: React.ReactElement[] = [];
-  for (let i = 0; i < 60; i++) {
-    const ang = random(`bnpl-cf-a-${i}`) * Math.PI * 2;
-    const dist = 180 + random(`bnpl-cf-d-${i}`) * 520;
-    const t = interpolate(frame, [740, 900], [0, 1], clamp01);
-    const cx = 1920 + Math.cos(ang) * dist * t;
-    const cy = 1660 + Math.sin(ang) * dist * t * 0.6;
-    const col = i % 3 === 0 ? VIOLET : i % 3 === 1 ? FUCHSIA : AMBER;
-    confetti.push(<rect key={i} x={cx} y={cy} width={14} height={14} fill={col} opacity={(1 - t) * 0.95}
-      transform={`rotate(${ang * 57.3 + t * 360} ${cx} ${cy})`} />);
-  }
-  return (
-    <>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-        {confetti}
-      </svg>
-      <div style={{
-        position: 'absolute', left: 0, right: 0, bottom: 150, display: 'flex', justifyContent: 'center',
-        opacity: Math.min(1, s), transform: `translateY(${(1 - s) * 60}px)`,
-      }}>
-        <div style={{
-          borderRadius: 32, padding: '36px 110px', background: 'rgba(8,18,12,0.95)',
-          border: `3px solid ${GREEN}`, textAlign: 'center',
-          boxShadow: `0 0 ${50 + pulse * 50}px rgba(52,211,153,0.45)`,
-        }}>
-          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 36}}>
-            <div style={{width: 110, height: 110, borderRadius: 60, background: GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, color: '#04120B', fontWeight: 800}}>&#10003;</div>
-            <div style={{color: GREEN, fontFamily: FONT, fontWeight: 800, fontSize: 88, letterSpacing: 2}}>PAID IN FULL</div>
-          </div>
-          <div style={{color: INK, fontFamily: MONO, fontSize: 36, marginTop: 14}}>
-            $480.00 &middot; 0% INTEREST &middot; 6 WEEKS &middot; ON TIME
+    <div style={{position: 'absolute', bottom: 120, left: 0, width: 3840, display: 'flex', justifyContent: 'center', gap: 60, opacity: fade}}>
+      {cells.map((c) => (
+        <div
+          key={c.label}
+          style={{
+            width: 700,
+            borderRadius: 22,
+            border: '1.5px solid rgba(148,180,220,0.25)',
+            background: 'linear-gradient(160deg, rgba(90,200,250,0.08), rgba(255,255,255,0.015))',
+            padding: '30px 44px',
+          }}
+        >
+          <div style={{color: MUTED, fontFamily: MONO, fontSize: 26, letterSpacing: 3}}>{c.label}</div>
+          <div style={{color: c.c, fontFamily: MONO, fontWeight: 800, fontSize: 78, marginTop: 8, textShadow: `0 0 24px ${c.c}55`}}>
+            {c.v}
           </div>
         </div>
-      </div>
-    </>
+      ))}
+    </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Main composition
+// Comparison bars + payoff badge
 // ---------------------------------------------------------------------------
-export const BuyNowPayLaterSchedule: React.FC = () => {
+const Finale: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const t = interpolate(frame, [740, 830], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  if (t <= 0) return null;
+  const maxV = Math.max(FINAL_VALUE, LUMP_VALUE);
+  const dcaH = 420 * (FINAL_VALUE / maxV) * t;
+  const lumpH = 420 * (LUMP_VALUE / maxV) * t;
+  const badge = spring({frame: frame - 800, fps, config: {damping: 200, stiffness: 90}});
+  return (
+    <div style={{position: 'absolute', top: 0, left: 0, width: 3840, height: 2160}}>
+      <svg width={3840} height={2160}>
+        <rect x={0} y={0} width={3840} height={2160} fill="rgba(6,11,18,0.55)" opacity={t * 0.85} />
+        <g transform="translate(1920,1080)">
+          <rect x={-560} y={-140} width={1120} height={880} rx={36} fill="rgba(8,14,22,0.96)" stroke="rgba(52,211,153,0.4)" strokeWidth={3} />
+          <text y={-60} fill={MUTED} fontSize={34} fontFamily={MONO} letterSpacing={4} textAnchor="middle">
+            $2,400 INVESTED — SAME MARKET
+          </text>
+          {/* lump sum bar */}
+          <g>
+            <rect x={-440} y={-lumpH + 160} width={340} height={lumpH} rx={18} fill="rgba(248,113,113,0.55)" />
+            <text x={-270} y={200} fill={RED} fontSize={32} fontFamily={MONO} textAnchor="middle">LUMP SUM</text>
+            <text x={-270} y={248} fill={INK} fontSize={44} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+              ${Math.round(LUMP_VALUE * t).toLocaleString('en-US')}
+            </text>
+          </g>
+          {/* dca bar */}
+          <g>
+            <rect x={100} y={-dcaH + 160} width={340} height={dcaH} rx={18} fill={GREEN} filter="url(#dcacglow)" />
+            <text x={270} y={200} fill={GREEN} fontSize={32} fontFamily={MONO} textAnchor="middle">DCA</text>
+            <text x={270} y={248} fill={INK} fontSize={44} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+              ${Math.round(FINAL_VALUE * t).toLocaleString('en-US')}
+            </text>
+          </g>
+          {badge > 0.01 && (
+            <g opacity={Math.min(1, badge)} transform={`translate(0, ${(1 - Math.min(1, badge)) * 40}) scale(${0.9 + Math.min(1, badge) * 0.1})`}>
+              <rect x={-520} y={300} width={1040} height={120} rx={60} fill={GREEN} />
+              <text y={378} fill="#04120B" fontSize={52} fontFamily={FONT} fontWeight={800} textAnchor="middle" letterSpacing={1}>
+                TIME IN THE MARKET BEATS TIMING
+              </text>
+            </g>
+          )}
+        </g>
+      </svg>
+    </div>
+  );
+};
+
+const Footer: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [120, 170], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  return (
+    <div style={{position: 'absolute', bottom: 44, left: 0, width: 3840, textAlign: 'center', color: 'rgba(148,180,220,0.5)', fontFamily: FONT, fontSize: 26, opacity: fade}}>
+      Illustrative simulation. Not investment advice — markets can fall as well as rise.
+    </div>
+  );
+};
+
+export const DollarCostAveragingFlow: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
-      <Background_bnpl frame={frame} />
-      <AmbientParticles_bnpl frame={frame} />
-      <Title_bnpl frame={frame} fps={fps} />
-      <HeroTotal_bnpl frame={frame} fps={fps} />
-      <Timeline_bnpl frame={frame} fps={fps} />
-      <Stamp_bnpl frame={frame} fps={fps} />
-      <Balance_bnpl frame={frame} fps={fps} />
-      <Payoff_bnpl frame={frame} fps={fps} />
-      <TickerTape_bnpl frame={frame} />
-      <CornerHud_bnpl frame={frame} />
-      <FineDither_bnpl frame={frame} />
-      <FilmGrain_bnpl frame={frame} />
+      <Background frame={frame} />
+      <Particles frame={frame} />
+      <Title frame={frame} />
+      <LiveHud frame={frame} />
+      <Chart frame={frame} fps={fps} />
+      <BottomStrip frame={frame} />
+      <Finale frame={frame} fps={fps} />
+      <Ticker frame={frame} />
+      <Dither frame={frame} />
+      <Grain frame={frame} />
+      <Corners frame={frame} />
+      <Footer frame={frame} />
     </AbsoluteFill>
   );
 };
