@@ -1,13 +1,11 @@
 /**
- * ForkliftCertificationJourney.tsx
- * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * The forklift certification journey: a forklift silhouette stands with
- * safety cones, a pre-shift inspection checklist ticks off, the forklift
- * weaves a slalom cone course for the skill test, a written-exam card
- * stamps PASS, a certification seal badge appears, and the annual
- * recertification ring closes. Deterministic.
+ * ESIMSetupJourney.tsx
+ * Remotion composition — 4K (3840x2160), 60 fps, 15 s (900 frames), no audio.
+ * A traveler lands abroad and connects in minutes: destination map, plan cards
+ * fan out, a QR code scans into the phone, the eSIM installs with a progress
+ * ring, activation flips on arrival, data streams, and a top-up refills the
+ * plan when it runs low.
  */
-
 import React from 'react';
 import {
   AbsoluteFill,
@@ -19,515 +17,440 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (safety orange / yellow on dark)
+// Palette
 // ---------------------------------------------------------------------------
-const BG = '#14100A';
-const INK = '#FFF7E8';
-const MUTED = 'rgba(255,247,232,0.62)';
-const FAINT = 'rgba(255,247,232,0.32)';
-const ORANGE = '#F97316';
-const YELLOW = '#FACC15';
-const GREEN = '#34D399';
-const BLUE = '#38BDF8';
-const PANEL = 'rgba(24,18,10,0.94)';
-const HAIRLINE = 'rgba(255,247,232,0.14)';
-
+const BG = '#071019';
+const GRID = 'rgba(140,190,225,0.10)';
+const INK = '#EDF4FA';
+const MUTED = 'rgba(194,210,228,0.62)';
+const TEAL = '#2DD4BF';
+const SKY = '#5AC8FA';
+const GOLD = '#FBBF24';
+const CORAL = '#FB7185';
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
-const clamp01 = {extrapolateLeft: 'clamp' as const, extrapolateRight: 'clamp' as const};
 
 // ---------------------------------------------------------------------------
-// Bitrate-proof scaffolding. Seed prefix: fork
+// Shared scenery
 // ---------------------------------------------------------------------------
-const Background_fork: React.FC<{frame: number}> = ({frame}) => {
-  const scanY = ((frame / 900) * (2160 + 480)) % (2160 + 480) - 240;
-  const dots: React.ReactElement[] = [];
-  for (let gy = 0; gy < 27; gy++) {
-    for (let gx = 0; gx < 48; gx++) {
-      const tw = 0.05 + 0.075 * (0.5 + 0.5 * Math.sin(frame * 0.11 + gx * 1.3 + gy * 2.1));
-      dots.push(
-        <circle key={`${gx}-${gy}`} cx={40 + gx * 80} cy={40 + gy * 80} r={2.2} fill="#FBD9A8" opacity={tw} />
-      );
-    }
-  }
+const Defs: React.FC<{p: string}> = ({p}) => (
+  <defs>
+    <linearGradient id={`${p}teal`} x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stopColor="#7DF0DE" />
+      <stop offset="50%" stopColor={TEAL} />
+      <stop offset="100%" stopColor="#0E7C70" />
+    </linearGradient>
+    <radialGradient id={`${p}vig`} cx="50%" cy="46%" r="78%">
+      <stop offset="58%" stopColor="rgba(7,16,25,0)" />
+      <stop offset="100%" stopColor="rgba(2,5,9,0.78)" />
+    </radialGradient>
+    <filter id={`${p}glow`} x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="b" />
+      <feMerge>
+        <feMergeNode in="b" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+);
+
+const Background: React.FC<{frame: number}> = ({frame}) => {
+  const scan = ((frame / 900) * (2160 + 300)) % (2160 + 300) - 150;
   return (
     <>
       <AbsoluteFill style={{backgroundColor: BG}} />
-      <AbsoluteFill style={{background: 'radial-gradient(circle at 50% 28%, rgba(249,115,22,0.14), rgba(250,204,21,0.04) 46%, rgba(20,16,10,0) 72%)'}} />
+      <AbsoluteFill
+        style={{
+          background:
+            'radial-gradient(circle at 50% 30%, rgba(45,212,191,0.10), rgba(45,212,191,0.03) 45%, rgba(7,16,25,0) 72%)',
+        }}
+      />
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        {dots}
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#forkVig)" />
-        <rect x={0} y={scanY - 110} width={3840} height={220} fill="rgba(249,115,22,0.045)" />
-        <defs>
-          <radialGradient id="forkVig" cx="50%" cy="50%" r="75%">
-            <stop offset="58%" stopColor="rgba(20,16,10,0)" />
-            <stop offset="100%" stopColor="rgba(8,6,3,0.74)" />
-          </radialGradient>
-        </defs>
+        <Defs p="esim" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#esimvig)" />
+        <rect x={0} y={scan - 90} width={3840} height={180} fill="rgba(45,212,191,0.028)" />
       </svg>
     </>
   );
 };
 
-const AmbientParticles_fork: React.FC<{frame: number}> = ({frame}) => {
-  const parts: React.ReactElement[] = [];
-  for (let i = 0; i < 220; i++) {
-    const bx = random(`fork-amb-x-${i}`) * 3840;
-    const by = random(`fork-amb-y-${i}`) * 2160;
-    const spd = 0.4 + random(`fork-amb-s-${i}`) * 1.4;
-    const ang = random(`fork-amb-a-${i}`) * Math.PI * 2;
-    const drift = ((frame * spd) % 2400) - 200;
-    const px = (bx + Math.cos(ang) * drift + 3840) % 3840;
-    const py = (by + Math.sin(ang) * drift * 0.6 + 2160) % 2160;
-    const tw = 0.10 + 0.22 * (0.5 + 0.5 * Math.sin(frame * 0.14 + i * 1.7));
-    const sz = 3 + random(`fork-amb-z-${i}`) * 6;
-    const col = i % 4 === 0 ? ORANGE : i % 4 === 1 ? YELLOW : 'rgba(255,247,232,0.9)';
-    parts.push(<circle key={i} cx={px} cy={py} r={sz} fill={col} opacity={tw} />);
+const Particles: React.FC<{frame: number}> = ({frame}) => {
+  const els: React.ReactElement[] = [];
+  for (let i = 0; i < 190; i++) {
+    const bx = random(`esim-p-x-${i}`) * 3840;
+    const by = random(`esim-p-y-${i}`) * 2160;
+    const spd = 0.3 + random(`esim-p-s-${i}`) * 1.0;
+    const ang = random(`esim-p-a-${i}`) * Math.PI * 2;
+    const dr = ((frame * spd) % 2200) - 180;
+    const px = (((bx + Math.cos(ang) * dr) % 3840) + 3840) % 3840;
+    const py = (((by + Math.sin(ang) * dr * 0.6) % 2160) + 2160) % 2160;
+    const tw = 0.07 + 0.18 * (0.5 + 0.5 * Math.sin(frame * 0.11 + i * 1.9));
+    const sz = 2.5 + random(`esim-p-z-${i}`) * 5;
+    els.push(<circle key={i} cx={px} cy={py} r={sz} fill={i % 3 === 0 ? TEAL : 'rgba(237,244,250,0.85)'} opacity={tw} />);
   }
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {parts}
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      {els}
     </svg>
   );
 };
 
-const FineDither_fork: React.FC<{frame: number}> = ({frame}) => {
-  const specks: React.ReactElement[] = [];
-  for (let i = 0; i < 2600; i++) {
-    const bx = random(`fork-dth-x-${i}`) * 3840;
-    const by = random(`fork-dth-y-${i}`) * 2160;
-    const jx = (random(`fork-dth-jx-${frame}-${i}`) - 0.5) * 9;
-    const jy = (random(`fork-dth-jy-${frame}-${i}`) - 0.5) * 9;
-    const o = 0.015 + random(`fork-dth-o-${frame}-${i}`) * 0.035;
-    const s = 1.5 + random(`fork-dth-s-${i}`) * 2;
-    specks.push(<rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#FBD9A8" opacity={o} />);
+const Dither: React.FC<{frame: number}> = ({frame}) => {
+  const els: React.ReactElement[] = [];
+  for (let i = 0; i < 2400; i++) {
+    const bx = random(`esim-d-x-${i}`) * 3840;
+    const by = random(`esim-d-y-${i}`) * 2160;
+    const jx = (random(`esim-d-jx-${frame}-${i}`) - 0.5) * 8;
+    const jy = (random(`esim-d-jy-${frame}-${i}`) - 0.5) * 8;
+    const o = 0.012 + random(`esim-d-o-${frame}-${i}`) * 0.03;
+    const s = 1.5 + random(`esim-d-s-${i}`) * 2;
+    els.push(<rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#BDEFE6" opacity={o} />);
   }
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {specks}
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      {els}
     </svg>
   );
 };
 
-const TICKER_ITEMS_fork = [
-  'PRE-SHIFT INSPECTION',
-  'CONE COURSE SLALOM',
-  'WRITTEN EXAM 96/100',
-  'CERTIFIED OPERATOR',
-  '12-MONTH RECERTIFICATION',
-  'SAFETY FIRST ALWAYS',
-  'LOAD LIMIT 5,000 LB',
-  'HORN BEFORE TURNS',
+const Grain: React.FC<{frame: number}> = ({frame}) => {
+  const els: React.ReactElement[] = [];
+  for (let i = 0; i < 7000; i++) {
+    const x = random(`esim-g-x-${frame}-${i}`) * 3840;
+    const y = random(`esim-g-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`esim-g-o-${frame}-${i}`) * 0.06;
+    const s = 2 + random(`esim-g-s-${frame}-${i}`) * 3;
+    els.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {els}
+    </svg>
+  );
+};
+
+const TICKER = [
+  'NO ROAMING FEES', 'CONNECT IN MINUTES', '200+ COUNTRIES', 'LOCAL · REGIONAL · GLOBAL PLANS',
+  'TOP UP ANYTIME', 'KEEP YOUR NUMBER', 'NO PHYSICAL SIM', 'LAND CONNECTED',
 ];
-const TickerTape_fork: React.FC<{frame: number}> = ({frame}) => {
-  const unit = TICKER_ITEMS_fork.join('   \u25C6   ') + '   \u25C6   ';
-  const unitW = unit.length * 20;
-  const x = -((frame * 7) % unitW);
-  const reps: React.ReactElement[] = [];
-  for (let r = 0; r < Math.ceil(3840 / unitW) + 1; r++) {
-    reps.push(
-      <text key={r} x={x + r * unitW} y={38} fill="rgba(249,115,22,0.62)" fontSize={27} fontFamily={MONO} letterSpacing={4}>
-        {unit}
-      </text>
-    );
+const Ticker: React.FC<{frame: number}> = ({frame}) => {
+  const unit = 1000;
+  const off = -((frame * 3.0) % unit);
+  const row: React.ReactElement[] = [];
+  for (let r = 0; r < 2; r++) {
+    for (let i = 0; i < TICKER.length; i++) {
+      row.push(
+        <text key={`${r}-${i}`} x={off + r * unit + i * 620} y={46} fill="rgba(45,212,191,0.7)" fontSize={30} fontFamily={MONO} letterSpacing={2}>
+          {TICKER[i]} <tspan fill="rgba(45,212,191,0.35)"> /// </tspan>
+        </text>
+      );
+    }
   }
   return (
-    <div style={{position: 'absolute', left: 0, right: 0, top: 0, height: 56, overflow: 'hidden', backgroundColor: 'rgba(10,7,3,0.66)', borderBottom: '1px solid rgba(255,247,232,0.14)'}}>
-      <svg width={3840} height={56} style={{position: 'absolute', top: 0, left: 0}}>
-        {reps}
-      </svg>
-    </div>
+    <svg width={3840} height={80} style={{position: 'absolute', top: 0, left: 0}}>
+      {row}
+      <line x1={0} y1={76} x2={3840} y2={76} stroke="rgba(45,212,191,0.2)" strokeWidth={2} />
+    </svg>
   );
 };
 
-const CornerHud_fork: React.FC<{frame: number}> = ({frame}) => {
-  const blink = 0.55 + 0.45 * Math.sin((frame / 60) * Math.PI * 2);
-  const corners = [
-    {x: 60, y: 92, sx: 1, sy: 1},
-    {x: 3780, y: 92, sx: -1, sy: 1},
-    {x: 60, y: 2068, sx: 1, sy: -1},
-    {x: 3780, y: 2068, sx: -1, sy: -1},
+const Corners: React.FC<{frame: number}> = ({frame}) => {
+  const blink = 0.5 + 0.5 * Math.sin(frame * 0.1);
+  const items = [
+    {x: 60, y: 2090, t: `FRAME ${String(frame).padStart(4, '0')} / 0900`},
+    {x: 3300, y: 2090, t: 'TRAVEL · CONNECTIVITY'},
+    {x: 60, y: 130, t: 'LIVE ROAMING-FREE ZONE'},
   ];
   return (
-    <div style={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        {corners.map((c, i) => (
-          <g key={i} transform={`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}>
-            <path d="M 0 56 L 0 0 L 56 0" fill="none" stroke="rgba(249,115,22,0.55)" strokeWidth={5} />
-            <circle cx={0} cy={0} r={6} fill={ORANGE} opacity={blink} />
-          </g>
-        ))}
-        {Array.from({length: 24}, (_, k) => {
-          const yy = 280 + k * 68;
-          const on = ((frame >> 2) + k) % 8 === 0;
-          return <rect key={`rl${k}`} x={28} y={yy} width={on ? 32 : 17} height={3} fill={on ? ORANGE : 'rgba(255,247,232,0.18)'} opacity={on ? 0.9 : 0.5} />;
-        })}
-        {Array.from({length: 46}, (_, k) => {
-          const xx = 280 + k * 68;
-          const on = ((frame >> 2) + k) % 8 === 4;
-          return <rect key={`rt${k}`} x={xx} y={2036} width={3} height={on ? 28 : 15} fill={on ? ORANGE : 'rgba(255,247,232,0.18)'} opacity={on ? 0.9 : 0.5} />;
-        })}
-      </svg>
-    </div>
-  );
-};
-
-const FilmGrain_fork: React.FC<{frame: number}> = ({frame}) => {
-  const dots: React.ReactElement[] = [];
-  for (let i = 0; i < 7000; i++) {
-    const x = random(`fork-grain-x-${frame}-${i}`) * 3840;
-    const y = random(`fork-grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`fork-grain-o-${frame}-${i}`) * 0.06;
-    const s = 2 + random(`fork-grain-s-${frame}-${i}`) * 3;
-    dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
-  }
-  return (
     <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {dots}
+      {items.map((c, i) => (
+        <g key={i}>
+          <circle cx={c.x} cy={c.y - 8} r={7} fill={TEAL} opacity={0.35 + blink * 0.55} />
+          <text x={c.x + 24} y={c.y} fill={MUTED} fontSize={26} fontFamily={MONO} letterSpacing={3}>
+            {c.t}
+          </text>
+        </g>
+      ))}
     </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Shared primitives: traffic cone + forklift silhouette (pure SVG)
-// ---------------------------------------------------------------------------
-const Cone_fork: React.FC<{x: number; y: number; s?: number; lit?: boolean}> = ({x, y, s = 1, lit = false}) => (
-  <g transform={`translate(${x},${y}) scale(${s})`}>
-    <rect x={-64} y={132} width={128} height={24} rx={8} fill={lit ? YELLOW : ORANGE}
-      style={lit ? {filter: 'drop-shadow(0 0 22px rgba(250,204,21,0.8))'} : undefined} />
-    <path d="M 0 -150 L -58 132 L 58 132 Z" fill={ORANGE} opacity={0.96} />
-    <path d="M -27 -64 L 27 -64 L 38 6 L -38 6 Z" fill={INK} opacity={0.92} />
-    <path d="M -42 66 L 42 66 L 50 112 L -50 112 Z" fill={INK} opacity={0.92} />
-  </g>
-);
-
-const Forklift_fork: React.FC<{x: number; y: number; s?: number; frame: number; moving?: boolean}> = ({x, y, s = 1, frame, moving = false}) => {
-  const wheelA = moving ? frame * 4.2 : 0;
-  return (
-    <g transform={`translate(${x},${y}) scale(${s})`}>
-      {/* rear + front wheels */}
-      <g transform={`rotate(${wheelA} 70 0)`}>
-        <circle cx={70} cy={0} r={76} fill="#1E1A12" stroke={FAINT} strokeWidth={8} />
-        {[0, 60, 120, 180, 240, 300].map((a) => (
-          <line key={a} x1={70} y1={0} x2={70 + 58 * Math.cos((a * Math.PI) / 180)} y2={58 * Math.sin((a * Math.PI) / 180)} stroke={FAINT} strokeWidth={10} />
-        ))}
-        <circle cx={70} cy={0} r={20} fill={FAINT} />
-      </g>
-      <g transform={`rotate(${wheelA} 250 0)`}>
-        <circle cx={250} cy={0} r={76} fill="#1E1A12" stroke={FAINT} strokeWidth={8} />
-        {[0, 60, 120, 180, 240, 300].map((a) => (
-          <line key={a} x1={250} y1={0} x2={250 + 58 * Math.cos((a * Math.PI) / 180)} y2={58 * Math.sin((a * Math.PI) / 180)} stroke={FAINT} strokeWidth={10} />
-        ))}
-        <circle cx={250} cy={0} r={20} fill={FAINT} />
-      </g>
-      {/* chassis */}
-      <rect x={-20} y={-170} width={330} height={120} rx={26} fill={ORANGE} />
-      <rect x={-20} y={-170} width={330} height={120} rx={26} fill="none" stroke={YELLOW} strokeWidth={5} opacity={0.7} />
-      {/* counterweight curve */}
-      <path d="M -20 -170 Q -96 -130 -96 -40 L -20 -40 Z" fill={ORANGE} />
-      {/* overhead guard */}
-      <rect x={10} y={-330} width={18} height={170} fill="#2A2318" />
-      <rect x={200} y={-330} width={18} height={170} fill="#2A2318" />
-      <rect x={-30} y={-352} width={290} height={30} rx={12} fill="#2A2318" />
-      {/* operator silhouette */}
-      <circle cx={130} cy={-252} r={34} fill="#3A2F1C" />
-      <path d="M 96 -218 L 96 -170 L 168 -170 L 168 -218 Q 132 -238 96 -218 Z" fill="#3A2F1C" />
-      {/* mast */}
-      <rect x={326} y={-420} width={26} height={380} fill="#2A2318" />
-      <rect x={362} y={-420} width={26} height={380} fill="#2A2318" />
-      {/* carriage + forks */}
-      <rect x={326} y={-96} width={80} height={30} fill={YELLOW} />
-      <rect x={326} y={-66} width={250} height={26} rx={8} fill={YELLOW} />
-      <rect x={326} y={-120} width={250} height={24} rx={8} fill={YELLOW} opacity={0.55} />
-      {/* headlight */}
-      <circle cx={310} cy={-140} r={16} fill={YELLOW} style={{filter: 'drop-shadow(0 0 18px rgba(250,204,21,0.9))'}} />
-    </g>
   );
 };
 
 // ---------------------------------------------------------------------------
 // Title
 // ---------------------------------------------------------------------------
-const Title_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame, fps, config: {damping: 200, stiffness: 90}});
-  const fade = interpolate(frame, [0, 40], [0, 1], clamp01);
+const Title: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [20, 60], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const rise = interpolate(frame, [20, 60], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
-    <div style={{position: 'absolute', top: 104, left: 220, opacity: fade, transform: `translateY(${(1 - s) * 34}px)`}}>
+    <div style={{position: 'absolute', top: 130 + rise, left: 180, opacity: fade}}>
       <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 92, letterSpacing: -1}}>
-        FORKLIFT CERTIFICATION JOURNEY
+        TRAVEL eSIM <span style={{color: TEAL}}>SETUP</span>
       </div>
-      <div style={{color: MUTED, fontFamily: FONT, fontSize: 38, marginTop: 12}}>
-        operator training &middot; from first cone to certified
+      <div style={{color: MUTED, fontFamily: FONT, fontSize: 38, marginTop: 10}}>
+        Land connected — <span style={{color: TEAL, fontWeight: 700}}>no roaming fees</span>, no SIM store, minutes not days
       </div>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Intro scene: parked forklift + cones
+// Phone component (drawn once, reused by stages)
 // ---------------------------------------------------------------------------
-const Intro_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const fade = interpolate(frame, [40, 120], [0, 1], clamp01);
-  if (fade <= 0) return null;
-  // scene slides away when the course starts (f400+)
-  const out = interpolate(frame, [560, 640], [1, 0], clamp01);
-  if (out <= 0) return null;
-  const s = spring({frame: frame - 60, fps, config: {damping: 200, stiffness: 90}});
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}} opacity={fade * out}>
-      <g transform={`translate(${(1 - s) * -400},0)`}>
-        <Forklift_fork x={1250} y={1420} s={1.35} frame={frame} />
-        <Cone_fork x={560} y={1300} s={1.6} lit={frame > 200} />
-        <Cone_fork x={2360} y={1330} s={1.35} lit={frame > 260} />
-        <Cone_fork x={2660} y={1290} s={1.7} lit={frame > 320} />
-        <text x={1250} y={1740} fill={FAINT} fontSize={34} fontFamily={MONO} letterSpacing={4} textAnchor="middle">
-          TRAINING UNIT 07 &middot; READY FOR INSPECTION
-        </text>
-      </g>
-    </svg>
-  );
-};
+const Phone: React.FC<{x: number; y: number; children?: React.ReactNode}> = ({x, y, children}) => (
+  <g transform={`translate(${x}, ${y})`}>
+    <rect x={-190} y={-400} width={380} height={800} rx={64} fill="#0D1622" stroke="rgba(194,210,228,0.5)" strokeWidth={5} />
+    <rect x={-166} y={-376} width={332} height={752} rx={48} fill="#081019" />
+    <rect x={-60} y={-400} width={120} height={34} rx={17} fill="#0D1622" />
+    {children}
+  </g>
+);
 
 // ---------------------------------------------------------------------------
-// Pre-shift inspection checklist
+// Stage 1: destination map, plane lands, plan cards fan out (frames 60–300)
 // ---------------------------------------------------------------------------
-const CHECKS_fork = [
-  {label: 'TIRES & WHEELS', at: 200},
-  {label: 'FORKS & MAST', at: 240},
-  {label: 'BRAKES', at: 280},
-  {label: 'HYDRAULICS', at: 320},
-  {label: 'HORN & LIGHTS', at: 360},
+const MAP_CITIES = [
+  {x: 900, y: 1050, n: 'PARIS'}, {x: 1750, y: 900, n: 'DUBAI'}, {x: 2500, y: 1150, n: 'BANGKOK'},
+  {x: 3150, y: 950, n: 'TOKYO'},
 ];
-const Inspection_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 170, fps, config: {damping: 200, stiffness: 90}});
-  if (s <= 0.001) return null;
-  const out = interpolate(frame, [560, 640], [1, 0], clamp01);
-  if (out <= 0) return null;
-  const doneCount = CHECKS_fork.filter((c) => frame >= c.at + 24).length;
-  return (
-    <div style={{
-      position: 'absolute', left: 2400, top: 480, width: 1120, opacity: Math.min(1, s) * out,
-      transform: `translateX(${(1 - s) * 120}px)`,
-    }}>
-      <div style={{
-        borderRadius: 28, background: PANEL, border: `2px solid ${ORANGE}`, padding: '36px 48px',
-        boxShadow: '0 0 54px rgba(249,115,22,0.30)',
-      }}>
-        <div style={{color: ORANGE, fontFamily: MONO, fontWeight: 800, fontSize: 38, letterSpacing: 4}}>PRE-SHIFT INSPECTION</div>
-        <div style={{marginTop: 22, display: 'flex', flexDirection: 'column', gap: 16}}>
-          {CHECKS_fork.map((c) => {
-            const on = interpolate(frame, [c.at, c.at + 24], [0, 1], clamp01);
-            return (
-              <div key={c.label} style={{display: 'flex', alignItems: 'center', gap: 22, opacity: 0.35 + 0.65 * on}}>
-                <div style={{
-                  width: 54, height: 54, borderRadius: 14, background: on > 0.5 ? GREEN : 'transparent',
-                  border: `3px solid ${on > 0.5 ? GREEN : FAINT}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#04120B', fontSize: 34, fontWeight: 800,
-                }}>
-                  {on > 0.5 ? '\u2713' : ''}
-                </div>
-                <div style={{color: on > 0.5 ? INK : MUTED, fontFamily: MONO, fontSize: 38, letterSpacing: 2}}>{c.label}</div>
-              </div>
-            );
-          })}
-        </div>
-        <div style={{marginTop: 24, color: doneCount === 5 ? GREEN : MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 2}}>
-          {doneCount === 5 ? 'ALL CLEAR \u2014 PROCEED TO COURSE' : `${doneCount}/5 CHECKS COMPLETE`}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Skill-test cone course: forklift weaves the slalom
-// ---------------------------------------------------------------------------
-const COURSE_CONES_fork = [640, 1120, 1600, 2080, 2560, 3040];
-const Course_fork: React.FC<{frame: number; fps: number}> = ({frame}) => {
-  const fade = interpolate(frame, [600, 660], [0, 1], clamp01);
-  if (fade <= 0) return null;
-  const travel = interpolate(frame, [660, 830], [0, 1], clamp01);
-  const fx = interpolate(travel, [0, 1], [280, 3300], clamp01);
-  const fy = 1420 + Math.sin(travel * Math.PI * 5) * 200 - 160;
-  const doneCount = COURSE_CONES_fork.filter((cx) => fx > cx - 60).length;
-  const trail: React.ReactElement[] = [];
-  for (let k = 0; k < 26; k++) {
-    const tt = interpolate(frame, [660 + k * 7, 830], [0, 1], clamp01);
-    if (tt <= 0 || tt >= travel) continue;
-    const tx = interpolate(tt, [0, 1], [280, 3300], clamp01);
-    const ty = 1420 + Math.sin(tt * Math.PI * 5) * 200 - 160;
-    trail.push(<circle key={k} cx={tx + 260} cy={ty} r={10} fill={YELLOW} opacity={0.16 + 0.1 * Math.sin(k)} />);
-  }
-  return (
-    <>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}} opacity={fade}>
-        {/* course floor markings */}
-        <line x1={420} y1={1720} x2={3420} y2={1720} stroke={HAIRLINE} strokeWidth={6} strokeDasharray="40 30" />
-        <text x={420} y={1800} fill={FAINT} fontSize={30} fontFamily={MONO} letterSpacing={4}>SKILL TEST &middot; CONE SLALOM</text>
-        <text x={3420} y={1800} fill={doneCount === 6 ? GREEN : MUTED} fontSize={30} fontFamily={MONO} letterSpacing={4} textAnchor="end">
-          GATES {doneCount}/6
+const StageMap: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  const t = frame - 60;
+  const s = spring({frame: t, fps, config: {damping: 200, stiffness: 100}});
+  if (s <= 0.001 || frame > 330) return null;
+  const fade = interpolate(frame, [300, 330], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const planeT = interpolate(t, [10, 120], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const px = interpolate(planeT, [0, 1], [700, 2500], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const py = 1050 - Math.sin(planeT * Math.PI) * 420;
+  const land = spring({frame: t - 130, fps, config: {damping: 200, stiffness: 120}});
+  const cards: React.ReactElement[] = [];
+  const plans = [
+    {n: 'LOCAL', d: '1 COUNTRY · 5 GB', p: '$4.50'},
+    {n: 'REGIONAL', d: '39 COUNTRIES · 10 GB', p: '$13.00'},
+    {n: 'GLOBAL', d: '136 COUNTRIES · 20 GB', p: '$29.00'},
+  ];
+  plans.forEach((pl, i) => {
+    const cs = spring({frame: t - (150 + i * 22), fps, config: {damping: 200, stiffness: 100}});
+    if (cs <= 0.001) return;
+    const pick = i === 2;
+    cards.push(
+      <g key={i} opacity={Math.min(1, cs)} transform={`translate(0, ${(1 - Math.min(1, cs)) * 60})`}>
+        <rect x={2500 + i * 330} y={1350} width={300} height={230} rx={22}
+          fill={pick ? 'rgba(45,212,191,0.14)' : 'rgba(13,22,34,0.9)'}
+          stroke={pick ? TEAL : 'rgba(194,210,228,0.3)'} strokeWidth={pick ? 4 : 2}
+          filter={pick ? 'url(#esimglow)' : undefined} />
+        <text x={2650 + i * 330} y={1420} fill={pick ? TEAL : MUTED} fontSize={34} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+          {pl.n}
         </text>
-        {/* dashed slalom guide */}
-        <path d={`M 280 1260 ${COURSE_CONES_fork.map((cx, i) => `L ${cx} ${1420 + (i % 2 === 0 ? -360 : 40)}`).join(' ')} L 3300 1260`}
-          fill="none" stroke="rgba(250,204,21,0.28)" strokeWidth={5} strokeDasharray="24 28" />
-        {COURSE_CONES_fork.map((cx, i) => {
-          const lit = fx > cx - 60;
-          const cy = 1420 + (i % 2 === 0 ? -360 : 40) - 60;
-          return <Cone_fork key={i} x={cx} y={cy} s={1.5} lit={lit} />;
-        })}
-        {trail}
-        <Forklift_fork x={fx} y={fy} s={1.0} frame={frame} moving={travel > 0 && travel < 1} />
-      </svg>
-      {doneCount === 6 && (
-        <div style={{
-          position: 'absolute', left: 1920 - 420, top: 560, width: 840, opacity: interpolate(frame, [845, 875], [0, 1], clamp01),
-          textAlign: 'center', borderRadius: 26, background: 'rgba(52,211,153,0.12)',
-          border: '5px solid rgba(52,211,153,0.9)', padding: '24px 40px',
-          boxShadow: '0 0 60px rgba(52,211,153,0.45)',
-        }}>
-          <div style={{color: GREEN, fontFamily: FONT, fontWeight: 800, fontSize: 84, letterSpacing: 4}}>COURSE CLEAR</div>
-          <div style={{color: INK, fontFamily: MONO, fontSize: 32, marginTop: 6}}>6/6 GATES &middot; ZERO CONES TOUCHED</div>
-        </div>
-      )}
-    </>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Written exam card with PASS stamp
-// ---------------------------------------------------------------------------
-const Exam_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 600, fps, config: {damping: 200, stiffness: 90}});
-  if (s <= 0.001) return null;
-  const out = interpolate(frame, [800, 860], [1, 0], clamp01);
-  if (out <= 0) return null;
-  const score = Math.round(interpolate(frame, [620, 700], [0, 96], clamp01));
-  const stamp = spring({frame: frame - 700, fps, config: {damping: 200, stiffness: 90}});
+        <text x={2650 + i * 330} y={1472} fill={MUTED} fontSize={26} fontFamily={FONT} textAnchor="middle">
+          {pl.d}
+        </text>
+        <text x={2650 + i * 330} y={1536} fill={INK} fontSize={44} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+          {pl.p}
+        </text>
+        {pick && <text x={2650 + i * 330} y={1300} fill={TEAL} fontSize={30} fontFamily={MONO} textAnchor="middle">▼ PICKED</text>}
+      </g>
+    );
+  });
   return (
-    <div style={{
-      position: 'absolute', left: 260, top: 480, width: 940, opacity: Math.min(1, s) * out,
-      transform: `translateX(${(1 - s) * -120}px)`,
-    }}>
-      <div style={{
-        borderRadius: 28, background: PANEL, border: `2px solid ${BLUE}`, padding: '36px 48px',
-        boxShadow: '0 0 54px rgba(56,189,248,0.30)',
-      }}>
-        <div style={{color: BLUE, fontFamily: MONO, fontWeight: 800, fontSize: 38, letterSpacing: 4}}>WRITTEN EXAM</div>
-        <div style={{display: 'flex', alignItems: 'baseline', gap: 18, marginTop: 14}}>
-          <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 120}}>{score}</div>
-          <div style={{color: FAINT, fontFamily: MONO, fontSize: 48}}>/ 100</div>
-        </div>
-        <div style={{marginTop: 10, height: 22, borderRadius: 11, background: 'rgba(255,247,232,0.10)', overflow: 'hidden'}}>
-          <div style={{width: `${(score / 100) * 100}%`, height: '100%', background: BLUE}} />
-        </div>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, marginTop: 12}}>SAFETY RULES &middot; LOAD CHARTS &middot; STABILITY</div>
-      </div>
-      {stamp > 0.001 && (
-        <div style={{
-          position: 'absolute', right: -70, top: 120, opacity: Math.min(1, stamp),
-          transform: `rotate(-10deg) scale(${0.55 + 0.45 * stamp})`,
-        }}>
-          <div style={{
-            borderRadius: 18, padding: '18px 46px', background: 'rgba(52,211,153,0.12)',
-            border: '5px solid rgba(52,211,153,0.95)', boxShadow: '0 0 50px rgba(52,211,153,0.45)',
-          }}>
-            <div style={{color: GREEN, fontFamily: FONT, fontWeight: 800, fontSize: 84, letterSpacing: 5}}>PASS</div>
-          </div>
-        </div>
+    <g opacity={Math.min(1, s) * fade}>
+      {/* stylized map grid */}
+      {Array.from({length: 14}, (_, i) => (
+        <line key={`v${i}`} x1={500 + i * 240} y1={680} x2={500 + i * 240} y2={1280} stroke={GRID} strokeWidth={2} />
+      ))}
+      {Array.from({length: 7}, (_, i) => (
+        <line key={`h${i}`} x1={500} y1={680 + i * 100} x2={3860} y2={680 + i * 100} stroke={GRID} strokeWidth={2} />
+      ))}
+      {MAP_CITIES.map((c) => (
+        <g key={c.n}>
+          <circle cx={c.x} cy={c.y} r={12} fill={TEAL} opacity={0.9} />
+          <circle cx={c.x} cy={c.y} r={26} fill="none" stroke={TEAL} strokeWidth={2} opacity={0.4} />
+          <text x={c.x} y={c.y - 40} fill={INK} fontSize={30} fontFamily={MONO} textAnchor="middle" letterSpacing={2}>
+            {c.n}
+          </text>
+        </g>
+      ))}
+      {/* dashed flight path + plane */}
+      <path d="M 700 1050 Q 1600 480 2500 1150" fill="none" stroke={TEAL} strokeWidth={4} strokeDasharray="20 16" opacity={0.6}
+        pathLength={1} strokeDashoffset={1 - planeT} />
+      <g transform={`translate(${px}, ${py}) rotate(18)`}>
+        <path d="M 0 -34 L 14 10 L 44 26 L 14 18 L 8 40 L 0 24 L -8 40 L -14 18 L -44 26 L -14 10 Z" fill={INK} />
+      </g>
+      {land > 0.01 && (
+        <g opacity={Math.min(1, land)}>
+          <circle cx={2500} cy={1150} r={60 + 20 * Math.sin(frame * 0.2)} fill="none" stroke={TEAL} strokeWidth={4} opacity={0.8} />
+          <rect x={2330} y={1230} width={340} height={80} rx={40} fill={TEAL} />
+          <text x={2500} y={1284} fill="#04201B" fontSize={40} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+            LANDED
+          </text>
+        </g>
       )}
-    </div>
+      <text x={1920} y={760} fill={MUTED} fontSize={36} fontFamily={FONT} textAnchor="middle">
+        Pick a plan <tspan fill={TEAL}>before you fly</tspan> — or after you land
+      </text>
+      {cards}
+    </g>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Certification badge + annual recertification ring (payoff)
+// Stage 2: QR install into phone + progress ring (frames 300–520)
 // ---------------------------------------------------------------------------
-const Badge_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 800, fps, config: {damping: 200, stiffness: 85}});
-  if (s <= 0.001) return null;
-  const sealPulse = 0.5 + 0.5 * Math.sin((frame - 800) * 0.1);
-  const R = 190;
-  const C = 2 * Math.PI * R;
-  const months = Math.min(12, Math.round(interpolate(frame, [820, 890], [0, 12], clamp01)));
-  const sparks: React.ReactElement[] = [];
-  for (let i = 0; i < 40; i++) {
-    const ang = random(`fork-sp-a-${i}`) * Math.PI * 2;
-    const dist = 260 + random(`fork-sp-d-${i}`) * 260;
-    const t = interpolate(frame, [810, 900], [0, 1], clamp01);
-    const cx = 1920 + Math.cos(ang) * dist * t;
-    const cy = 1050 + Math.sin(ang) * dist * t * 0.7;
-    const col = i % 2 === 0 ? YELLOW : ORANGE;
-    sparks.push(<rect key={i} x={cx} y={cy} width={12} height={12} fill={col} opacity={(1 - t) * 0.9}
-      transform={`rotate(${ang * 57.3 + t * 300} ${cx} ${cy})`} />);
+const StageInstall: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 300 || frame > 560) return null;
+  const t = frame - 300;
+  const s = spring({frame: t, fps, config: {damping: 200, stiffness: 100}});
+  const fade = interpolate(frame, [530, 560], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const scanY = interpolate(t, [30, 120], [-120, 120], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const ring = interpolate(t, [110, 220], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const done = spring({frame: t - 225, fps, config: {damping: 200, stiffness: 110}});
+  const qr: React.ReactElement[] = [];
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const on = random(`esim-qr-${r}-${c}`) > 0.45 || (r < 3 && c < 3) || (r < 3 && c > 5) || (r > 5 && c < 3);
+      qr.push(<rect key={`${r}-${c}`} x={c * 26} y={r * 26} width={22} height={22} fill={on ? '#0A1220' : 'rgba(10,18,32,0.08)'} />);
+    }
   }
   return (
-    <>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-        {sparks}
-      </svg>
-      <div style={{
-        position: 'absolute', left: 1920 - 640, top: 420, width: 1280, opacity: Math.min(1, s),
-        transform: `scale(${0.85 + 0.15 * Math.min(1, s)})`, textAlign: 'center',
-      }}>
-        <svg width={1280} height={760} style={{overflow: 'visible'}}>
-          {/* recertification ring: 12 month segments */}
-          {Array.from({length: 12}, (_, m) => {
-            const a0 = (m / 12) * Math.PI * 2 - Math.PI / 2;
-            const a1 = ((m + 1) / 12) * Math.PI * 2 - Math.PI / 2;
-            const on = m < months;
-            const x0 = 640 + R * 1.28 * Math.cos(a0);
-            const y0 = 330 + R * 1.28 * Math.sin(a0);
-            const x1 = 640 + R * 1.28 * Math.cos(a1);
-            const y1 = 330 + R * 1.28 * Math.sin(a1);
-            return (
-              <path key={m} d={`M ${x0} ${y0} A ${R * 1.28} ${R * 1.28} 0 0 1 ${x1} ${y1}`}
-                fill="none" stroke={on ? YELLOW : 'rgba(255,247,232,0.14)'} strokeWidth={26} strokeLinecap="round"
-                style={on ? {filter: 'drop-shadow(0 0 14px rgba(250,204,21,0.8))'} : undefined} />
-            );
-          })}
-          {/* seal */}
-          <g style={{filter: `drop-shadow(0 0 ${30 + sealPulse * 30}px rgba(250,204,21,0.55))`}}>
-            <circle cx={640} cy={330} r={R} fill="rgba(250,204,21,0.10)" stroke={YELLOW} strokeWidth={10} />
-            <circle cx={640} cy={330} r={R - 34} fill="none" stroke={ORANGE} strokeWidth={5} strokeDasharray="18 14" />
-            <path d="M 640 210 L 676 292 L 764 296 L 696 352 L 716 440 L 640 392 L 564 440 L 584 352 L 516 296 L 604 292 Z"
-              fill={YELLOW} />
-            <text x={640} y={540} fill={INK} fontSize={54} fontFamily={FONT} fontWeight={800} letterSpacing={4} textAnchor="middle">
-              CERTIFIED OPERATOR
-            </text>
-            <text x={640} y={592} fill={MUTED} fontSize={32} fontFamily={MONO} letterSpacing={3} textAnchor="middle">
-              FORKLIFT &middot; CLASS IV/V
+    <g opacity={Math.min(1, s) * fade}>
+      <text x={1920} y={760} fill={MUTED} fontSize={38} fontFamily={FONT} textAnchor="middle">
+        Scan the QR — the eSIM <tspan fill={TEAL}>installs itself</tspan>
+      </text>
+      <g transform="translate(1450, 1150)">
+        <rect x={-140} y={-140} width={280} height={280} rx={24} fill="#FFFFFF" />
+        <g transform="translate(-117, -117)">{qr}</g>
+        <rect x={-140} y={scanY - 140} width={280} height={10} fill={TEAL} opacity={0.9} />
+      </g>
+      <Phone x={2400} y={1150}>
+        <text y={-300} fill={MUTED} fontSize={30} fontFamily={MONO} textAnchor="middle" letterSpacing={2}>
+          INSTALLING eSIM
+        </text>
+        <circle r={130} fill="none" stroke="rgba(194,210,228,0.2)" strokeWidth={22} />
+        <circle r={130} fill="none" stroke={TEAL} strokeWidth={22} strokeLinecap="round"
+          pathLength={1} strokeDasharray={1} strokeDashoffset={1 - ring} transform="rotate(-90)" filter="url(#esimglow)" />
+        <text y={16} fill={INK} fontSize={64} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+          {Math.round(ring * 100)}%
+        </text>
+        {done > 0.01 && (
+          <g opacity={Math.min(1, done)}>
+            <circle r={64} fill={TEAL} />
+            <path d="M -28 0 l 20 22 l 40 -46" stroke="#04201B" strokeWidth={12} fill="none" strokeLinecap="round" />
+          </g>
+        )}
+      </Phone>
+      <line x1={1590} y1={1150} x2={2210} y2={1150} stroke={TEAL} strokeWidth={5} strokeDasharray="18 14"
+        pathLength={1} strokeDashoffset={1 - interpolate(t, [20, 110], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})} />
+    </g>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Stage 3: activation + data flow + top-up (frames 520–900)
+// ---------------------------------------------------------------------------
+const StageActive: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 520) return null;
+  const t = frame - 520;
+  const s = spring({frame: t, fps, config: {damping: 200, stiffness: 100}});
+  const cx = 1920;
+  // data usage: drains 20 GB then top-up refills
+  const drain = interpolate(t, [60, 300], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const topup = interpolate(t, [300, 360], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const gb = 20 * (1 - drain) + 20 * topup * drain;
+  const lowWarn = drain > 0.8 && topup < 0.5;
+  const toggle = spring({frame: t - 10, fps, config: {damping: 200, stiffness: 120}});
+  const streams: React.ReactElement[] = [];
+  for (let i = 0; i < 40; i++) {
+    const yy = 880 + i * 34;
+    const xx = 700 + ((frame * (6 + (i % 5))) % 2440);
+    streams.push(
+      <rect key={i} x={xx} y={yy} width={90} height={10} rx={5} fill={TEAL} opacity={0.12 + 0.25 * (0.5 + 0.5 * Math.sin(frame * 0.2 + i))} />
+    );
+  }
+  return (
+    <g opacity={Math.min(1, s)}>
+      {streams}
+      <Phone x={cx} y={1180}>
+        <text y={-300} fill={MUTED} fontSize={30} fontFamily={MONO} textAnchor="middle" letterSpacing={2}>
+          BANGKOK · LOCAL NETWORK
+        </text>
+        {/* signal bars */}
+        {[0, 1, 2, 3].map((i) => (
+          <rect key={i} x={-120 + i * 62} y={-220 + (3 - i) * 34} width={44} height={60 + i * 34} rx={8}
+            fill={i < 3 + (toggle > 0.9 ? 1 : 0) ? TEAL : 'rgba(194,210,228,0.2)'} opacity={0.5 + 0.5 * (0.5 + 0.5 * Math.sin(frame * 0.15 + i))} />
+        ))}
+        <text y={-60} fill={INK} fontSize={120} fontFamily={MONO} fontWeight={800} textAnchor="middle">
+          {gb.toFixed(1)}
+        </text>
+        <text y={10} fill={MUTED} fontSize={36} fontFamily={MONO} textAnchor="middle" letterSpacing={4}>
+          GB REMAINING
+        </text>
+        {/* data gauge */}
+        <rect x={-150} y={60} width={300} height={26} rx={13} fill="rgba(194,210,228,0.15)" />
+        <rect x={-150} y={60} width={300 * (gb / 20)} height={26} rx={13} fill={lowWarn ? CORAL : TEAL} filter="url(#esimglow)" />
+        {/* activation toggle */}
+        <g transform="translate(0, 220)" opacity={Math.min(1, toggle)}>
+          <rect x={-110} y={-44} width={220} height={88} rx={44} fill={toggle > 0.5 ? TEAL : 'rgba(194,210,228,0.2)'} />
+          <circle cx={toggle > 0.5 ? 66 : -66} cy={0} r={34} fill="#FFFFFF" />
+          <text y={110} fill={toggle > 0.5 ? TEAL : MUTED} fontSize={36} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+            {toggle > 0.5 ? 'eSIM ACTIVE' : 'ACTIVATING…'}
+          </text>
+        </g>
+        {lowWarn && (
+          <g>
+            <rect x={-150} y={330} width={300} height={64} rx={32} fill={CORAL} opacity={0.9 + 0.1 * Math.sin(frame * 0.3)} />
+            <text y={373} fill="#2B060C" fontSize={34} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+              LOW DATA
             </text>
           </g>
-        </svg>
-        <div style={{color: months === 12 ? YELLOW : MUTED, fontFamily: MONO, fontSize: 36, letterSpacing: 3, marginTop: 10}}>
-          VALID {months}/12 MONTHS &middot; ANNUAL RECERTIFICATION
-        </div>
-      </div>
-    </>
+        )}
+        {topup > 0 && (
+          <g opacity={topup}>
+            <rect x={-150} y={330} width={300} height={64} rx={32} fill={GOLD} />
+            <text y={373} fill="#2B1E06" fontSize={34} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+              +20 GB TOPPED UP
+            </text>
+          </g>
+        )}
+      </Phone>
+      {/* orbiting coins into phone */}
+      {topup > 0 &&
+        [0, 1, 2, 3, 4].map((i) => {
+          const a = frame * 0.06 + (i / 5) * Math.PI * 2;
+          return (
+            <circle key={i} cx={cx + Math.cos(a) * (420 - topup * 200)} cy={1180 + Math.sin(a) * 300}
+              r={22} fill={GOLD} opacity={1 - topup * 0.6} filter="url(#esimglow)" />
+          );
+        })}
+      <text x={cx} y={1830} fill={INK} fontSize={44} fontFamily={FONT} fontWeight={700} textAnchor="middle">
+        Buy <tspan fill={TEAL}>·</tspan> install <tspan fill={TEAL}>·</tspan> activate <tspan fill={TEAL}>·</tspan> top up — all inside one app
+      </text>
+    </g>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Main composition
-// ---------------------------------------------------------------------------
-export const ForkliftCertificationJourney: React.FC = () => {
+const Footer: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [120, 170], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  return (
+    <div style={{position: 'absolute', bottom: 44, left: 0, width: 3840, textAlign: 'center', color: 'rgba(140,190,225,0.5)', fontFamily: FONT, fontSize: 26, opacity: fade}}>
+      Illustrative concept. Check device eSIM compatibility and plan coverage before travel.
+    </div>
+  );
+};
+
+export const ESIMSetupJourney: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
-      <Background_fork frame={frame} />
-      <AmbientParticles_fork frame={frame} />
-      <Title_fork frame={frame} fps={fps} />
-      <Intro_fork frame={frame} fps={fps} />
-      <Inspection_fork frame={frame} fps={fps} />
-      <Course_fork frame={frame} fps={fps} />
-      <Exam_fork frame={frame} fps={fps} />
-      <Badge_fork frame={frame} fps={fps} />
-      <TickerTape_fork frame={frame} />
-      <CornerHud_fork frame={frame} />
-      <FineDither_fork frame={frame} />
-      <FilmGrain_fork frame={frame} />
+      <Background frame={frame} />
+      <Particles frame={frame} />
+      <Title frame={frame} />
+      <StageMap frame={frame} fps={fps} />
+      <StageInstall frame={frame} fps={fps} />
+      <StageActive frame={frame} fps={fps} />
+      <Ticker frame={frame} />
+      <Dither frame={frame} />
+      <Grain frame={frame} />
+      <Corners frame={frame} />
+      <Footer frame={frame} />
     </AbsoluteFill>
   );
 };
