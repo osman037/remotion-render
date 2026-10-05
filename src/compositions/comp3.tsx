@@ -1,15 +1,19 @@
 /**
- * GlucoseMonitoringFlow.tsx
+ * LifeInsuranceApplicationFlow.tsx
  * Remotion composition — 4K (3840x2160), 60 fps, 15 s (900 frames), no audio.
- * Continuous glucose monitoring: a sensor settles on the arm, its filament
- * samples glucose every minute, readings stream to the phone as a live curve
- * across in-range / high / low zones, the time-in-range ring fills, and a
- * gentle alert nudges when the line drifts out of band.
+ * A life-insurance application journey: an applicant profile card, an animated
+ * quote slider (term length and coverage amount drive the premium), the
+ * application submits, a paramedical-exam checklist ticks with a NO-EXAM PATH
+ * alternative, underwriting gears turn through the data, an APPROVED stamp
+ * lands, and the policy issues with its premium schedule.
+ * (Application and underwriting only — never claim filing, never
+ * term-vs-whole-life product comparison.)
  */
 import React from 'react';
 import {
   AbsoluteFill,
   interpolate,
+  interpolateColors,
   random,
   spring,
   useCurrentFrame,
@@ -17,54 +21,38 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette
+// Palette — deep green + white on near-black green
 // ---------------------------------------------------------------------------
-const BG = '#081018';
-const GRID = 'rgba(150,190,215,0.10)';
-const INK = '#EEF4F9';
-const MUTED = 'rgba(196,212,228,0.62)';
-const GREEN = '#34D399';
-const AMBER = '#FBBF24';
-const RED = '#F87171';
-const BLUE = '#5AC8FA';
+const BG = '#04120A';
+const INK = '#F4FAF6';
+const MUTED = 'rgba(205,228,215,0.62)';
+const GREEN = '#4ADE80';
+const GREEN_DK = '#14532D';
+const MINT = '#A7F3D0';
+const GOLD = '#FBBF24';
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
 
-// Glucose trace model (mg/dL), deterministic: baseline 118 with meals + drift.
-function glucoseAt(t: number): number {
-  const base = 118;
-  const meal1 = 62 * Math.exp(-Math.pow((t - 0.30) * 6.2, 2));
-  const meal2 = 74 * Math.exp(-Math.pow((t - 0.66) * 5.4, 2));
-  const wob = 14 * Math.sin(t * 22) + 8 * Math.sin(t * 47 + 1.3);
-  return base + meal1 + meal2 + wob;
-}
-const GMIN = 55;
-const GMAX = 235;
-const LO = 70;
-const HI = 180;
-
-// Plot geometry
-const PL = 360;
-const PR = 3480;
-const PT = 620;
-const PB = 1560;
-const PW = PR - PL;
-const xFor = (t: number) => PL + t * PW;
-const yFor = (g: number) => PB - ((g - GMIN) / (GMAX - GMIN)) * (PB - PT);
+// Deterministic quote model: sliders animate term 10→20 yr, coverage 250k→500k
+const quoteAt = (f: number): {term: number; cov: number; prem: number} => {
+  const term = interpolate(f, [140, 260], [10, 20], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const cov = interpolate(f, [140, 260], [250000, 500000], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const prem = Math.max(8, (cov / 1000000) * (term / 20) * 64);
+  return {term, cov, prem};
+};
 
 // ---------------------------------------------------------------------------
 // Shared scenery
 // ---------------------------------------------------------------------------
 const Defs: React.FC<{p: string}> = ({p}) => (
   <defs>
-    <linearGradient id={`${p}line`} x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={BLUE} />
-      <stop offset="50%" stopColor={GREEN} />
-      <stop offset="100%" stopColor={GREEN} />
+    <linearGradient id={`${p}card`} x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stopColor="#0B2B1A" />
+      <stop offset="100%" stopColor="#061A10" />
     </linearGradient>
     <radialGradient id={`${p}vig`} cx="50%" cy="46%" r="78%">
-      <stop offset="58%" stopColor="rgba(8,16,24,0)" />
-      <stop offset="100%" stopColor="rgba(2,5,9,0.78)" />
+      <stop offset="58%" stopColor="rgba(4,18,10,0)" />
+      <stop offset="100%" stopColor="rgba(2,9,5,0.8)" />
     </radialGradient>
     <filter id={`${p}glow`} x="-60%" y="-60%" width="220%" height="220%">
       <feGaussianBlur stdDeviation="10" result="b" />
@@ -84,13 +72,13 @@ const Background: React.FC<{frame: number}> = ({frame}) => {
       <AbsoluteFill
         style={{
           background:
-            'radial-gradient(circle at 50% 30%, rgba(52,211,153,0.10), rgba(52,211,153,0.03) 45%, rgba(8,16,24,0) 72%)',
+            'radial-gradient(circle at 50% 30%, rgba(74,222,128,0.12), rgba(74,222,128,0.04) 45%, rgba(4,18,10,0) 72%)',
         }}
       />
       <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <Defs p="cgm" />
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#cgmvig)" />
-        <rect x={0} y={scan - 90} width={3840} height={180} fill="rgba(52,211,153,0.028)" />
+        <Defs p="li" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#livig)" />
+        <rect x={0} y={scan - 90} width={3840} height={180} fill="rgba(74,222,128,0.030)" />
       </svg>
     </>
   );
@@ -99,16 +87,18 @@ const Background: React.FC<{frame: number}> = ({frame}) => {
 const Particles: React.FC<{frame: number}> = ({frame}) => {
   const els: React.ReactElement[] = [];
   for (let i = 0; i < 190; i++) {
-    const bx = random(`cgm-p-x-${i}`) * 3840;
-    const by = random(`cgm-p-y-${i}`) * 2160;
-    const spd = 0.3 + random(`cgm-p-s-${i}`) * 1.0;
-    const ang = random(`cgm-p-a-${i}`) * Math.PI * 2;
+    const bx = random(`li-p-x-${i}`) * 3840;
+    const by = random(`li-p-y-${i}`) * 2160;
+    const spd = 0.3 + random(`li-p-s-${i}`) * 1.0;
+    const ang = random(`li-p-a-${i}`) * Math.PI * 2;
     const dr = ((frame * spd) % 2200) - 180;
     const px = (((bx + Math.cos(ang) * dr) % 3840) + 3840) % 3840;
     const py = (((by + Math.sin(ang) * dr * 0.6) % 2160) + 2160) % 2160;
-    const tw = 0.07 + 0.18 * (0.5 + 0.5 * Math.sin(frame * 0.11 + i * 2.3));
-    const sz = 2.5 + random(`cgm-p-z-${i}`) * 5;
-    els.push(<circle key={i} cx={px} cy={py} r={sz} fill={i % 3 === 0 ? GREEN : 'rgba(238,244,249,0.85)'} opacity={tw} />);
+    const tw = 0.07 + 0.18 * (0.5 + 0.5 * Math.sin(frame * 0.11 + i * 1.5));
+    const sz = 2.5 + random(`li-p-z-${i}`) * 5;
+    els.push(
+      <circle key={i} cx={px} cy={py} r={sz} fill={i % 3 === 0 ? GOLD : 'rgba(74,222,128,0.8)'} opacity={tw} />
+    );
   }
   return (
     <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
@@ -120,13 +110,13 @@ const Particles: React.FC<{frame: number}> = ({frame}) => {
 const Dither: React.FC<{frame: number}> = ({frame}) => {
   const els: React.ReactElement[] = [];
   for (let i = 0; i < 2400; i++) {
-    const bx = random(`cgm-d-x-${i}`) * 3840;
-    const by = random(`cgm-d-y-${i}`) * 2160;
-    const jx = (random(`cgm-d-jx-${frame}-${i}`) - 0.5) * 8;
-    const jy = (random(`cgm-d-jy-${frame}-${i}`) - 0.5) * 8;
-    const o = 0.012 + random(`cgm-d-o-${frame}-${i}`) * 0.03;
-    const s = 1.5 + random(`cgm-d-s-${i}`) * 2;
-    els.push(<rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#C9E8D8" opacity={o} />);
+    const bx = random(`li-d-x-${i}`) * 3840;
+    const by = random(`li-d-y-${i}`) * 2160;
+    const jx = (random(`li-d-jx-${frame}-${i}`) - 0.5) * 8;
+    const jy = (random(`li-d-jy-${frame}-${i}`) - 0.5) * 8;
+    const o = 0.012 + random(`li-d-o-${frame}-${i}`) * 0.03;
+    const s = 1.5 + random(`li-d-s-${i}`) * 2;
+    els.push(<rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#CDEFD8" opacity={o} />);
   }
   return (
     <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
@@ -138,10 +128,10 @@ const Dither: React.FC<{frame: number}> = ({frame}) => {
 const Grain: React.FC<{frame: number}> = ({frame}) => {
   const els: React.ReactElement[] = [];
   for (let i = 0; i < 7000; i++) {
-    const x = random(`cgm-g-x-${frame}-${i}`) * 3840;
-    const y = random(`cgm-g-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`cgm-g-o-${frame}-${i}`) * 0.06;
-    const s = 2 + random(`cgm-g-s-${frame}-${i}`) * 3;
+    const x = random(`li-g-x-${frame}-${i}`) * 3840;
+    const y = random(`li-g-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`li-g-o-${frame}-${i}`) * 0.06;
+    const s = 2 + random(`li-g-s-${frame}-${i}`) * 3;
     els.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
   }
   return (
@@ -152,18 +142,18 @@ const Grain: React.FC<{frame: number}> = ({frame}) => {
 };
 
 const TICKER = [
-  'READING EVERY MINUTE', 'NO FINGERSTICKS', 'TIME IN RANGE', 'TREND ARROWS',
-  'HIGH & LOW ALERTS', 'SHARE WITH YOUR CARE TEAM', '14-DAY SENSOR WEAR',
+  'APPLY ONLINE', 'INSTANT QUOTE', 'PARAMEDICAL EXAM', 'NO-EXAM PATH',
+  'UNDERWRITING', 'APPROVED', 'POLICY ISSUED',
 ];
 const Ticker: React.FC<{frame: number}> = ({frame}) => {
-  const unit = 1000;
+  const unit = 4900;
   const off = -((frame * 3.0) % unit);
   const row: React.ReactElement[] = [];
   for (let r = 0; r < 2; r++) {
     for (let i = 0; i < TICKER.length; i++) {
       row.push(
-        <text key={`${r}-${i}`} x={off + r * unit + i * 640} y={46} fill="rgba(52,211,153,0.7)" fontSize={30} fontFamily={MONO} letterSpacing={2}>
-          {TICKER[i]} <tspan fill="rgba(52,211,153,0.35)"> /// </tspan>
+        <text key={`${r}-${i}`} x={off + r * unit + i * 700} y={46} fill="rgba(74,222,128,0.75)" fontSize={30} fontFamily={MONO} letterSpacing={2}>
+          {TICKER[i]} <tspan fill="rgba(74,222,128,0.35)"> /// </tspan>
         </text>
       );
     }
@@ -171,7 +161,7 @@ const Ticker: React.FC<{frame: number}> = ({frame}) => {
   return (
     <svg width={3840} height={80} style={{position: 'absolute', top: 0, left: 0}}>
       {row}
-      <line x1={0} y1={76} x2={3840} y2={76} stroke="rgba(52,211,153,0.2)" strokeWidth={2} />
+      <line x1={0} y1={76} x2={3840} y2={76} stroke="rgba(74,222,128,0.2)" strokeWidth={2} />
     </svg>
   );
 };
@@ -180,8 +170,8 @@ const Corners: React.FC<{frame: number}> = ({frame}) => {
   const blink = 0.5 + 0.5 * Math.sin(frame * 0.1);
   const items = [
     {x: 60, y: 2090, t: `FRAME ${String(frame).padStart(4, '0')} / 0900`},
-    {x: 3260, y: 2090, t: 'CGM · LIVE TELEMETRY'},
-    {x: 60, y: 130, t: 'SENSOR → PHONE · 1-MIN CADENCE'},
+    {x: 2960, y: 2090, t: 'LIFE INSURANCE APPLICATION'},
+    {x: 2890, y: 130, t: 'BUSINESS · INSURANCE'},
   ];
   return (
     <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
@@ -197,170 +187,354 @@ const Corners: React.FC<{frame: number}> = ({frame}) => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// Title
-// ---------------------------------------------------------------------------
 const Title: React.FC<{frame: number}> = ({frame}) => {
   const fade = interpolate(frame, [20, 60], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const rise = interpolate(frame, [20, 60], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
     <div style={{position: 'absolute', top: 130 + rise, left: 180, opacity: fade}}>
       <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 92, letterSpacing: -1}}>
-        CONTINUOUS GLUCOSE <span style={{color: GREEN}}>MONITORING</span>
+        LIFE INSURANCE <span style={{color: GREEN}}>APPLICATION</span>
       </div>
       <div style={{color: MUTED, fontFamily: FONT, fontSize: 38, marginTop: 10}}>
-        A tiny sensor reads glucose <span style={{color: GREEN, fontWeight: 700}}>every minute</span> — your phone draws the story
+        Quote · apply · <span style={{color: GREEN, fontWeight: 700}}>underwrite</span> · approved — the path to a policy
       </div>
     </div>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Sensor on arm (left panel)
-// ---------------------------------------------------------------------------
-const SensorPanel: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const fade = interpolate(frame, [40, 90], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const apply = spring({frame: frame - 60, fps, config: {damping: 200, stiffness: 110}});
-  const warm = interpolate(frame, [120, 260], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const cx = 1920;
+const PremiumHud: React.FC<{frame: number}> = ({frame}) => {
+  const inAt = spring({frame: frame - 120, fps: 60, config: {damping: 200, stiffness: 90}});
+  if (inAt <= 0.01) return null;
+  const q = quoteAt(frame);
+  const fillC = interpolateColors(q.prem / 64, [0.25, 0.5, 1], [GREEN, MINT, GOLD]);
   return (
-    <div style={{position: 'absolute', top: 560, left: 120, width: 620, opacity: fade}}>
-      <svg width={620} height={1120}>
-        <rect x={0} y={0} width={620} height={1120} rx={40} fill="rgba(14,22,32,0.72)" stroke="rgba(52,211,153,0.3)" strokeWidth={3} />
-        <text x={310} y={90} fill={MUTED} fontSize={34} fontFamily={MONO} textAnchor="middle" letterSpacing={4}>
-          SENSOR
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={Math.min(1, inAt)} transform={`translate(2810, 150) scale(${0.9 + Math.min(1, inAt) * 0.1})`}>
+        <rect x={0} y={0} width={880} height={230} rx={28} fill="rgba(3,12,7,0.92)" stroke={GREEN} strokeWidth={3} filter="url(#liglow)" />
+        <text x={44} y={62} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={4}>EST. PREMIUM</text>
+        <text x={44} y={158} fill={fillC} fontSize={92} fontFamily={MONO} fontWeight={800}>
+          ${q.prem.toFixed(0)}<tspan fontSize={44} fill={MUTED}>/mo</tspan>
         </text>
-        {/* arm */}
-        <rect x={70} y={180} width={480} height={330} rx={165} fill="#1C2836" stroke="rgba(196,212,228,0.35)" strokeWidth={3} />
-        {/* filament */}
-        <line x1={310} y1={330} x2={310} y2={330 + 190 * apply} stroke={BLUE} strokeWidth={10} strokeLinecap="round" opacity={0.9} />
-        {/* sensor disc */}
-        <g transform={`translate(310, ${330 - (1 - Math.min(1, apply)) * 160})`} opacity={Math.min(1, apply)}>
-          <ellipse cx={0} cy={0} rx={110} ry={64} fill="#243447" stroke={GREEN} strokeWidth={5} filter="url(#cgmglow)" />
-          <ellipse cx={0} cy={-8} rx={60} ry={32} fill="rgba(52,211,153,0.25)" />
-          <text y={90} fill={GREEN} fontSize={30} fontFamily={MONO} textAnchor="middle">
-            {warm > 0.95 ? 'SAMPLING' : warm > 0 ? 'WARMING UP' : 'APPLYING'}
-          </text>
-        </g>
-        {/* warmup bar */}
-        <rect x={110} y={620} width={400} height={26} rx={13} fill="rgba(196,212,228,0.15)" />
-        <rect x={110} y={620} width={400 * warm} height={26} rx={13} fill={GREEN} />
-        {/* minute readings */}
-        <text x={310} y={740} fill={MUTED} fontSize={30} fontFamily={MONO} textAnchor="middle" letterSpacing={2}>
-          READINGS / MINUTE
-        </text>
-        {[0, 1, 2, 3, 4, 5].map((i) => {
-          const on = frame > 260 + i * 60;
-          const g = glucoseAt(Math.min(1, (frame - 260) / 640));
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Beat 1 — applicant profile card (frames 30–150)
+// ---------------------------------------------------------------------------
+const Profile: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 20 || frame > 170) return null;
+  const fade = interpolate(frame, [130, 170], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const s = spring({frame: frame - 20, fps, config: {damping: 200, stiffness: 100}});
+  const rows = [
+    {t: 'AGE', v: '34'},
+    {t: 'TOBACCO', v: 'NON-SMOKER'},
+    {t: 'HEALTH CLASS', v: 'PREFERRED'},
+  ];
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={fade * Math.min(1, s)} transform={`translate(350, ${640 + (1 - Math.min(1, s)) * 120})`}>
+        <rect x={0} y={0} width={820} height={640} rx={30} fill="url(#licard)" stroke={GREEN} strokeWidth={4} filter="url(#liglow)" />
+        <text x={48} y={98} fill={GREEN} fontSize={30} fontFamily={MONO} letterSpacing={5}>APPLICANT</text>
+        <circle cx={130} cy={200} r={64} fill={GREEN_DK} stroke={MINT} strokeWidth={4} />
+        <text x={130} y={222} fill={MINT} fontSize={56} fontFamily={FONT} fontWeight={800} textAnchor="middle">A</text>
+        <text x={230} y={200} fill={INK} fontSize={52} fontFamily={FONT} fontWeight={800}>A. APPLICANT</text>
+        <text x={230} y={252} fill={MUTED} fontSize={32} fontFamily={FONT}>applying for coverage</text>
+        <line x1={48} y1={300} x2={772} y2={300} stroke="rgba(74,222,128,0.25)" strokeWidth={2} />
+        {rows.map((r, i) => {
+          const ron = interpolate(frame - (70 + i * 25), [0, 20], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
           return (
-            <g key={i} opacity={on ? 1 : 0.25}>
-              <rect x={90 + i * 78} y={800} width={64} height={120} rx={14} fill={on ? 'rgba(52,211,153,0.16)' : 'rgba(196,212,228,0.08)'} stroke={on ? GREEN : 'rgba(196,212,228,0.2)'} strokeWidth={2} />
-              <text x={122 + i * 78} y={880} fill={on ? INK : MUTED} fontSize={34} fontFamily={MONO} fontWeight={700} textAnchor="middle">
-                {on ? Math.round(g + (random(`cgm-rd-${i}`) - 0.5) * 6) : '—'}
+            <g key={i} opacity={ron}>
+              <text x={48} y={380 + i * 80} fill={MUTED} fontSize={34} fontFamily={MONO} letterSpacing={2}>{r.t}</text>
+              <text x={772} y={380 + i * 80} fill={GREEN} fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="end">{r.v}</text>
+            </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Beat 2 — quote sliders animate: term length + coverage amount (frames 120–300)
+// ---------------------------------------------------------------------------
+const Quote: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 120 || frame > 330) return null;
+  const fade = interpolate(frame, [290, 330], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const s = spring({frame: frame - 120, fps, config: {damping: 200, stiffness: 100}});
+  const q = quoteAt(frame);
+  const T0 = 400; const T1 = 2100;
+  const termX = T0 + ((q.term - 10) / 10) * (T1 - T0);
+  const covX = T0 + ((q.cov - 250000) / 250000) * (T1 - T0);
+  const slider = (label: string, y: number, kx: number, val: string, marks: string[]) => (
+    <g>
+      <text x={T0 - 330} y={y + 14} fill={MUTED} fontSize={36} fontFamily={MONO} letterSpacing={2} textAnchor="end">{label}</text>
+      <line x1={T0} y1={y} x2={T1} y2={y} stroke="rgba(74,222,128,0.3)" strokeWidth={10} strokeLinecap="round" />
+      <line x1={T0} y1={y} x2={kx} y2={y} stroke={GREEN} strokeWidth={10} strokeLinecap="round" />
+      {marks.map((m, i) => (
+        <text key={i} x={T0 + (i / (marks.length - 1)) * (T1 - T0)} y={y + 62} fill={MUTED} fontSize={28} fontFamily={MONO} textAnchor="middle">
+          {m}
+        </text>
+      ))}
+      <circle cx={kx} cy={y} r={44} fill={GREEN} filter="url(#liglow)" />
+      <circle cx={kx} cy={y} r={18} fill="#04120A" />
+      <text x={kx} y={y - 74} fill={INK} fontSize={44} fontFamily={MONO} fontWeight={800} textAnchor="middle">{val}</text>
+    </g>
+  );
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={fade * Math.min(1, s)} transform={`translate(0, ${(1 - Math.min(1, s)) * 100})`}>
+        <rect x={350} y={1180} width={2350} height={560} rx={30} fill="rgba(3,12,7,0.94)" stroke={GREEN} strokeWidth={4} filter="url(#liglow)" />
+        <text x={410} y={1276} fill={GREEN} fontSize={30} fontFamily={MONO} letterSpacing={5}>INSTANT QUOTE</text>
+        <g transform="translate(350, 1450)">
+          {slider('TERM', 0, termX - 350, `${Math.round(q.term)} YRS`, ['10 YR', '15 YR', '20 YR'])}
+        </g>
+        <g transform="translate(350, 1620)">
+          {slider('COVERAGE', 0, covX - 350, `$${Math.round(q.cov / 1000)}K`, ['$250K', '$375K', '$500K'])}
+        </g>
+        <text x={2390} y={1276} fill={MUTED} fontSize={32} fontFamily={FONT} textAnchor="end">
+          drag → premium updates live
+        </text>
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Beat 3 — application submits (frames 280–390)
+// ---------------------------------------------------------------------------
+const Submit: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 280 || frame > 410) return null;
+  const fade = interpolate(frame, [370, 410], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const fly = interpolate(frame, [300, 360], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const sx = 900; const sy = 1500; const ex = 2950; const ey = 1000;
+  const px = sx + fly * (ex - sx);
+  const py = sy - Math.sin(fly * Math.PI) * 320;
+  const carrier = spring({frame: frame - 340, fps, config: {damping: 200, stiffness: 110}});
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={fade}>
+        {carrier > 0.01 && (
+          <g opacity={Math.min(1, carrier)} transform={`translate(2950, ${900 + (1 - Math.min(1, carrier)) * 100})`}>
+            <rect x={-260} y={-140} width={520} height={280} rx={24} fill="url(#licard)" stroke={MINT} strokeWidth={4} filter="url(#liglow)" />
+            <text y={-20} fill={MINT} fontSize={52} fontFamily={FONT} fontWeight={800} textAnchor="middle">CARRIER</text>
+            <text y={44} fill={MUTED} fontSize={32} fontFamily={FONT} textAnchor="middle">receives application</text>
+            {fly >= 1 && (
+              <g>
+                <circle cx={180} cy={-180} r={46} fill="rgba(74,222,128,0.15)" stroke={GREEN} strokeWidth={5} />
+                <path d="M 162 -180 L 174 -168 L 200 -196" fill="none" stroke={GREEN} strokeWidth={8} strokeLinecap="round" />
+              </g>
+            )}
+          </g>
+        )}
+        {fly > 0 && fly < 1 && (
+          <g transform={`translate(${px}, ${py}) rotate(${fly * 12})`}>
+            <rect x={-130} y={-90} width={260} height={180} rx={14} fill="#F4FAF6" stroke={GREEN} strokeWidth={5} />
+            <polygon points="-130,-90 0,10 130,-90" fill="none" stroke={GREEN} strokeWidth={5} />
+            <text y={70} fill={GREEN_DK} fontSize={30} fontFamily={MONO} fontWeight={800} textAnchor="middle">APPLICATION</text>
+          </g>
+        )}
+        <g opacity={fly}>
+          <path d={`M ${sx} ${sy} Q 1900 ${sy - 480} ${ex} ${ey}`} fill="none" stroke={GREEN} strokeWidth={5} strokeDasharray="20 16" />
+        </g>
+        <text x={900} y={1620} fill={MUTED} fontSize={36} fontFamily={FONT} opacity={fade}>
+          the signed application <tspan fill={GREEN} fontWeight={700}>submits</tspan> — underwriting begins
+        </text>
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Beat 4 — paramedical exam checklist + NO-EXAM PATH (frames 360–560)
+// ---------------------------------------------------------------------------
+const Exam: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 360 || frame > 590) return null;
+  const fade = interpolate(frame, [550, 590], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const s = spring({frame: frame - 360, fps, config: {damping: 200, stiffness: 100}});
+  const noExam = spring({frame: frame - 470, fps, config: {damping: 200, stiffness: 120}});
+  const checks = [
+    {t: 'BLOOD PRESSURE + PULSE', d: 390},
+    {t: 'HEIGHT + WEIGHT', d: 420},
+    {t: 'BLOOD DRAW', d: 450},
+  ];
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={fade}>
+        <g opacity={Math.min(1, s)} transform={`translate(350, ${1050 + (1 - Math.min(1, s)) * 100})`}>
+          <rect x={0} y={0} width={1000} height={560} rx={30} fill="rgba(3,12,7,0.94)" stroke={GREEN} strokeWidth={4} filter="url(#liglow)" />
+          <text x={48} y={92} fill={GREEN} fontSize={30} fontFamily={MONO} letterSpacing={5}>PARAMEDICAL EXAM</text>
+          {checks.map((c, i) => {
+            const ck = spring({frame: frame - c.d, fps, config: {damping: 200, stiffness: 140}});
+            if (ck <= 0.01) return null;
+            const cy = 190 + i * 110;
+            return (
+              <g key={i} opacity={Math.min(1, ck)}>
+                <g transform={`translate(100, ${cy - 14}) scale(${Math.min(1, ck)})`}>
+                  <circle cx={0} cy={0} r={34} fill="rgba(74,222,128,0.15)" stroke={GREEN} strokeWidth={5} />
+                  <path d="M -16 0 L -4 14 L 18 -12" fill="none" stroke={GREEN} strokeWidth={7} strokeLinecap="round" />
+                </g>
+                <text x={170} y={cy} fill={INK} fontSize={38} fontFamily={MONO}>{c.t}</text>
+              </g>
+            );
+          })}
+          <text x={48} y={520} fill={MUTED} fontSize={30} fontFamily={FONT}>takes ~20 minutes, at home or work</text>
+        </g>
+        {noExam > 0.01 && (
+          <g opacity={Math.min(1, noExam)} transform={`translate(1560, 1180) scale(${Math.min(1, noExam)})`}>
+            <rect x={-300} y={-120} width={600} height={240} rx={120} fill="rgba(251,191,36,0.12)" stroke={GOLD} strokeWidth={5} strokeDasharray="24 16" filter="url(#liglow)" />
+            <text y={-16} fill={GOLD} fontSize={54} fontFamily={FONT} fontWeight={800} textAnchor="middle">NO-EXAM PATH</text>
+            <text y={52} fill={INK} fontSize={34} fontFamily={FONT} textAnchor="middle">data-only underwriting</text>
+          </g>
+        )}
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Gear drawing helper + Beat 5 — underwriting gears turn (frames 540–700)
+// ---------------------------------------------------------------------------
+const Gear: React.FC<{x: number; y: number; r: number; speed: number; frame: number; dir?: number}> = ({x, y, r, speed, frame, dir}) => {
+  const a = ((frame * speed * (dir === -1 ? -1 : 1)) % 360) * (Math.PI / 180);
+  const teeth = 12;
+  const els: React.ReactElement[] = [];
+  for (let i = 0; i < teeth; i++) {
+    const ta = (i / teeth) * Math.PI * 2 + a;
+    els.push(
+      <rect key={i} x={-r * 0.12} y={-r * 1.28} width={r * 0.24} height={r * 0.36} rx={6} fill={GREEN_DK} stroke={GREEN} strokeWidth={3}
+        transform={`translate(${x + Math.cos(ta) * r * 1.02}, ${y + Math.sin(ta) * r * 1.02}) rotate(${(ta * 180) / Math.PI + 90})`} />
+    );
+  }
+  return (
+    <g>
+      {els}
+      <circle cx={x} cy={y} r={r} fill="rgba(20,83,45,0.5)" stroke={GREEN} strokeWidth={6} />
+      <circle cx={x} cy={y} r={r * 0.35} fill="none" stroke={GREEN} strokeWidth={5} />
+      <line x1={x} y1={y} x2={x + Math.cos(a) * r * 0.85} y2={y + Math.sin(a) * r * 0.85} stroke={MINT} strokeWidth={8} strokeLinecap="round" />
+    </g>
+  );
+};
+
+const Underwrite: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 540 || frame > 720) return null;
+  const fade = interpolate(frame, [680, 720], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const s = spring({frame: frame - 540, fps, config: {damping: 200, stiffness: 100}});
+  const feeds = [
+    {t: 'MEDICAL RECORDS', d: 560},
+    {t: 'PRESCRIPTION HISTORY', d: 590},
+    {t: 'DRIVING RECORD', d: 620},
+  ];
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={fade}>
+        <text x={1920} y={560} fill={INK} fontSize={56} fontFamily={FONT} fontWeight={800} textAnchor="middle" opacity={Math.min(1, s)}>
+          UNDERWRITING
+        </text>
+        <text x={1920} y={620} fill={MUTED} fontSize={34} fontFamily={FONT} textAnchor="middle" opacity={Math.min(1, s)}>
+          the carrier verifies the risk picture
+        </text>
+        <g opacity={Math.min(1, s)}>
+          <Gear x={1920} y={1050} r={230} speed={1.6} frame={frame} />
+          <Gear x={1560} y={1330} r={150} speed={2.4} frame={frame} dir={-1} />
+          <Gear x={2280} y={1330} r={150} speed={2.4} frame={frame} dir={-1} />
+        </g>
+        {feeds.map((f, i) => {
+          const on = interpolate(frame - f.d, [0, 25], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+          if (on <= 0) return null;
+          const fx = 350 + i * 40;
+          return (
+            <g key={i} opacity={on} transform={`translate(${fx}, ${900 + i * 130})`}>
+              <rect x={0} y={0} width={620} height={88} rx={20} fill="rgba(3,12,7,0.9)" stroke={MINT} strokeWidth={3} />
+              <text x={28} y={56} fill={MINT} fontSize={30} fontFamily={MONO} letterSpacing={2}>{f.t}</text>
+              <line x1={660} y1={44} x2={1300} y2={44} stroke={MINT} strokeWidth={4} strokeDasharray="16 12" opacity={0.7} />
+            </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Beat 6 — APPROVED stamp (frames 680–780)
+// ---------------------------------------------------------------------------
+const Approved: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 670 || frame > 800) return null;
+  const fade = interpolate(frame, [760, 800], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const st = spring({frame: frame - 680, fps, config: {damping: 200, stiffness: 130}});
+  if (st <= 0.01) return null;
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={fade * Math.min(1, st)} transform={`translate(1920, 1050) rotate(${-12 + (1 - Math.min(1, st)) * -18}) scale(${Math.min(1, st)})`}>
+        <rect x={-460} y={-150} width={920} height={300} rx={28} fill="none" stroke={GREEN} strokeWidth={14} filter="url(#liglow)" />
+        <text y={52} fill={GREEN} fontSize={150} fontFamily={FONT} fontWeight={800} textAnchor="middle" letterSpacing={10}>
+          APPROVED
+        </text>
+        <text y={240} fill={MUTED} fontSize={32} fontFamily={MONO} textAnchor="middle" letterSpacing={3}>
+          PREFERRED RATE CLASS
+        </text>
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Beat 7 — policy issues with premium schedule (frames 760–900)
+// ---------------------------------------------------------------------------
+const Policy: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 750) return null;
+  const s = spring({frame: frame - 750, fps, config: {damping: 200, stiffness: 100}});
+  if (s <= 0.01) return null;
+  const q = quoteAt(frame);
+  const rows = [1, 5, 10, 15, 20].filter((y) => y <= Math.round(q.term));
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={Math.min(1, s)} transform={`translate(350, ${860 + (1 - Math.min(1, s)) * 120})`}>
+        <rect x={0} y={0} width={1500} height={940} rx={24} fill="#F4FAF6" stroke={GREEN_DK} strokeWidth={5} filter="url(#liglow)" />
+        <text x={64} y={110} fill={GREEN_DK} fontSize={58} fontFamily={FONT} fontWeight={800} letterSpacing={4}>
+          POLICY ISSUED
+        </text>
+        <text x={64} y={166} fill="#5B6B60" fontSize={32} fontFamily={MONO}>#LI-2026-88412 · {Math.round(q.term)}-YEAR TERM</text>
+        <line x1={64} y1={210} x2={1436} y2={210} stroke="#C9D8CE" strokeWidth={3} />
+        <text x={64} y={290} fill={GREEN_DK} fontSize={40} fontFamily={FONT} fontWeight={800}>
+          COVERAGE <tspan fill="#14532D">${Math.round(q.cov).toLocaleString('en-US')}</tspan>
+        </text>
+        <text x={1436} y={290} fill={GREEN_DK} fontSize={40} fontFamily={MONO} fontWeight={800} textAnchor="end">
+          ${q.prem.toFixed(0)}/mo
+        </text>
+        <text x={64} y={370} fill="#5B6B60" fontSize={32} fontFamily={MONO} letterSpacing={3}>PREMIUM SCHEDULE</text>
+        {rows.map((y, i) => {
+          const ry = 440 + i * 92;
+          const ron = interpolate(frame - (800 + i * 18), [0, 18], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+          return (
+            <g key={y} opacity={ron}>
+              <rect x={64} y={ry - 52} width={1372} height={76} rx={14} fill={i % 2 === 0 ? '#EAF5EE' : '#F4FAF6'} />
+              <text x={110} y={ry} fill="#2E3B33" fontSize={34} fontFamily={MONO}>YEAR {y}</text>
+              <text x={1390} y={ry} fill="#14532D" fontSize={34} fontFamily={MONO} fontWeight={800} textAnchor="end">
+                ${q.prem.toFixed(0)}/mo — level
               </text>
             </g>
           );
         })}
-        <text x={310} y={1000} fill={MUTED} fontSize={30} fontFamily={FONT} textAnchor="middle">
-          14-day wear · waterproof
+        <text x={64} y={900} fill="#5B6B60" fontSize={28} fontFamily={FONT}>
+          premium stays level for the full term
         </text>
-      </svg>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Live graph (center-right) with zones + time-in-range ring
-// ---------------------------------------------------------------------------
-const Graph: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const draw = interpolate(frame, [140, 780], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const front = draw;
-  const SUB = 200;
-  let d = '';
-  for (let i = 0; i <= SUB; i++) {
-    const t = (i / SUB) * front;
-    d += `${i === 0 ? 'M' : 'L'} ${xFor(t).toFixed(1)} ${yFor(glucoseAt(t)).toFixed(1)} `;
-  }
-  const gNow = glucoseAt(front);
-  const inRange = gNow >= LO && gNow <= HI;
-  const hiAlert = gNow > HI;
-  const ring = interpolate(frame, [640, 840], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  // time in range: fraction of drawn samples in band
-  let inN = 0;
-  const NN = 120;
-  for (let i = 0; i <= NN; i++) {
-    const g = glucoseAt((i / NN) * front);
-    if (g >= LO && g <= HI) inN++;
-  }
-  const tir = inN / (NN + 1);
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      <Defs p="cgmg" />
-      {/* zones */}
-      <rect x={PL} y={PT} width={PW} height={yFor(HI) - PT} fill="rgba(251,191,36,0.07)" />
-      <rect x={PL} y={yFor(HI)} width={PW} height={yFor(LO) - yFor(HI)} fill="rgba(52,211,153,0.08)" />
-      <rect x={PL} y={yFor(LO)} width={PW} height={PB - yFor(LO)} fill="rgba(248,113,113,0.07)" />
-      <line x1={PL} y1={yFor(HI)} x2={PR} y2={yFor(HI)} stroke={AMBER} strokeWidth={2.5} strokeDasharray="14 12" opacity={0.8} />
-      <line x1={PL} y1={yFor(LO)} x2={PR} y2={yFor(LO)} stroke={RED} strokeWidth={2.5} strokeDasharray="14 12" opacity={0.8} />
-      <text x={PR - 20} y={yFor(HI) - 18} fill={AMBER} fontSize={28} fontFamily={MONO} textAnchor="end">HIGH 180</text>
-      <text x={PR - 20} y={yFor(LO) - 18} fill={GREEN} fontSize={28} fontFamily={MONO} textAnchor="end">IN RANGE</text>
-      <text x={PR - 20} y={yFor(LO) + 44} fill={RED} fontSize={28} fontFamily={MONO} textAnchor="end">LOW 70</text>
-      {[70, 110, 150, 190, 230].map((g) => (
-        <g key={g}>
-          <line x1={PL} y1={yFor(g)} x2={PR} y2={yFor(g)} stroke={GRID} strokeWidth={1.5} />
-          <text x={PL - 26} y={yFor(g) + 12} fill={MUTED} fontSize={28} fontFamily={MONO} textAnchor="end">
-            {g}
-          </text>
-        </g>
-      ))}
-      <line x1={PL} y1={PB} x2={PR} y2={PB} stroke="rgba(150,190,215,0.5)" strokeWidth={2} />
-      {/* the trace */}
-      <path d={d} fill="none" stroke="url(#cgmgline)" strokeWidth={8} strokeLinecap="round" filter="url(#cgmglow)" />
-      {/* live dot + readout */}
-      {draw > 0.01 && draw < 0.995 && (
-        <g>
-          <circle cx={xFor(front)} cy={yFor(gNow)} r={34} fill={inRange ? GREEN : hiAlert ? AMBER : RED} opacity={0.2} />
-          <circle cx={xFor(front)} cy={yFor(gNow)} r={14} fill="#FFFFFF" style={{filter: 'drop-shadow(0 0 12px rgba(255,255,255,0.9))'}} />
-          <g transform={`translate(${xFor(front) > PR - 560 ? xFor(front) - 300 : xFor(front) + 40}, ${yFor(gNow) - 40})`}>
-            <rect x={0} y={-50} width={260} height={120} rx={16} fill="rgba(8,14,22,0.92)" stroke={inRange ? GREEN : hiAlert ? AMBER : RED} strokeWidth={2.5} />
-            <text x={26} y={4} fill={MUTED} fontSize={26} fontFamily={MONO}>NOW</text>
-            <text x={26} y={52} fill={inRange ? GREEN : hiAlert ? AMBER : RED} fontSize={46} fontFamily={MONO} fontWeight={800}>
-              {Math.round(gNow)} <tspan fontSize={26}>mg/dL</tspan>
+      </g>
+      {(() => {
+        const b = spring({frame: frame - 850, fps, config: {damping: 200, stiffness: 120}});
+        if (b <= 0.01) return null;
+        return (
+          <g opacity={Math.min(1, b)} transform={`translate(2500, 1250) scale(${Math.min(1, b)})`}>
+            <rect x={-420} y={-100} width={840} height={200} rx={100} fill="rgba(74,222,128,0.14)" stroke={GREEN} strokeWidth={5} filter="url(#liglow)" />
+            <text y={14} fill={GREEN} fontSize={58} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+              COVERAGE ACTIVE
             </text>
+            <text y={70} fill={INK} fontSize={34} fontFamily={FONT} textAnchor="middle">first premium due</text>
           </g>
-          {!inRange && (
-            <g opacity={0.6 + 0.4 * Math.sin(frame * 0.25)}>
-              <rect x={xFor(front) - 150} y={yFor(gNow) - 150} width={300} height={64} rx={32} fill={hiAlert ? AMBER : RED} />
-              <text x={xFor(front)} y={yFor(gNow) - 106} fill="#1A0E02" fontSize={36} fontFamily={FONT} fontWeight={800} textAnchor="middle">
-                {hiAlert ? 'HIGH — WALK IT OFF' : 'LOW — HAVE A SNACK'}
-              </text>
-            </g>
-          )}
-        </g>
-      )}
-      {/* time-in-range ring */}
-      {ring > 0 && (
-        <g transform={`translate(${PR - 330}, ${PT - 130})`} opacity={ring}>
-          <circle r={110} fill="none" stroke="rgba(196,212,228,0.18)" strokeWidth={30} />
-          <circle r={110} fill="none" stroke={GREEN} strokeWidth={30} strokeLinecap="round"
-            pathLength={1} strokeDasharray={1} strokeDashoffset={1 - tir * ring} transform="rotate(-90)" filter="url(#cgmglow)" />
-          <text y={-6} fill={INK} fontSize={64} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-            {Math.round(tir * 100)}%
-          </text>
-          <text y={44} fill={MUTED} fontSize={26} fontFamily={MONO} textAnchor="middle" letterSpacing={2}>
-            TIME IN RANGE
-          </text>
-        </g>
-      )}
-      {/* meal markers */}
-      {[0.3, 0.66].map((mt, i) => (
-        <g key={i} opacity={draw > mt ? 1 : 0}>
-          <line x1={xFor(mt)} y1={PT} x2={xFor(mt)} y2={PB} stroke="rgba(196,212,228,0.25)" strokeWidth={2} strokeDasharray="8 10" />
-          <text x={xFor(mt)} y={PT - 24} fill={MUTED} fontSize={28} fontFamily={MONO} textAnchor="middle">
-            {i === 0 ? 'LUNCH' : 'DINNER'}
-          </text>
-        </g>
-      ))}
+        );
+      })()}
     </svg>
   );
 };
@@ -368,13 +542,13 @@ const Graph: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
 const Footer: React.FC<{frame: number}> = ({frame}) => {
   const fade = interpolate(frame, [120, 170], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return (
-    <div style={{position: 'absolute', bottom: 44, left: 0, width: 3840, textAlign: 'center', color: 'rgba(150,190,215,0.5)', fontFamily: FONT, fontSize: 26, opacity: fade}}>
-      Illustrative concept. Always follow your clinician's guidance for diabetes management.
+    <div style={{position: 'absolute', bottom: 44, left: 0, width: 3840, textAlign: 'center', color: 'rgba(205,228,215,0.5)', fontFamily: FONT, fontSize: 26, opacity: fade}}>
+      Educational illustration of the application process — quotes and outcomes vary. Not insurance advice.
     </div>
   );
 };
 
-export const GlucoseMonitoringFlow: React.FC = () => {
+export const LifeInsuranceApplicationFlow: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   return (
@@ -382,8 +556,14 @@ export const GlucoseMonitoringFlow: React.FC = () => {
       <Background frame={frame} />
       <Particles frame={frame} />
       <Title frame={frame} />
-      <SensorPanel frame={frame} fps={fps} />
-      <Graph frame={frame} fps={fps} />
+      <PremiumHud frame={frame} />
+      <Profile frame={frame} fps={fps} />
+      <Quote frame={frame} fps={fps} />
+      <Submit frame={frame} fps={fps} />
+      <Exam frame={frame} fps={fps} />
+      <Underwrite frame={frame} fps={fps} />
+      <Approved frame={frame} fps={fps} />
+      <Policy frame={frame} fps={fps} />
       <Ticker frame={frame} />
       <Dither frame={frame} />
       <Grain frame={frame} />
