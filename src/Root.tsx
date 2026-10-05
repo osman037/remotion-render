@@ -1,27 +1,27 @@
 import React from "react";
 import { Composition } from "remotion";
-import { DollarCostAveragingFlow } from "./compositions/comp0";
-import { LLCFormationJourney } from "./compositions/comp1";
-import { ESIMSetupJourney } from "./compositions/comp2";
-import { GlucoseMonitoringFlow } from "./compositions/comp3";
-import { DNATestingJourney } from "./compositions/comp4";
-import { PerformanceReviewCycle } from "./compositions/comp5";
-import { RecyclingSortingProcess } from "./compositions/comp6";
-import { DataPipelineFlow } from "./compositions/comp7";
-import { CompoundInterestJourney } from "./compositions/comp8";
-import { RestaurantReservationFlow } from "./compositions/comp9";
+import { HSAAccountMechanics } from "./compositions/comp0";
+import { CollegeSavings529Journey } from "./compositions/comp1";
+import { ProbateProcessFlow } from "./compositions/comp2";
+import { LifeInsuranceApplicationFlow } from "./compositions/comp3";
+import { OnlineCourseCreationFlow } from "./compositions/comp4";
+import { CataractSurgeryJourney } from "./compositions/comp5";
+import { HomeCompostingProcess } from "./compositions/comp6";
+import { SATPrepJourney } from "./compositions/comp7";
+import { ShipAPackageFlow } from "./compositions/comp8";
+import { VetCheckupVisit } from "./compositions/comp9";
 
 export const RemotionRoot: React.FC = () => (
   <>
-    <Composition id="DollarCostAveragingFlow" component={DollarCostAveragingFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="LLCFormationJourney" component={LLCFormationJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="ESIMSetupJourney" component={ESIMSetupJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="GlucoseMonitoringFlow" component={GlucoseMonitoringFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="DNATestingJourney" component={DNATestingJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="PerformanceReviewCycle" component={PerformanceReviewCycle} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="RecyclingSortingProcess" component={RecyclingSortingProcess} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="DataPipelineFlow" component={DataPipelineFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="CompoundInterestJourney" component={CompoundInterestJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
-    <Composition id="RestaurantReservationFlow" component={RestaurantReservationFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="HSAAccountMechanics" component={HSAAccountMechanics} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="CollegeSavings529Journey" component={CollegeSavings529Journey} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="ProbateProcessFlow" component={ProbateProcessFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="LifeInsuranceApplicationFlow" component={LifeInsuranceApplicationFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="OnlineCourseCreationFlow" component={OnlineCourseCreationFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="CataractSurgeryJourney" component={CataractSurgeryJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="HomeCompostingProcess" component={HomeCompostingProcess} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="SATPrepJourney" component={SATPrepJourney} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="ShipAPackageFlow" component={ShipAPackageFlow} width={3840} height={2160} fps={60} durationInFrames={900} />
+    <Composition id="VetCheckupVisit" component={VetCheckupVisit} width={3840} height={2160} fps={60} durationInFrames={900} />
   </>
 );
