@@ -1,17 +1,19 @@
 /**
- * ForkliftCertificationJourney.tsx
- * Remotion composition - 4K (3840x2160), 60 fps, 15 s (900 frames).
- * The forklift certification journey: a forklift silhouette stands with
- * safety cones, a pre-shift inspection checklist ticks off, the forklift
- * weaves a slalom cone course for the skill test, a written-exam card
- * stamps PASS, a certification seal badge appears, and the annual
- * recertification ring closes. Deterministic.
+ * HSAAccountMechanics.tsx
+ * Remotion composition — 4K (3840x2160), 60 fps, 15 s (900 frames), no audio.
+ * Account mechanics of a Health Savings Account: paycheck arrives, HDHP pairs
+ * with the HSA, pre-tax dollars flow into the HSA jar, a tax shield appears,
+ * the HSA debit card pays a medical bill tax-free, the balance crosses the
+ * investment threshold, and the triple tax advantage lands: tax-free in,
+ * tax-free growth, tax-free out on qualified expenses.
+ * (Account mechanics only — contribute / spend / invest. Never enrollment
+ * windows, never plan mechanics.)
  */
-
 import React from 'react';
 import {
   AbsoluteFill,
   interpolate,
+  interpolateColors,
   random,
   spring,
   useCurrentFrame,
@@ -19,515 +21,577 @@ import {
 } from 'remotion';
 
 // ---------------------------------------------------------------------------
-// Palette (safety orange / yellow on dark)
+// Palette — deep teal + gold on near-black
 // ---------------------------------------------------------------------------
-const BG = '#14100A';
-const INK = '#FFF7E8';
-const MUTED = 'rgba(255,247,232,0.62)';
-const FAINT = 'rgba(255,247,232,0.32)';
-const ORANGE = '#F97316';
-const YELLOW = '#FACC15';
-const GREEN = '#34D399';
-const BLUE = '#38BDF8';
-const PANEL = 'rgba(24,18,10,0.94)';
-const HAIRLINE = 'rgba(255,247,232,0.14)';
-
+const BG = '#041210';
+const INK = '#EDF5F2';
+const MUTED = 'rgba(200,224,216,0.62)';
+const TEAL = '#2DD4BF';
+const TEAL_DK = '#0E7C6F';
+const GOLD = '#FBBF24';
+const GREEN = '#4ADE80';
 const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
-const clamp01 = {extrapolateLeft: 'clamp' as const, extrapolateRight: 'clamp' as const};
+
+// Deterministic balance model driven by frame (piecewise contribute/spend/invest)
+const balAt = (f: number): number => {
+  const c1 = interpolate(f, [240, 420], [0, 1750], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const spent = interpolate(f, [500, 560], [0, 200], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const c2 = interpolate(f, [560, 720], [0, 450], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const c3 = interpolate(f, [820, 900], [0, 300], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  return Math.max(0, c1 - spent + c2 + c3);
+};
+const BAL_MAX = 2500;
 
 // ---------------------------------------------------------------------------
-// Bitrate-proof scaffolding. Seed prefix: fork
+// Shared scenery
 // ---------------------------------------------------------------------------
-const Background_fork: React.FC<{frame: number}> = ({frame}) => {
-  const scanY = ((frame / 900) * (2160 + 480)) % (2160 + 480) - 240;
-  const dots: React.ReactElement[] = [];
-  for (let gy = 0; gy < 27; gy++) {
-    for (let gx = 0; gx < 48; gx++) {
-      const tw = 0.05 + 0.075 * (0.5 + 0.5 * Math.sin(frame * 0.11 + gx * 1.3 + gy * 2.1));
-      dots.push(
-        <circle key={`${gx}-${gy}`} cx={40 + gx * 80} cy={40 + gy * 80} r={2.2} fill="#FBD9A8" opacity={tw} />
+const Defs: React.FC<{p: string}> = ({p}) => (
+  <defs>
+    <linearGradient id={`${p}jar`} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="#2DD4BF" stopOpacity={0.85} />
+      <stop offset="100%" stopColor="#0E7C6F" stopOpacity={0.95} />
+    </linearGradient>
+    <linearGradient id={`${p}goldline`} x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stopColor={TEAL} />
+      <stop offset="60%" stopColor={GOLD} />
+      <stop offset="100%" stopColor={GREEN} />
+    </linearGradient>
+    <radialGradient id={`${p}vig`} cx="50%" cy="46%" r="78%">
+      <stop offset="58%" stopColor="rgba(4,18,16,0)" />
+      <stop offset="100%" stopColor="rgba(1,8,7,0.8)" />
+    </radialGradient>
+    <filter id={`${p}glow`} x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="b" />
+      <feMerge>
+        <feMergeNode in="b" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+);
+
+const Background: React.FC<{frame: number}> = ({frame}) => {
+  const scan = ((frame / 900) * (2160 + 300)) % (2160 + 300) - 150;
+  return (
+    <>
+      <AbsoluteFill style={{backgroundColor: BG}} />
+      <AbsoluteFill
+        style={{
+          background:
+            'radial-gradient(circle at 62% 34%, rgba(45,212,191,0.13), rgba(45,212,191,0.04) 45%, rgba(4,18,16,0) 72%)',
+        }}
+      />
+      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+        <Defs p="hsa" />
+        <rect x={0} y={0} width={3840} height={2160} fill="url(#hsavig)" />
+        <rect x={0} y={scan - 90} width={3840} height={180} fill="rgba(251,191,36,0.030)" />
+      </svg>
+    </>
+  );
+};
+
+const Particles: React.FC<{frame: number}> = ({frame}) => {
+  const els: React.ReactElement[] = [];
+  for (let i = 0; i < 190; i++) {
+    const bx = random(`hsa-p-x-${i}`) * 3840;
+    const by = random(`hsa-p-y-${i}`) * 2160;
+    const spd = 0.3 + random(`hsa-p-s-${i}`) * 1.0;
+    const ang = random(`hsa-p-a-${i}`) * Math.PI * 2;
+    const dr = ((frame * spd) % 2200) - 180;
+    const px = (((bx + Math.cos(ang) * dr) % 3840) + 3840) % 3840;
+    const py = (((by + Math.sin(ang) * dr * 0.6) % 2160) + 2160) % 2160;
+    const tw = 0.07 + 0.18 * (0.5 + 0.5 * Math.sin(frame * 0.11 + i * 1.5));
+    const sz = 2.5 + random(`hsa-p-z-${i}`) * 5;
+    els.push(
+      <circle key={i} cx={px} cy={py} r={sz} fill={i % 3 === 0 ? GOLD : 'rgba(45,212,191,0.8)'} opacity={tw} />
+    );
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      {els}
+    </svg>
+  );
+};
+
+const Dither: React.FC<{frame: number}> = ({frame}) => {
+  const els: React.ReactElement[] = [];
+  for (let i = 0; i < 2400; i++) {
+    const bx = random(`hsa-d-x-${i}`) * 3840;
+    const by = random(`hsa-d-y-${i}`) * 2160;
+    const jx = (random(`hsa-d-jx-${frame}-${i}`) - 0.5) * 8;
+    const jy = (random(`hsa-d-jy-${frame}-${i}`) - 0.5) * 8;
+    const o = 0.012 + random(`hsa-d-o-${frame}-${i}`) * 0.03;
+    const s = 1.5 + random(`hsa-d-s-${i}`) * 2;
+    els.push(<rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#BFE6D8" opacity={o} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      {els}
+    </svg>
+  );
+};
+
+const Grain: React.FC<{frame: number}> = ({frame}) => {
+  const els: React.ReactElement[] = [];
+  for (let i = 0; i < 7000; i++) {
+    const x = random(`hsa-g-x-${frame}-${i}`) * 3840;
+    const y = random(`hsa-g-y-${frame}-${i}`) * 2160;
+    const o = 0.02 + random(`hsa-g-o-${frame}-${i}`) * 0.06;
+    const s = 2 + random(`hsa-g-s-${frame}-${i}`) * 3;
+    els.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
+  }
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
+      {els}
+    </svg>
+  );
+};
+
+const TICKER = [
+  'PRE-TAX IN', 'TAX-FREE GROWTH', 'TAX-FREE OUT', 'TRIPLE TAX ADVANTAGE',
+  'HSA DEBIT CARD', 'YOUR MONEY — PORTABLE',
+];
+const Ticker: React.FC<{frame: number}> = ({frame}) => {
+  const unit = 4200;
+  const off = -((frame * 3.0) % unit);
+  const row: React.ReactElement[] = [];
+  for (let r = 0; r < 2; r++) {
+    for (let i = 0; i < TICKER.length; i++) {
+      row.push(
+        <text key={`${r}-${i}`} x={off + r * unit + i * 700} y={46} fill="rgba(45,212,191,0.75)" fontSize={30} fontFamily={MONO} letterSpacing={2}>
+          {TICKER[i]} <tspan fill="rgba(45,212,191,0.35)"> /// </tspan>
+        </text>
       );
     }
   }
   return (
-    <>
-      <AbsoluteFill style={{backgroundColor: BG}} />
-      <AbsoluteFill style={{background: 'radial-gradient(circle at 50% 28%, rgba(249,115,22,0.14), rgba(250,204,21,0.04) 46%, rgba(20,16,10,0) 72%)'}} />
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        {dots}
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#forkVig)" />
-        <rect x={0} y={scanY - 110} width={3840} height={220} fill="rgba(249,115,22,0.045)" />
-        <defs>
-          <radialGradient id="forkVig" cx="50%" cy="50%" r="75%">
-            <stop offset="58%" stopColor="rgba(20,16,10,0)" />
-            <stop offset="100%" stopColor="rgba(8,6,3,0.74)" />
-          </radialGradient>
-        </defs>
-      </svg>
-    </>
-  );
-};
-
-const AmbientParticles_fork: React.FC<{frame: number}> = ({frame}) => {
-  const parts: React.ReactElement[] = [];
-  for (let i = 0; i < 220; i++) {
-    const bx = random(`fork-amb-x-${i}`) * 3840;
-    const by = random(`fork-amb-y-${i}`) * 2160;
-    const spd = 0.4 + random(`fork-amb-s-${i}`) * 1.4;
-    const ang = random(`fork-amb-a-${i}`) * Math.PI * 2;
-    const drift = ((frame * spd) % 2400) - 200;
-    const px = (bx + Math.cos(ang) * drift + 3840) % 3840;
-    const py = (by + Math.sin(ang) * drift * 0.6 + 2160) % 2160;
-    const tw = 0.10 + 0.22 * (0.5 + 0.5 * Math.sin(frame * 0.14 + i * 1.7));
-    const sz = 3 + random(`fork-amb-z-${i}`) * 6;
-    const col = i % 4 === 0 ? ORANGE : i % 4 === 1 ? YELLOW : 'rgba(255,247,232,0.9)';
-    parts.push(<circle key={i} cx={px} cy={py} r={sz} fill={col} opacity={tw} />);
-  }
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {parts}
+    <svg width={3840} height={80} style={{position: 'absolute', top: 0, left: 0}}>
+      {row}
+      <line x1={0} y1={76} x2={3840} y2={76} stroke="rgba(45,212,191,0.2)" strokeWidth={2} />
     </svg>
   );
 };
 
-const FineDither_fork: React.FC<{frame: number}> = ({frame}) => {
-  const specks: React.ReactElement[] = [];
-  for (let i = 0; i < 2600; i++) {
-    const bx = random(`fork-dth-x-${i}`) * 3840;
-    const by = random(`fork-dth-y-${i}`) * 2160;
-    const jx = (random(`fork-dth-jx-${frame}-${i}`) - 0.5) * 9;
-    const jy = (random(`fork-dth-jy-${frame}-${i}`) - 0.5) * 9;
-    const o = 0.015 + random(`fork-dth-o-${frame}-${i}`) * 0.035;
-    const s = 1.5 + random(`fork-dth-s-${i}`) * 2;
-    specks.push(<rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#FBD9A8" opacity={o} />);
-  }
+const Corners: React.FC<{frame: number}> = ({frame}) => {
+  const blink = 0.5 + 0.5 * Math.sin(frame * 0.1);
+  const items = [
+    {x: 60, y: 2090, t: `FRAME ${String(frame).padStart(4, '0')} / 0900`},
+    {x: 3110, y: 2090, t: 'HSA ACCOUNT MECHANICS'},
+    {x: 2790, y: 130, t: 'BUSINESS · EMPLOYEE BENEFITS'},
+  ];
   return (
     <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {specks}
+      {items.map((c, i) => (
+        <g key={i}>
+          <circle cx={c.x} cy={c.y - 8} r={7} fill={TEAL} opacity={0.35 + blink * 0.55} />
+          <text x={c.x + 24} y={c.y} fill={MUTED} fontSize={26} fontFamily={MONO} letterSpacing={3}>
+            {c.t}
+          </text>
+        </g>
+      ))}
     </svg>
   );
 };
 
-const TICKER_ITEMS_fork = [
-  'PRE-SHIFT INSPECTION',
-  'CONE COURSE SLALOM',
-  'WRITTEN EXAM 96/100',
-  'CERTIFIED OPERATOR',
-  '12-MONTH RECERTIFICATION',
-  'SAFETY FIRST ALWAYS',
-  'LOAD LIMIT 5,000 LB',
-  'HORN BEFORE TURNS',
-];
-const TickerTape_fork: React.FC<{frame: number}> = ({frame}) => {
-  const unit = TICKER_ITEMS_fork.join('   \u25C6   ') + '   \u25C6   ';
-  const unitW = unit.length * 20;
-  const x = -((frame * 7) % unitW);
-  const reps: React.ReactElement[] = [];
-  for (let r = 0; r < Math.ceil(3840 / unitW) + 1; r++) {
-    reps.push(
-      <text key={r} x={x + r * unitW} y={38} fill="rgba(249,115,22,0.62)" fontSize={27} fontFamily={MONO} letterSpacing={4}>
-        {unit}
-      </text>
+const Title: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [20, 60], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const rise = interpolate(frame, [20, 60], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  return (
+    <div style={{position: 'absolute', top: 130 + rise, left: 180, opacity: fade}}>
+      <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 92, letterSpacing: -1}}>
+        HSA ACCOUNT <span style={{color: TEAL}}>MECHANICS</span>
+      </div>
+      <div style={{color: MUTED, fontFamily: FONT, fontSize: 38, marginTop: 10}}>
+        Contribute <span style={{color: GOLD, fontWeight: 700}}>pre-tax</span> · spend{' '}
+        <span style={{color: GOLD, fontWeight: 700}}>tax-free</span> · invest the surplus
+      </div>
+    </div>
+  );
+};
+
+const BalanceHud: React.FC<{frame: number}> = ({frame}) => {
+  const inAt = spring({frame: frame - 60, fps: 60, config: {damping: 200, stiffness: 90}});
+  if (inAt <= 0.01) return null;
+  const bal = balAt(frame);
+  const cents = Math.floor((bal % 1) * 100);
+  const fillC = interpolateColors(bal / BAL_MAX, [0, 0.5, 1], [TEAL_DK, TEAL, GOLD]);
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={Math.min(1, inAt)} transform={`translate(2810, 150) scale(${0.9 + Math.min(1, inAt) * 0.1})`}>
+        <rect x={0} y={0} width={880} height={230} rx={28} fill="rgba(3,12,10,0.92)" stroke={TEAL} strokeWidth={3} filter="url(#hsaglow)" />
+        <text x={44} y={62} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={4}>HSA BALANCE</text>
+        <text x={44} y={158} fill={fillC} fontSize={92} fontFamily={MONO} fontWeight={800}>
+          ${Math.floor(bal).toLocaleString('en-US')}<tspan fontSize={44} fill={MUTED}>.{String(cents).padStart(2, '0')}</tspan>
+        </text>
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Beat 1 — Paycheck arrives (frames 60–260)
+// ---------------------------------------------------------------------------
+const Paycheck: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 60 || frame > 270) return null;
+  const fade = interpolate(frame, [210, 260], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const s = spring({frame: frame - 60, fps, config: {damping: 200, stiffness: 100}});
+  const rows = [
+    {t: 'FEDERAL TAX', v: '$620'},
+    {t: 'STATE TAX', v: '$240'},
+    {t: 'HSA CONTRIBUTION', v: '$350', hl: true},
+  ];
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={fade * Math.min(1, s)} transform={`translate(350, ${560 + (1 - Math.min(1, s)) * 120})`}>
+        <rect x={0} y={0} width={920} height={540} rx={30} fill="rgba(3,14,11,0.94)" stroke={TEAL} strokeWidth={4} filter="url(#hsaglow)" />
+        <text x={46} y={92} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={5}>PAY STUB · BIWEEKLY</text>
+        <text x={46} y={180} fill={INK} fontSize={56} fontFamily={FONT} fontWeight={800}>GROSS PAY</text>
+        <text x={874} y={180} fill={INK} fontSize={56} fontFamily={MONO} fontWeight={800} textAnchor="end">$5,000</text>
+        <line x1={46} y1={220} x2={874} y2={220} stroke="rgba(45,212,191,0.25)" strokeWidth={2} />
+        {rows.map((r, i) => {
+          const ry = 300 + i * 72;
+          const ron = interpolate(frame - (90 + i * 30), [0, 25], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+          return (
+            <g key={i} opacity={ron}>
+              <text x={46} y={ry} fill={r.hl ? GOLD : MUTED} fontSize={36} fontFamily={MONO} fontWeight={r.hl ? 800 : 400}>
+                {r.hl ? '▸ ' : ''}{r.t}
+              </text>
+              <text x={874} y={ry} fill={r.hl ? GOLD : MUTED} fontSize={36} fontFamily={MONO} fontWeight={r.hl ? 800 : 400} textAnchor="end">
+                {r.v}
+              </text>
+              {r.hl && (
+                <rect x={30} y={ry - 50} width={860} height={70} rx={16} fill="none" stroke={GOLD} strokeWidth={3} strokeDasharray="14 10" opacity={0.9} />
+              )}
+            </g>
+          );
+        })}
+        <text x={46} y={510} fill={TEAL} fontSize={30} fontFamily={MONO} letterSpacing={2}>HSA MONEY NEVER GETS TAXED</text>
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Beat 2 — HDHP card pairs with HSA account card (frames 120–320)
+// ---------------------------------------------------------------------------
+const Pairing: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 120 || frame > 330) return null;
+  const fade = interpolate(frame, [290, 330], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const s1 = spring({frame: frame - 120, fps, config: {damping: 200, stiffness: 105}});
+  const s2 = spring({frame: frame - 165, fps, config: {damping: 200, stiffness: 105}});
+  const link = interpolate(frame, [210, 245], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={fade}>
+        <g opacity={Math.min(1, s1)} transform={`translate(350, ${1180 + (1 - Math.min(1, s1)) * 120})`}>
+          <rect x={0} y={0} width={760} height={420} rx={30} fill="rgba(3,14,11,0.94)" stroke={MUTED} strokeWidth={3} />
+          <text x={44} y={96} fill={MUTED} fontSize={30} fontFamily={MONO} letterSpacing={5}>HEALTH PLAN</text>
+          <text x={44} y={196} fill={INK} fontSize={96} fontFamily={FONT} fontWeight={800}>HDHP</text>
+          <text x={44} y={270} fill={MUTED} fontSize={32} fontFamily={FONT}>High-deductible health plan</text>
+          <text x={44} y={330} fill={MUTED} fontSize={32} fontFamily={FONT}>Unlocks HSA eligibility</text>
+        </g>
+        <g opacity={link}>
+          <line x1={1140} y1={1390} x2={1220} y2={1390} stroke={TEAL} strokeWidth={7} strokeDasharray="16 12" />
+          <polygon points="1236,1390 1212,1374 1212,1406" fill={TEAL} />
+          <line x1={1140} y1={1440} x2={1220} y2={1440} stroke={GOLD} strokeWidth={7} strokeDasharray="16 12" />
+          <polygon points="1124,1440 1148,1424 1148,1456" fill={GOLD} />
+          <text x={1180} y={1350} fill={TEAL} fontSize={28} fontFamily={MONO} textAnchor="middle" letterSpacing={2}>PAIRS WITH</text>
+        </g>
+        <g opacity={Math.min(1, s2)} transform={`translate(1250, ${1180 + (1 - Math.min(1, s2)) * 120})`}>
+          <rect x={0} y={0} width={760} height={420} rx={30} fill="rgba(3,14,11,0.94)" stroke={TEAL} strokeWidth={5} filter="url(#hsaglow)" />
+          <text x={44} y={96} fill={TEAL} fontSize={30} fontFamily={MONO} letterSpacing={5}>SAVINGS ACCOUNT</text>
+          <text x={44} y={196} fill={TEAL} fontSize={96} fontFamily={FONT} fontWeight={800}>HSA</text>
+          <text x={44} y={270} fill={MUTED} fontSize={32} fontFamily={FONT}>Health savings account</text>
+          <text x={44} y={330} fill={MUTED} fontSize={32} fontFamily={FONT}>The money is yours forever</text>
+        </g>
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// The HSA jar (anchor, frames 240–900) + contribution coins + tax shield
+// ---------------------------------------------------------------------------
+const JAR = {x: 2600, y: 900, w: 500, h: 720};
+const jarY = (frac: number) => JAR.y + JAR.h - frac * JAR.h;
+
+const Coins: React.FC<{frame: number}> = ({frame}) => {
+  if (frame < 240 || frame > 460) return null;
+  const N = 36;
+  const sx = 810; const sy = 830; const ex = 2850; const ey = 930;
+  const cx = 1800; const cy = 480;
+  const els: React.ReactElement[] = [];
+  for (let i = 0; i < N; i++) {
+    const p = interpolate(frame, [240 + i * 4.5, 240 + i * 4.5 + 100], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+    if (p <= 0 || p >= 1) continue;
+    const mx = (1 - p) * (1 - p) * sx + 2 * (1 - p) * p * cx + p * p * ex;
+    const my = (1 - p) * (1 - p) * sy + 2 * (1 - p) * p * cy + p * p * ey;
+    const r = 26 + random(`hsa-c-r-${i}`) * 8;
+    els.push(
+      <g key={i} transform={`translate(${mx}, ${my}) rotate(${p * 540})`}>
+        <circle cx={0} cy={0} r={r} fill="#FBBF24" opacity={0.95} />
+        <circle cx={0} cy={0} r={r - 7} fill="none" stroke="#92400E" strokeWidth={3} />
+        <text y={12} fill="#92400E" fontSize={30} fontFamily={MONO} fontWeight={800} textAnchor="middle">$</text>
+      </g>
     );
   }
   return (
-    <div style={{position: 'absolute', left: 0, right: 0, top: 0, height: 56, overflow: 'hidden', backgroundColor: 'rgba(10,7,3,0.66)', borderBottom: '1px solid rgba(255,247,232,0.14)'}}>
-      <svg width={3840} height={56} style={{position: 'absolute', top: 0, left: 0}}>
-        {reps}
-      </svg>
-    </div>
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <path d={`M ${sx} ${sy} Q ${cx} ${cy} ${ex} ${ey}`} fill="none" stroke="rgba(251,191,36,0.35)" strokeWidth={4} strokeDasharray="18 16" />
+      {els}
+    </svg>
   );
 };
 
-const CornerHud_fork: React.FC<{frame: number}> = ({frame}) => {
-  const blink = 0.55 + 0.45 * Math.sin((frame / 60) * Math.PI * 2);
-  const corners = [
-    {x: 60, y: 92, sx: 1, sy: 1},
-    {x: 3780, y: 92, sx: -1, sy: 1},
-    {x: 60, y: 2068, sx: 1, sy: -1},
-    {x: 3780, y: 2068, sx: -1, sy: -1},
+const Shield: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 330 || frame > 700) return null;
+  const s = spring({frame: frame - 330, fps, config: {damping: 200, stiffness: 110}});
+  if (s <= 0.01) return null;
+  const fade = interpolate(frame, [660, 700], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={fade * Math.min(1, s)} transform={`translate(2420, 560) scale(${Math.min(1, s)})`}>
+        <path d="M 110 0 L 220 44 L 220 130 C 220 210 165 262 110 290 C 55 262 0 210 0 130 L 0 44 Z"
+          fill="rgba(251,191,36,0.14)" stroke={GOLD} strokeWidth={7} filter="url(#hsaglow)" />
+        <text x={110} y={140} fill={GOLD} fontSize={52} fontFamily={FONT} fontWeight={800} textAnchor="middle">TAX</text>
+        <text x={110} y={196} fill={GOLD} fontSize={40} fontFamily={FONT} fontWeight={800} textAnchor="middle">SHIELD</text>
+        <text x={110} y={336} fill={MUTED} fontSize={28} fontFamily={MONO} textAnchor="middle" letterSpacing={3}>PRE-TAX IN</text>
+      </g>
+    </svg>
+  );
+};
+
+const Jar: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 240) return null;
+  const bal = balAt(frame);
+  const frac = Math.min(1, bal / BAL_MAX);
+  const fillC = interpolateColors(frac, [0, 0.45, 0.8], [TEAL_DK, TEAL, GOLD]);
+  const inAt = spring({frame: frame - 240, fps, config: {damping: 200, stiffness: 100}});
+  const y = jarY(frac);
+  const thY = jarY(1000 / BAL_MAX);
+  const thOn = interpolate(frame, [560, 600], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <clipPath id="hsajarclip">
+        <rect x={JAR.x + 14} y={JAR.y + 14} width={JAR.w - 28} height={JAR.h - 28} rx={40} />
+      </clipPath>
+      <g opacity={Math.min(1, inAt)} transform={`translate(0, ${(1 - Math.min(1, inAt)) * 100})`}>
+        {/* fill */}
+        <g clipPath="url(#hsajarclip)">
+          <rect x={JAR.x} y={y} width={JAR.w} height={JAR.y + JAR.h - y} fill="url(#hsajar)" />
+          <rect x={JAR.x} y={y} width={JAR.w} height={10} fill={fillC} opacity={0.9} />
+          {[0.25, 0.5, 0.75].map((t) => (
+            <line key={t} x1={JAR.x} y1={JAR.y + t * JAR.h} x2={JAR.x + JAR.w} y2={JAR.y + t * JAR.h}
+              stroke="rgba(255,255,255,0.10)" strokeWidth={2} strokeDasharray="10 10" />
+          ))}
+          {/* rising shimmer */}
+          <rect x={JAR.x} y={y + 40} width={JAR.w} height={26} fill="#FFFFFF" opacity={0.06 + 0.05 * Math.sin(frame * 0.2)} />
+        </g>
+        {/* glass */}
+        <rect x={JAR.x} y={JAR.y} width={JAR.w} height={JAR.h} rx={48} fill="rgba(45,212,191,0.05)" stroke={TEAL} strokeWidth={6} />
+        <rect x={JAR.x + 40} y={JAR.y + 40} width={26} height={JAR.h - 120} rx={13} fill="#FFFFFF" opacity={0.14} />
+        {/* rim */}
+        <rect x={JAR.x - 60} y={JAR.y - 44} width={JAR.w + 120} height={52} rx={20} fill="#0B2622" stroke={TEAL} strokeWidth={5} />
+        <text x={JAR.x + JAR.w / 2} y={JAR.y + JAR.h + 96} fill={INK} fontSize={64} fontFamily={FONT} fontWeight={800} textAnchor="middle" letterSpacing={6}>
+          HSA
+        </text>
+        {/* investment threshold */}
+        <g opacity={thOn}>
+          <line x1={JAR.x - 240} y1={thY} x2={JAR.x + JAR.w + 60} y2={thY} stroke={GOLD} strokeWidth={4} strokeDasharray="20 14" />
+          <text x={JAR.x - 260} y={thY + 14} fill={GOLD} fontSize={30} fontFamily={MONO} textAnchor="end">
+            INVESTABLE ABOVE $1,000
+          </text>
+        </g>
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Beat 4 — HSA debit card pays the medical bill (frames 460–660)
+// ---------------------------------------------------------------------------
+const Spend: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 440 || frame > 680) return null;
+  const fade = interpolate(frame, [620, 670], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const s1 = spring({frame: frame - 440, fps, config: {damping: 200, stiffness: 105}});
+  const s2 = spring({frame: frame - 470, fps, config: {damping: 200, stiffness: 105}});
+  const zap = interpolate(frame, [500, 555], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const st = spring({frame: frame - 545, fps, config: {damping: 200, stiffness: 130}});
+  return (
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={fade}>
+        <g opacity={Math.min(1, s1)} transform={`translate(350, ${1180 + (1 - Math.min(1, s1)) * 120})`}>
+          <rect x={0} y={0} width={760} height={420} rx={30} fill="#0B2B26" stroke={GOLD} strokeWidth={5} filter="url(#hsaglow)" />
+          <text x={44} y={96} fill={GOLD} fontSize={30} fontFamily={MONO} letterSpacing={5}>HSA DEBIT CARD</text>
+          <rect x={44} y={130} width={120} height={88} rx={12} fill="none" stroke={GOLD} strokeWidth={4} />
+          <text x={44} y={300} fill={INK} fontSize={44} fontFamily={MONO} letterSpacing={4}>···· 4021</text>
+          <text x={44} y={366} fill={MUTED} fontSize={30} fontFamily={FONT}>Pays clinics + pharmacies</text>
+        </g>
+        <g opacity={zap}>
+          <path d="M 1130 1390 Q 1500 1290 1660 1390" fill="none" stroke={GOLD} strokeWidth={7} strokeDasharray="20 14" />
+          <polygon points="1660,1390 1632,1372 1634,1408" fill={GOLD} />
+        </g>
+        <g opacity={Math.min(1, s2)} transform={`translate(1700, ${1180 + (1 - Math.min(1, s2)) * 120})`}>
+          <rect x={0} y={0} width={680} height={460} rx={18} fill="#F5F0E1" stroke="#8A7B4F" strokeWidth={3} />
+          <text x={44} y={84} fill="#4A4132" fontSize={38} fontFamily={FONT} fontWeight={800}>MEDICAL BILL</text>
+          <text x={636} y={84} fill="#4A4132" fontSize={38} fontFamily={MONO} fontWeight={800} textAnchor="end">$200</text>
+          {[0, 1, 2, 3].map((i) => (
+            <line key={i} x1={44} y1={150 + i * 52} x2={636 - i * 90} y2={150 + i * 52} stroke="#B9AB83" strokeWidth={10} strokeLinecap="round" />
+          ))}
+          <text x={44} y={420} fill="#4A4132" fontSize={28} fontFamily={MONO}>CLINIC VISIT · RX</text>
+          {st > 0.01 && (
+            <g opacity={Math.min(1, st)} transform={`translate(470, 300) rotate(${-14 + (1 - Math.min(1, st)) * -20}) scale(${Math.min(1, st)})`}>
+              <rect x={-190} y={-70} width={380} height={140} rx={18} fill="none" stroke="#1F8A4C" strokeWidth={9} />
+              <text y={30} fill="#1F8A4C" fontSize={76} fontFamily={FONT} fontWeight={800} textAnchor="middle">PAID</text>
+            </g>
+          )}
+        </g>
+        {zap > 0.02 && (
+          <text x={1300} y={1240} fill={GOLD} fontSize={34} fontFamily={MONO} fontWeight={800}>
+            TAX-FREE <tspan fill={MUTED}>on qualified care</tspan>
+          </text>
+        )}
+      </g>
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Beat 5 — invest the surplus: sprout grows from the jar (frames 600–780)
+// ---------------------------------------------------------------------------
+const Sprout: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 590 || frame > 800) return null;
+  const fade = interpolate(frame, [740, 800], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const g = spring({frame: frame - 600, fps, config: {damping: 200, stiffness: 70}});
+  if (g <= 0.01) return null;
+  const grow = Math.min(1, g);
+  const fruits = [
+    {x: -120, y: -330}, {x: 130, y: -380}, {x: 10, y: -470},
   ];
   return (
-    <div style={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        {corners.map((c, i) => (
-          <g key={i} transform={`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}>
-            <path d="M 0 56 L 0 0 L 56 0" fill="none" stroke="rgba(249,115,22,0.55)" strokeWidth={5} />
-            <circle cx={0} cy={0} r={6} fill={ORANGE} opacity={blink} />
-          </g>
-        ))}
-        {Array.from({length: 24}, (_, k) => {
-          const yy = 280 + k * 68;
-          const on = ((frame >> 2) + k) % 8 === 0;
-          return <rect key={`rl${k}`} x={28} y={yy} width={on ? 32 : 17} height={3} fill={on ? ORANGE : 'rgba(255,247,232,0.18)'} opacity={on ? 0.9 : 0.5} />;
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={fade} transform={`translate(2850, 880)`}>
+        <path d={`M 0 0 C -40 ${-160 * grow}, 40 ${-320 * grow}, 0 ${-460 * grow}`} fill="none" stroke={GREEN} strokeWidth={18} strokeLinecap="round" />
+        <path d={`M 0 ${-180 * grow} C -90 ${-200 * grow}, -150 ${-260 * grow}, -170 ${-330 * grow}`} fill="none" stroke={GREEN} strokeWidth={13} strokeLinecap="round" />
+        <path d={`M 0 ${-240 * grow} C 90 ${-260 * grow}, 150 ${-320 * grow}, 170 ${-390 * grow}`} fill="none" stroke={GREEN} strokeWidth={13} strokeLinecap="round" />
+        <ellipse cx={-190 * grow} cy={-350 * grow} rx={70 * grow} ry={40 * grow} fill={GREEN} opacity={0.85} transform={`rotate(-30 ${-190 * grow} ${-350 * grow})`} />
+        <ellipse cx={190 * grow} cy={-410 * grow} rx={70 * grow} ry={40 * grow} fill={GREEN} opacity={0.85} transform={`rotate(30 ${190 * grow} ${-410 * grow})`} />
+        {fruits.map((f, i) => {
+          const on = interpolate(grow - (0.55 + i * 0.12), [0, 0.2], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+          if (on <= 0) return null;
+          return (
+            <g key={i} opacity={on}>
+              <circle cx={f.x} cy={f.y} r={30} fill={GOLD} filter="url(#hsaglow)" />
+              <text x={f.x} y={f.y + 11} fill="#92400E" fontSize={32} fontFamily={MONO} fontWeight={800} textAnchor="middle">$</text>
+            </g>
+          );
         })}
-        {Array.from({length: 46}, (_, k) => {
-          const xx = 280 + k * 68;
-          const on = ((frame >> 2) + k) % 8 === 4;
-          return <rect key={`rt${k}`} x={xx} y={2036} width={3} height={on ? 28 : 15} fill={on ? ORANGE : 'rgba(255,247,232,0.18)'} opacity={on ? 0.9 : 0.5} />;
-        })}
-      </svg>
-    </div>
-  );
-};
-
-const FilmGrain_fork: React.FC<{frame: number}> = ({frame}) => {
-  const dots: React.ReactElement[] = [];
-  for (let i = 0; i < 7000; i++) {
-    const x = random(`fork-grain-x-${frame}-${i}`) * 3840;
-    const y = random(`fork-grain-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`fork-grain-o-${frame}-${i}`) * 0.06;
-    const s = 2 + random(`fork-grain-s-${frame}-${i}`) * 3;
-    dots.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
-  }
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {dots}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Shared primitives: traffic cone + forklift silhouette (pure SVG)
-// ---------------------------------------------------------------------------
-const Cone_fork: React.FC<{x: number; y: number; s?: number; lit?: boolean}> = ({x, y, s = 1, lit = false}) => (
-  <g transform={`translate(${x},${y}) scale(${s})`}>
-    <rect x={-64} y={132} width={128} height={24} rx={8} fill={lit ? YELLOW : ORANGE}
-      style={lit ? {filter: 'drop-shadow(0 0 22px rgba(250,204,21,0.8))'} : undefined} />
-    <path d="M 0 -150 L -58 132 L 58 132 Z" fill={ORANGE} opacity={0.96} />
-    <path d="M -27 -64 L 27 -64 L 38 6 L -38 6 Z" fill={INK} opacity={0.92} />
-    <path d="M -42 66 L 42 66 L 50 112 L -50 112 Z" fill={INK} opacity={0.92} />
-  </g>
-);
-
-const Forklift_fork: React.FC<{x: number; y: number; s?: number; frame: number; moving?: boolean}> = ({x, y, s = 1, frame, moving = false}) => {
-  const wheelA = moving ? frame * 4.2 : 0;
-  return (
-    <g transform={`translate(${x},${y}) scale(${s})`}>
-      {/* rear + front wheels */}
-      <g transform={`rotate(${wheelA} 70 0)`}>
-        <circle cx={70} cy={0} r={76} fill="#1E1A12" stroke={FAINT} strokeWidth={8} />
-        {[0, 60, 120, 180, 240, 300].map((a) => (
-          <line key={a} x1={70} y1={0} x2={70 + 58 * Math.cos((a * Math.PI) / 180)} y2={58 * Math.sin((a * Math.PI) / 180)} stroke={FAINT} strokeWidth={10} />
-        ))}
-        <circle cx={70} cy={0} r={20} fill={FAINT} />
-      </g>
-      <g transform={`rotate(${wheelA} 250 0)`}>
-        <circle cx={250} cy={0} r={76} fill="#1E1A12" stroke={FAINT} strokeWidth={8} />
-        {[0, 60, 120, 180, 240, 300].map((a) => (
-          <line key={a} x1={250} y1={0} x2={250 + 58 * Math.cos((a * Math.PI) / 180)} y2={58 * Math.sin((a * Math.PI) / 180)} stroke={FAINT} strokeWidth={10} />
-        ))}
-        <circle cx={250} cy={0} r={20} fill={FAINT} />
-      </g>
-      {/* chassis */}
-      <rect x={-20} y={-170} width={330} height={120} rx={26} fill={ORANGE} />
-      <rect x={-20} y={-170} width={330} height={120} rx={26} fill="none" stroke={YELLOW} strokeWidth={5} opacity={0.7} />
-      {/* counterweight curve */}
-      <path d="M -20 -170 Q -96 -130 -96 -40 L -20 -40 Z" fill={ORANGE} />
-      {/* overhead guard */}
-      <rect x={10} y={-330} width={18} height={170} fill="#2A2318" />
-      <rect x={200} y={-330} width={18} height={170} fill="#2A2318" />
-      <rect x={-30} y={-352} width={290} height={30} rx={12} fill="#2A2318" />
-      {/* operator silhouette */}
-      <circle cx={130} cy={-252} r={34} fill="#3A2F1C" />
-      <path d="M 96 -218 L 96 -170 L 168 -170 L 168 -218 Q 132 -238 96 -218 Z" fill="#3A2F1C" />
-      {/* mast */}
-      <rect x={326} y={-420} width={26} height={380} fill="#2A2318" />
-      <rect x={362} y={-420} width={26} height={380} fill="#2A2318" />
-      {/* carriage + forks */}
-      <rect x={326} y={-96} width={80} height={30} fill={YELLOW} />
-      <rect x={326} y={-66} width={250} height={26} rx={8} fill={YELLOW} />
-      <rect x={326} y={-120} width={250} height={24} rx={8} fill={YELLOW} opacity={0.55} />
-      {/* headlight */}
-      <circle cx={310} cy={-140} r={16} fill={YELLOW} style={{filter: 'drop-shadow(0 0 18px rgba(250,204,21,0.9))'}} />
-    </g>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Title
-// ---------------------------------------------------------------------------
-const Title_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame, fps, config: {damping: 200, stiffness: 90}});
-  const fade = interpolate(frame, [0, 40], [0, 1], clamp01);
-  return (
-    <div style={{position: 'absolute', top: 104, left: 220, opacity: fade, transform: `translateY(${(1 - s) * 34}px)`}}>
-      <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 92, letterSpacing: -1}}>
-        FORKLIFT CERTIFICATION JOURNEY
-      </div>
-      <div style={{color: MUTED, fontFamily: FONT, fontSize: 38, marginTop: 12}}>
-        operator training &middot; from first cone to certified
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Intro scene: parked forklift + cones
-// ---------------------------------------------------------------------------
-const Intro_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const fade = interpolate(frame, [40, 120], [0, 1], clamp01);
-  if (fade <= 0) return null;
-  // scene slides away when the course starts (f400+)
-  const out = interpolate(frame, [560, 640], [1, 0], clamp01);
-  if (out <= 0) return null;
-  const s = spring({frame: frame - 60, fps, config: {damping: 200, stiffness: 90}});
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}} opacity={fade * out}>
-      <g transform={`translate(${(1 - s) * -400},0)`}>
-        <Forklift_fork x={1250} y={1420} s={1.35} frame={frame} />
-        <Cone_fork x={560} y={1300} s={1.6} lit={frame > 200} />
-        <Cone_fork x={2360} y={1330} s={1.35} lit={frame > 260} />
-        <Cone_fork x={2660} y={1290} s={1.7} lit={frame > 320} />
-        <text x={1250} y={1740} fill={FAINT} fontSize={34} fontFamily={MONO} letterSpacing={4} textAnchor="middle">
-          TRAINING UNIT 07 &middot; READY FOR INSPECTION
-        </text>
+        {grow > 0.6 && (
+          <text x={0} y={-560} fill={GREEN} fontSize={44} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+            INVEST THE SURPLUS
+          </text>
+        )}
       </g>
     </svg>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Pre-shift inspection checklist
+// Beat 6 — payoff badge: TRIPLE TAX-FREE (frames 720–870)
 // ---------------------------------------------------------------------------
-const CHECKS_fork = [
-  {label: 'TIRES & WHEELS', at: 200},
-  {label: 'FORKS & MAST', at: 240},
-  {label: 'BRAKES', at: 280},
-  {label: 'HYDRAULICS', at: 320},
-  {label: 'HORN & LIGHTS', at: 360},
-];
-const Inspection_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 170, fps, config: {damping: 200, stiffness: 90}});
-  if (s <= 0.001) return null;
-  const out = interpolate(frame, [560, 640], [1, 0], clamp01);
-  if (out <= 0) return null;
-  const doneCount = CHECKS_fork.filter((c) => frame >= c.at + 24).length;
+const Payoff: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 700 || frame > 890) return null;
+  const fade = interpolate(frame, [845, 885], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const b = spring({frame: frame - 710, fps, config: {damping: 200, stiffness: 95}});
+  if (b <= 0.01) return null;
+  const rows = [
+    {t: 'CONTRIBUTE', s: 'PRE-TAX'},
+    {t: 'GROWTH', s: 'TAX-FREE'},
+    {t: 'SPEND', s: 'TAX-FREE'},
+  ];
   return (
-    <div style={{
-      position: 'absolute', left: 2400, top: 480, width: 1120, opacity: Math.min(1, s) * out,
-      transform: `translateX(${(1 - s) * 120}px)`,
-    }}>
-      <div style={{
-        borderRadius: 28, background: PANEL, border: `2px solid ${ORANGE}`, padding: '36px 48px',
-        boxShadow: '0 0 54px rgba(249,115,22,0.30)',
-      }}>
-        <div style={{color: ORANGE, fontFamily: MONO, fontWeight: 800, fontSize: 38, letterSpacing: 4}}>PRE-SHIFT INSPECTION</div>
-        <div style={{marginTop: 22, display: 'flex', flexDirection: 'column', gap: 16}}>
-          {CHECKS_fork.map((c) => {
-            const on = interpolate(frame, [c.at, c.at + 24], [0, 1], clamp01);
-            return (
-              <div key={c.label} style={{display: 'flex', alignItems: 'center', gap: 22, opacity: 0.35 + 0.65 * on}}>
-                <div style={{
-                  width: 54, height: 54, borderRadius: 14, background: on > 0.5 ? GREEN : 'transparent',
-                  border: `3px solid ${on > 0.5 ? GREEN : FAINT}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#04120B', fontSize: 34, fontWeight: 800,
-                }}>
-                  {on > 0.5 ? '\u2713' : ''}
-                </div>
-                <div style={{color: on > 0.5 ? INK : MUTED, fontFamily: MONO, fontSize: 38, letterSpacing: 2}}>{c.label}</div>
-              </div>
-            );
-          })}
-        </div>
-        <div style={{marginTop: 24, color: doneCount === 5 ? GREEN : MUTED, fontFamily: MONO, fontSize: 32, letterSpacing: 2}}>
-          {doneCount === 5 ? 'ALL CLEAR \u2014 PROCEED TO COURSE' : `${doneCount}/5 CHECKS COMPLETE`}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Skill-test cone course: forklift weaves the slalom
-// ---------------------------------------------------------------------------
-const COURSE_CONES_fork = [640, 1120, 1600, 2080, 2560, 3040];
-const Course_fork: React.FC<{frame: number; fps: number}> = ({frame}) => {
-  const fade = interpolate(frame, [600, 660], [0, 1], clamp01);
-  if (fade <= 0) return null;
-  const travel = interpolate(frame, [660, 830], [0, 1], clamp01);
-  const fx = interpolate(travel, [0, 1], [280, 3300], clamp01);
-  const fy = 1420 + Math.sin(travel * Math.PI * 5) * 200 - 160;
-  const doneCount = COURSE_CONES_fork.filter((cx) => fx > cx - 60).length;
-  const trail: React.ReactElement[] = [];
-  for (let k = 0; k < 26; k++) {
-    const tt = interpolate(frame, [Math.min(660 + k * 7, 829), 830], [0, 1], clamp01);
-    if (tt <= 0 || tt >= travel) continue;
-    const tx = interpolate(tt, [0, 1], [280, 3300], clamp01);
-    const ty = 1420 + Math.sin(tt * Math.PI * 5) * 200 - 160;
-    trail.push(<circle key={k} cx={tx + 260} cy={ty} r={10} fill={YELLOW} opacity={0.16 + 0.1 * Math.sin(k)} />);
-  }
-  return (
-    <>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}} opacity={fade}>
-        {/* course floor markings */}
-        <line x1={420} y1={1720} x2={3420} y2={1720} stroke={HAIRLINE} strokeWidth={6} strokeDasharray="40 30" />
-        <text x={420} y={1800} fill={FAINT} fontSize={30} fontFamily={MONO} letterSpacing={4}>SKILL TEST &middot; CONE SLALOM</text>
-        <text x={3420} y={1800} fill={doneCount === 6 ? GREEN : MUTED} fontSize={30} fontFamily={MONO} letterSpacing={4} textAnchor="end">
-          GATES {doneCount}/6
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={fade * Math.min(1, b)} transform={`translate(1920, 980) scale(${0.85 + Math.min(1, b) * 0.15})`}>
+        <rect x={-850} y={-330} width={1700} height={660} rx={70} fill="rgba(3,12,10,0.96)" stroke={GOLD} strokeWidth={6} filter="url(#hsaglow)" />
+        <text y={-200} fill={GOLD} fontSize={44} fontFamily={MONO} letterSpacing={10} textAnchor="middle">THE PAYOFF</text>
+        <text y={-70} fill={INK} fontSize={120} fontFamily={FONT} fontWeight={800} textAnchor="middle">
+          TRIPLE <tspan fill={GOLD}>TAX-FREE</tspan>
         </text>
-        {/* dashed slalom guide */}
-        <path d={`M 280 1260 ${COURSE_CONES_fork.map((cx, i) => `L ${cx} ${1420 + (i % 2 === 0 ? -360 : 40)}`).join(' ')} L 3300 1260`}
-          fill="none" stroke="rgba(250,204,21,0.28)" strokeWidth={5} strokeDasharray="24 28" />
-        {COURSE_CONES_fork.map((cx, i) => {
-          const lit = fx > cx - 60;
-          const cy = 1420 + (i % 2 === 0 ? -360 : 40) - 60;
-          return <Cone_fork key={i} x={cx} y={cy} s={1.5} lit={lit} />;
+        {rows.map((r, i) => {
+          const ron = interpolate(frame - (750 + i * 40), [0, 25], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+          return (
+            <g key={i} opacity={ron}>
+              <text x={-560} y={110 + i * 78} fill={MUTED} fontSize={42} fontFamily={MONO} letterSpacing={2} textAnchor="end">{r.t}</text>
+              <text x={-480} y={110 + i * 78} fill={TEAL} fontSize={42} fontFamily={MONO} fontWeight={800}>{r.s}</text>
+              {i < 2 && <line x1={-560} y1={150 + i * 78} x2={560} y2={150 + i * 78} stroke="rgba(45,212,191,0.18)" strokeWidth={2} />}
+            </g>
+          );
         })}
-        {trail}
-        <Forklift_fork x={fx} y={fy} s={1.0} frame={frame} moving={travel > 0 && travel < 1} />
-      </svg>
-      {doneCount === 6 && (
-        <div style={{
-          position: 'absolute', left: 1920 - 420, top: 560, width: 840, opacity: interpolate(frame, [845, 875], [0, 1], clamp01),
-          textAlign: 'center', borderRadius: 26, background: 'rgba(52,211,153,0.12)',
-          border: '5px solid rgba(52,211,153,0.9)', padding: '24px 40px',
-          boxShadow: '0 0 60px rgba(52,211,153,0.45)',
-        }}>
-          <div style={{color: GREEN, fontFamily: FONT, fontWeight: 800, fontSize: 84, letterSpacing: 4}}>COURSE CLEAR</div>
-          <div style={{color: INK, fontFamily: MONO, fontSize: 32, marginTop: 6}}>6/6 GATES &middot; ZERO CONES TOUCHED</div>
-        </div>
-      )}
-    </>
+      </g>
+    </svg>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Written exam card with PASS stamp
+// Beat 7 — age 65: jar keeps growing (frames 840–900)
 // ---------------------------------------------------------------------------
-const Exam_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 600, fps, config: {damping: 200, stiffness: 90}});
-  if (s <= 0.001) return null;
-  const out = interpolate(frame, [800, 860], [1, 0], clamp01);
-  if (out <= 0) return null;
-  const score = Math.round(interpolate(frame, [620, 700], [0, 96], clamp01));
-  const stamp = spring({frame: frame - 700, fps, config: {damping: 200, stiffness: 90}});
+const Age65: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
+  if (frame < 830) return null;
+  const s = spring({frame: frame - 830, fps, config: {damping: 200, stiffness: 110}});
+  if (s <= 0.01) return null;
+  const o = Math.min(1, s);
   return (
-    <div style={{
-      position: 'absolute', left: 260, top: 480, width: 940, opacity: Math.min(1, s) * out,
-      transform: `translateX(${(1 - s) * -120}px)`,
-    }}>
-      <div style={{
-        borderRadius: 28, background: PANEL, border: `2px solid ${BLUE}`, padding: '36px 48px',
-        boxShadow: '0 0 54px rgba(56,189,248,0.30)',
-      }}>
-        <div style={{color: BLUE, fontFamily: MONO, fontWeight: 800, fontSize: 38, letterSpacing: 4}}>WRITTEN EXAM</div>
-        <div style={{display: 'flex', alignItems: 'baseline', gap: 18, marginTop: 14}}>
-          <div style={{color: INK, fontFamily: MONO, fontWeight: 800, fontSize: 120}}>{score}</div>
-          <div style={{color: FAINT, fontFamily: MONO, fontSize: 48}}>/ 100</div>
-        </div>
-        <div style={{marginTop: 10, height: 22, borderRadius: 11, background: 'rgba(255,247,232,0.10)', overflow: 'hidden'}}>
-          <div style={{width: `${(score / 100) * 100}%`, height: '100%', background: BLUE}} />
-        </div>
-        <div style={{color: MUTED, fontFamily: MONO, fontSize: 30, marginTop: 12}}>SAFETY RULES &middot; LOAD CHARTS &middot; STABILITY</div>
-      </div>
-      {stamp > 0.001 && (
-        <div style={{
-          position: 'absolute', right: -70, top: 120, opacity: Math.min(1, stamp),
-          transform: `rotate(-10deg) scale(${0.55 + 0.45 * stamp})`,
-        }}>
-          <div style={{
-            borderRadius: 18, padding: '18px 46px', background: 'rgba(52,211,153,0.12)',
-            border: '5px solid rgba(52,211,153,0.95)', boxShadow: '0 0 50px rgba(52,211,153,0.45)',
-          }}>
-            <div style={{color: GREEN, fontFamily: FONT, fontWeight: 800, fontSize: 84, letterSpacing: 5}}>PASS</div>
-          </div>
-        </div>
-      )}
+    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
+      <g opacity={o} transform={`translate(3350, 560) scale(${o})`}>
+        <rect x={-230} y={-110} width={460} height={220} rx={40} fill="rgba(3,12,10,0.94)" stroke={GOLD} strokeWidth={5} filter="url(#hsaglow)" />
+        <text y={-10} fill={GOLD} fontSize={88} fontFamily={FONT} fontWeight={800} textAnchor="middle">65+</text>
+        <text y={62} fill={MUTED} fontSize={34} fontFamily={MONO} letterSpacing={3} textAnchor="middle">AGE</text>
+      </g>
+      <g opacity={o}>
+        <text x={3350} y={1740} fill={INK} fontSize={40} fontFamily={FONT} fontWeight={700} textAnchor="middle">
+          After 65, it behaves like a retirement account
+        </text>
+        <text x={3350} y={1800} fill={TEAL} fontSize={36} fontFamily={FONT} textAnchor="middle">
+          the jar keeps growing
+        </text>
+      </g>
+    </svg>
+  );
+};
+
+const Footer: React.FC<{frame: number}> = ({frame}) => {
+  const fade = interpolate(frame, [120, 170], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  return (
+    <div style={{position: 'absolute', bottom: 44, left: 0, width: 3840, textAlign: 'center', color: 'rgba(200,224,216,0.5)', fontFamily: FONT, fontSize: 26, opacity: fade}}>
+      Educational illustration of account mechanics — limits and rules change over time. Not tax advice.
     </div>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Certification badge + annual recertification ring (payoff)
-// ---------------------------------------------------------------------------
-const Badge_fork: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  const s = spring({frame: frame - 800, fps, config: {damping: 200, stiffness: 85}});
-  if (s <= 0.001) return null;
-  const sealPulse = 0.5 + 0.5 * Math.sin((frame - 800) * 0.1);
-  const R = 190;
-  const C = 2 * Math.PI * R;
-  const months = Math.min(12, Math.round(interpolate(frame, [820, 890], [0, 12], clamp01)));
-  const sparks: React.ReactElement[] = [];
-  for (let i = 0; i < 40; i++) {
-    const ang = random(`fork-sp-a-${i}`) * Math.PI * 2;
-    const dist = 260 + random(`fork-sp-d-${i}`) * 260;
-    const t = interpolate(frame, [810, 900], [0, 1], clamp01);
-    const cx = 1920 + Math.cos(ang) * dist * t;
-    const cy = 1050 + Math.sin(ang) * dist * t * 0.7;
-    const col = i % 2 === 0 ? YELLOW : ORANGE;
-    sparks.push(<rect key={i} x={cx} y={cy} width={12} height={12} fill={col} opacity={(1 - t) * 0.9}
-      transform={`rotate(${ang * 57.3 + t * 300} ${cx} ${cy})`} />);
-  }
-  return (
-    <>
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-        {sparks}
-      </svg>
-      <div style={{
-        position: 'absolute', left: 1920 - 640, top: 420, width: 1280, opacity: Math.min(1, s),
-        transform: `scale(${0.85 + 0.15 * Math.min(1, s)})`, textAlign: 'center',
-      }}>
-        <svg width={1280} height={760} style={{overflow: 'visible'}}>
-          {/* recertification ring: 12 month segments */}
-          {Array.from({length: 12}, (_, m) => {
-            const a0 = (m / 12) * Math.PI * 2 - Math.PI / 2;
-            const a1 = ((m + 1) / 12) * Math.PI * 2 - Math.PI / 2;
-            const on = m < months;
-            const x0 = 640 + R * 1.28 * Math.cos(a0);
-            const y0 = 330 + R * 1.28 * Math.sin(a0);
-            const x1 = 640 + R * 1.28 * Math.cos(a1);
-            const y1 = 330 + R * 1.28 * Math.sin(a1);
-            return (
-              <path key={m} d={`M ${x0} ${y0} A ${R * 1.28} ${R * 1.28} 0 0 1 ${x1} ${y1}`}
-                fill="none" stroke={on ? YELLOW : 'rgba(255,247,232,0.14)'} strokeWidth={26} strokeLinecap="round"
-                style={on ? {filter: 'drop-shadow(0 0 14px rgba(250,204,21,0.8))'} : undefined} />
-            );
-          })}
-          {/* seal */}
-          <g style={{filter: `drop-shadow(0 0 ${30 + sealPulse * 30}px rgba(250,204,21,0.55))`}}>
-            <circle cx={640} cy={330} r={R} fill="rgba(250,204,21,0.10)" stroke={YELLOW} strokeWidth={10} />
-            <circle cx={640} cy={330} r={R - 34} fill="none" stroke={ORANGE} strokeWidth={5} strokeDasharray="18 14" />
-            <path d="M 640 210 L 676 292 L 764 296 L 696 352 L 716 440 L 640 392 L 564 440 L 584 352 L 516 296 L 604 292 Z"
-              fill={YELLOW} />
-            <text x={640} y={540} fill={INK} fontSize={54} fontFamily={FONT} fontWeight={800} letterSpacing={4} textAnchor="middle">
-              CERTIFIED OPERATOR
-            </text>
-            <text x={640} y={592} fill={MUTED} fontSize={32} fontFamily={MONO} letterSpacing={3} textAnchor="middle">
-              FORKLIFT &middot; CLASS IV/V
-            </text>
-          </g>
-        </svg>
-        <div style={{color: months === 12 ? YELLOW : MUTED, fontFamily: MONO, fontSize: 36, letterSpacing: 3, marginTop: 10}}>
-          VALID {months}/12 MONTHS &middot; ANNUAL RECERTIFICATION
-        </div>
-      </div>
-    </>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Main composition
-// ---------------------------------------------------------------------------
-export const ForkliftCertificationJourney: React.FC = () => {
+export const HSAAccountMechanics: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   return (
     <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
-      <Background_fork frame={frame} />
-      <AmbientParticles_fork frame={frame} />
-      <Title_fork frame={frame} fps={fps} />
-      <Intro_fork frame={frame} fps={fps} />
-      <Inspection_fork frame={frame} fps={fps} />
-      <Course_fork frame={frame} fps={fps} />
-      <Exam_fork frame={frame} fps={fps} />
-      <Badge_fork frame={frame} fps={fps} />
-      <TickerTape_fork frame={frame} />
-      <CornerHud_fork frame={frame} />
-      <FineDither_fork frame={frame} />
-      <FilmGrain_fork frame={frame} />
+      <Background frame={frame} />
+      <Particles frame={frame} />
+      <Title frame={frame} />
+      <BalanceHud frame={frame} />
+      <Paycheck frame={frame} fps={fps} />
+      <Pairing frame={frame} fps={fps} />
+      <Jar frame={frame} fps={fps} />
+      <Coins frame={frame} />
+      <Shield frame={frame} fps={fps} />
+      <Spend frame={frame} fps={fps} />
+      <Sprout frame={frame} fps={fps} />
+      <Payoff frame={frame} fps={fps} />
+      <Age65 frame={frame} fps={fps} />
+      <Ticker frame={frame} />
+      <Dither frame={frame} />
+      <Grain frame={frame} />
+      <Corners frame={frame} />
+      <Footer frame={frame} />
     </AbsoluteFill>
   );
 };
