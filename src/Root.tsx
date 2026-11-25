@@ -1,12 +1,12 @@
 import React from "react";
 import { Composition } from "remotion";
-import { HSAAccountMechanics } from "./composition";
+import { MenorahFlameGlow } from "./composition";
 
 export const RemotionRoot: React.FC = () => (
   <>
     <Composition
-      id="HSAAccountMechanics"
-      component={HSAAccountMechanics}
+      id="MenorahFlameGlow"
+      component={MenorahFlameGlow}
       width={3840}
       height={2160}
       fps={60}
