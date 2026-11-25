@@ -1,556 +1,186 @@
-/**
- * OnlineCourseCreationFlow.tsx
- * Remotion composition — 4K (3840x2160), 60 fps, 15 s (900 frames), no audio.
- * The creation-to-launch playbook for an online course: an expertise spark
- * ignites into a lightbulb (0-120), the outline branches into module nodes
- * (120-280), lessons fill in with video + quiz icons (280-480), a pricing
- * card and sales page assemble (480-620), launch rocket streaks up (620-740),
- * and first enrollments roll in as avatars while revenue ticks up (740-900).
- * (Creation-to-launch process only — never a platform UI walkthrough.)
- */
-import React from 'react';
-import {
-  AbsoluteFill,
-  interpolate,
-  random,
-  spring,
-  useCurrentFrame,
-  useVideoConfig,
-} from 'remotion';
+import React from "react";
+import { useCurrentFrame, useVideoConfig } from "remotion";
 
-// ---------------------------------------------------------------------------
-// Palette
-// ---------------------------------------------------------------------------
-const BG = '#0C0714';
-const GRID = 'rgba(196,181,253,0.10)';
-const AXIS = 'rgba(196,181,253,0.5)';
-const INK = '#F3EEFF';
-const MUTED = 'rgba(205,190,240,0.62)';
-const VIOLET = '#A78BFA';
-const VIOLET_DEEP = '#7C5CE0';
-const CORAL = '#FF7A6B';
-const CORAL_SOFT = '#FFB4A2';
-const FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
-const MONO = "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace";
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
 
-// ---------------------------------------------------------------------------
-// Shared scenery
-// ---------------------------------------------------------------------------
-const Defs: React.FC<{p: string}> = ({p}) => (
-  <defs>
-    <linearGradient id={`${p}line`} x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor={VIOLET} />
-      <stop offset="60%" stopColor={CORAL_SOFT} />
-      <stop offset="100%" stopColor={CORAL} />
-    </linearGradient>
-    <linearGradient id={`${p}area`} x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor={CORAL} stopOpacity={0.26} />
-      <stop offset="60%" stopColor={VIOLET} stopOpacity={0.06} />
-      <stop offset="100%" stopColor={VIOLET} stopOpacity={0} />
-    </linearGradient>
-    <radialGradient id={`${p}vig`} cx="50%" cy="46%" r="78%">
-      <stop offset="58%" stopColor="rgba(12,7,20,0)" />
-      <stop offset="100%" stopColor="rgba(5,3,10,0.8)" />
-    </radialGradient>
-    <radialGradient id={`${p}bulbg`} cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stopColor="rgba(255,180,162,0.85)" />
-      <stop offset="45%" stopColor="rgba(167,139,250,0.35)" />
-      <stop offset="100%" stopColor="rgba(167,139,250,0)" />
-    </radialGradient>
-    <filter id={`${p}glow`} x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="10" result="b" />
-      <feMerge>
-        <feMergeNode in="b" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
-    </filter>
-  </defs>
-);
+export const CandleFlameEmbers: React.FC = () => {
+  const frame = useCurrentFrame();
+  const { width, height, durationInFrames } = useVideoConfig();
+  const progress = frame / durationInFrames;
+  const twoPi = Math.PI * 2;
+  const centerX = width / 2;
+  const flameX = centerX - width * 0.03;
+  const flameY = height * 0.46;
+  const secondX = centerX + width * 0.22;
+  const secondY = height * 0.58;
+  const baseY = height * 0.86;
+  const gradientAngle = progress * 360;
+  const globalPulse = Math.sin(progress * twoPi);
+  const scanY = height * 0.5 + Math.sin(progress * twoPi) * height * 0.42;
+  const rayRotation = progress * 360;
 
-const Background: React.FC<{frame: number}> = ({frame}) => {
-  const scan = ((frame / 900) * (2160 + 300)) % (2160 + 300) - 150;
-  return (
-    <>
-      <AbsoluteFill style={{backgroundColor: BG}} />
-      <AbsoluteFill
-        style={{
-          background:
-            'radial-gradient(circle at 50% 28%, rgba(255,122,107,0.10), rgba(167,139,250,0.05) 45%, rgba(12,7,20,0) 72%)',
-        }}
-      />
-      <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-        <Defs p="occ" />
-        <rect x={0} y={0} width={3840} height={2160} fill="url(#occvig)" />
-        <rect x={0} y={scan - 90} width={3840} height={180} fill="rgba(167,139,250,0.03)" />
-      </svg>
-    </>
-  );
-};
+  const nodes = Array.from({ length: 42 }, (_, i) => {
+    const nx = (0.03 + seededRandom(i * 3 + 1) * 0.94) * width;
+    const ny = (0.04 + seededRandom(i * 3 + 2) * 0.88) * height;
+    const speed = 0.5 + seededRandom(i * 3 + 3) * 1.5;
+    const phase = seededRandom(i * 7 + 5) * twoPi;
+    const x = nx + Math.sin(progress * twoPi * speed + phase) * 70;
+    const y = ny + Math.cos(progress * twoPi * speed + phase) * 52;
+    return { x, y, phase };
+  });
 
-const Particles: React.FC<{frame: number}> = ({frame}) => {
-  const els: React.ReactElement[] = [];
-  for (let i = 0; i < 190; i++) {
-    const bx = random(`occ-p-x-${i}`) * 3840;
-    const by = random(`occ-p-y-${i}`) * 2160;
-    const spd = 0.3 + random(`occ-p-s-${i}`) * 1.0;
-    const ang = random(`occ-p-a-${i}`) * Math.PI * 2;
-    const dr = ((frame * spd) % 2200) - 180;
-    const px = (((bx + Math.cos(ang) * dr) % 3840) + 3840) % 3840;
-    const py = (((by + Math.sin(ang) * dr * 0.6) % 2160) + 2160) % 2160;
-    const tw = 0.07 + 0.18 * (0.5 + 0.5 * Math.sin(frame * 0.11 + i * 1.5));
-    const sz = 2.5 + random(`occ-p-z-${i}`) * 5;
-    els.push(<circle key={i} cx={px} cy={py} r={sz} fill={i % 3 === 0 ? CORAL : 'rgba(243,238,255,0.85)'} opacity={tw} />);
-  }
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      {els}
-    </svg>
-  );
-};
-
-const Dither: React.FC<{frame: number}> = ({frame}) => {
-  const els: React.ReactElement[] = [];
-  for (let i = 0; i < 2400; i++) {
-    const bx = random(`occ-d-x-${i}`) * 3840;
-    const by = random(`occ-d-y-${i}`) * 2160;
-    const jx = (random(`occ-d-jx-${frame}-${i}`) - 0.5) * 8;
-    const jy = (random(`occ-d-jy-${frame}-${i}`) - 0.5) * 8;
-    const o = 0.012 + random(`occ-d-o-${frame}-${i}`) * 0.03;
-    const s = 1.5 + random(`occ-d-s-${i}`) * 2;
-    els.push(<rect key={i} x={bx + jx} y={by + jy} width={s} height={s} fill="#D8C9F5" opacity={o} />);
-  }
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-      {els}
-    </svg>
-  );
-};
-
-const Grain: React.FC<{frame: number}> = ({frame}) => {
-  const els: React.ReactElement[] = [];
-  for (let i = 0; i < 7000; i++) {
-    const x = random(`occ-g-x-${frame}-${i}`) * 3840;
-    const y = random(`occ-g-y-${frame}-${i}`) * 2160;
-    const o = 0.02 + random(`occ-g-o-${frame}-${i}`) * 0.06;
-    const s = 2 + random(`occ-g-s-${frame}-${i}`) * 3;
-    els.push(<rect key={i} x={x} y={y} width={s} height={s} fill="#FFFFFF" opacity={o} />);
-  }
-  return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {els}
-    </svg>
-  );
-};
-
-const TICKER = [
-  'EXPERTISE → CURRICULUM', 'FILM ONCE · SELL FOREVER', 'OUTLINE BEFORE YOU RECORD',
-  'TEACH WHAT YOU KNOW', 'LAUNCH · ITERATE · GROW', 'YOUR KNOWLEDGE IS THE PRODUCT',
-];
-const Ticker: React.FC<{frame: number}> = ({frame}) => {
-  const unit = TICKER.length * 680;
-  const off = -((frame * 3.0) % unit);
-  const row: React.ReactElement[] = [];
-  for (let r = 0; r < 2; r++) {
-    for (let i = 0; i < TICKER.length; i++) {
-      row.push(
-        <text key={`${r}-${i}`} x={off + r * unit + i * 680} y={46} fill="rgba(167,139,250,0.72)" fontSize={30} fontFamily={MONO} letterSpacing={2}>
-          {TICKER[i]} <tspan fill="rgba(167,139,250,0.35)"> /// </tspan>
-        </text>
-      );
+  const lines: Array<{ x1: number; y1: number; x2: number; y2: number; o: number }> = [];
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const dx = nodes[i].x - nodes[j].x;
+      const dy = nodes[i].y - nodes[j].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const maxDist = width * 0.2;
+      if (dist < maxDist) {
+        lines.push({
+          x1: nodes[i].x,
+          y1: nodes[i].y,
+          x2: nodes[j].x,
+          y2: nodes[j].y,
+          o: Math.max(0, 1 - dist / maxDist) * 0.6,
+        });
+      }
     }
   }
-  return (
-    <svg width={3840} height={80} style={{position: 'absolute', top: 0, left: 0}}>
-      {row}
-      <line x1={0} y1={76} x2={3840} y2={76} stroke="rgba(167,139,250,0.22)" strokeWidth={2} />
-    </svg>
-  );
-};
 
-const Corners: React.FC<{frame: number}> = ({frame}) => {
-  const blink = 0.5 + 0.5 * Math.sin(frame * 0.1);
-  const items = [
-    {x: 60, y: 2090, t: `FRAME ${String(frame).padStart(4, '0')} / 0900`},
-    {x: 3190, y: 2090, t: 'COURSE PLAYBOOK · V1'},
-    {x: 60, y: 130, t: 'CREATE · LAUNCH · TEACH'},
-  ];
+  const embers = Array.from({ length: 95 }, (_, i) => {
+    const offset = seededRandom(i * 11 + 2);
+    const cycle = (progress * (0.6 + seededRandom(i * 5 + 1) * 1.2) + offset) % 1;
+    const ex = flameX + (seededRandom(i * 13 + 4) - 0.5) * width * 0.72 + Math.sin(progress * twoPi * 2 + i) * 48;
+    const ey = flameY - cycle * height * 0.62;
+    const size = 4 + seededRandom(i * 17 + 6) * 13;
+    return { x: ex, y: ey, size, o: (1 - cycle) * (0.5 + seededRandom(i * 19 + 8) * 0.5) };
+  });
+
+  const stars = Array.from({ length: 110 }, (_, i) => {
+    const sx = seededRandom(i * 23 + 3) * width;
+    const sy = seededRandom(i * 29 + 7) * height;
+    const size = 3 + seededRandom(i * 31 + 9) * 9;
+    const o = 0.25 + Math.abs(Math.sin(progress * twoPi * 3 + i * 1.1)) * 0.65;
+    return { x: sx, y: sy, size, o };
+  });
+
+  const grain = Array.from({ length: 120 }, (_, i) => {
+    const gx = seededRandom(i * 37 + 11) * width;
+    const gy = seededRandom(i * 41 + 13) * height;
+    const size = 2 + seededRandom(i * 43 + 17) * 6;
+    const o = 0.12 + Math.abs(Math.sin(progress * twoPi * 6 + i * 2.3)) * 0.5;
+    const gold = seededRandom(i * 47 + 19) > 0.5;
+    return { x: gx, y: gy, size, o, gold };
+  });
+
+  const smoke = Array.from({ length: 26 }, (_, i) => {
+    const offset = seededRandom(i * 53 + 3);
+    const cycle = (progress * (0.4 + seededRandom(i * 59 + 5) * 0.6) + offset) % 1;
+    const sx = flameX + (seededRandom(i * 61 + 7) - 0.5) * width * 0.3 + Math.sin(progress * twoPi * 2 + i * 1.3) * 90;
+    const sy = flameY - height * 0.14 - cycle * height * 0.42;
+    const size = (60 + cycle * 260) * (width / 3840);
+    const o = Math.sin(cycle * Math.PI) * 0.16;
+    return { x: sx, y: sy, size, o };
+  });
+
+  const gridDots = Array.from({ length: 84 }, (_, i) => {
+    const col = i % 12;
+    const row = Math.floor(i / 12);
+    const gx = (0.06 + col * 0.08) * width;
+    const gy = (0.08 + row * 0.13) * height;
+    const o = 0.05 + Math.abs(Math.sin(progress * twoPi * 2 + i * 0.45)) * 0.09;
+    return { x: gx, y: gy, o };
+  });
+
+  const rays = Array.from({ length: 24 }, (_, i) => {
+    const angle = (i / 24) * twoPi;
+    const x2 = flameX + Math.cos(angle) * width * 0.75;
+    const y2 = flameY + Math.sin(angle) * width * 0.75;
+    const x3 = flameX + Math.cos(angle + 0.06) * width * 0.75;
+    const y3 = flameY + Math.sin(angle + 0.06) * width * 0.75;
+    return { x2, y2, x3, y3, o: 0.05 + (i % 2) * 0.04 };
+  });
+
+  const scanLines = Array.from({ length: 8 }, (_, i) => {
+    const cycle = (progress * 2 + i / 8) % 1;
+    return { y: cycle * height, o: (1 - cycle) * 0.22 };
+  });
+
+  const mainFlicker = Math.sin(progress * twoPi * 6);
+  const mainScale = 1 + mainFlicker * 0.1;
+  const mainOpacity = 0.82 + mainFlicker * 0.14;
+  const mainGlow = 46 + mainFlicker * 18;
+  const secondFlicker = Math.sin(progress * twoPi * 5 + 1.9);
+  const secondScale = 1 + secondFlicker * 0.11;
+  const secondOpacity = 0.8 + secondFlicker * 0.15;
+  const secondGlow = 30 + secondFlicker * 12;
+  const mainFlameW = width * 0.13;
+  const mainFlameH = height * 0.38;
+  const secondFlameW = width * 0.07;
+  const secondFlameH = height * 0.2;
+
   return (
-    <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0, pointerEvents: 'none'}}>
-      {items.map((c, i) => (
-        <g key={i}>
-          <circle cx={c.x} cy={c.y - 8} r={7} fill={CORAL} opacity={0.35 + blink * 0.55} />
-          <text x={c.x + 24} y={c.y} fill={MUTED} fontSize={26} fontFamily={MONO} letterSpacing={3}>
-            {c.t}
-          </text>
-        </g>
+    <div style={{ width, height, position: "relative", overflow: "hidden", background: `linear-gradient(${gradientAngle}deg, #04061f, #0a1a5e, #123a8f, #7a2ea6, #04061f)` }}>
+      <div style={{ position: "absolute", left: flameX - width * 0.4 + Math.sin(progress * twoPi) * 220, top: flameY - height * 0.35 + Math.cos(progress * twoPi) * 140, width: width * 0.8, height: height * 0.8, borderRadius: "50%", background: "radial-gradient(circle, rgba(255, 170, 40, 0.34), transparent 65%)" }} />
+      <div style={{ position: "absolute", left: flameX - width * 0.3 + Math.cos(progress * twoPi * 2) * 260, top: height * 0.5 + Math.sin(progress * twoPi * 2) * 160, width: width * 0.55, height: height * 0.55, borderRadius: "50%", background: "radial-gradient(circle, rgba(80, 160, 255, 0.28), transparent 65%)" }} />
+      <div style={{ position: "absolute", left: -200 + Math.sin(progress * twoPi) * 260, top: 0, width: width + 400, height, background: "repeating-linear-gradient(45deg, rgba(255, 209, 102, 0.07) 0px, rgba(255, 209, 102, 0.07) 18px, transparent 18px, transparent 54px)" }} />
+      <svg style={{ position: "absolute", left: 0, top: 0, width, height, transform: `rotate(${rayRotation}deg)`, transformOrigin: `${flameX}px ${flameY}px` }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        {rays.map((ray, i) => (
+          <polygon key={i} points={`${flameX},${flameY} ${ray.x2},${ray.y2} ${ray.x3},${ray.y3}`} fill="#ffd166" fillOpacity={ray.o} />
+        ))}
+      </svg>
+      <div style={{ position: "absolute", left: 0, top: 0, width, height, background: `radial-gradient(circle at 47% 46%, rgba(255, 190, 60, ${0.28 + globalPulse * 0.1}), transparent 60%)` }} />
+      {gridDots.map((dot, i) => (
+        <div key={i} style={{ position: "absolute", left: dot.x, top: dot.y, width: 8, height: 8, borderRadius: "50%", backgroundColor: "#7fb3ff", opacity: dot.o }} />
       ))}
-    </svg>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Title
-// ---------------------------------------------------------------------------
-const Title: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [20, 60], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const rise = interpolate(frame, [20, 60], [30, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  return (
-    <div style={{position: 'absolute', top: 130 + rise, left: 180, opacity: fade}}>
-      <div style={{color: INK, fontFamily: FONT, fontWeight: 800, fontSize: 92, letterSpacing: -1}}>
-        ONLINE COURSE <span style={{color: CORAL}}>CREATION</span>
-      </div>
-      <div style={{color: MUTED, fontFamily: FONT, fontSize: 38, marginTop: 10}}>
-        Idea → outline → lessons → launch — the <span style={{color: VIOLET, fontWeight: 700}}>creation-to-launch</span> playbook
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Scene A (0-170): expertise spark ignites the lightbulb
-// ---------------------------------------------------------------------------
-const Bulb: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  if (frame > 175) return null;
-  const fade = interpolate(frame, [145, 175], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const s = spring({frame: frame - 5, fps, config: {damping: 200, stiffness: 90}});
-  const flash = interpolate(frame, [22, 34], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})
-    * interpolate(frame, [34, 90], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const rays: React.ReactElement[] = [];
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * Math.PI * 2;
-    const ro = 0.2 + 0.55 * (0.5 + 0.5 * Math.sin(frame * 0.15 + i * 1.1));
-    rays.push(
-      <line key={i} x1={1920 + Math.cos(a) * 300} y1={1020 + Math.sin(a) * 300}
-        x2={1920 + Math.cos(a) * 380} y2={1020 + Math.sin(a) * 380}
-        stroke={CORAL} strokeWidth={10} strokeLinecap="round" opacity={ro * Math.min(1, s)} />
-    );
-  }
-  const sparks: React.ReactElement[] = [];
-  for (let i = 0; i < 70; i++) {
-    const a = random(`occ-sp-a-${i}`) * Math.PI * 2;
-    const dist = 120 + random(`occ-sp-d-${i}`) * 620;
-    const prog = interpolate(frame, [18, 120], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-    const x = 1920 + Math.cos(a) * prog * dist;
-    const y = 1020 + Math.sin(a) * prog * dist * 0.85 - prog * prog * 160;
-    const o = (1 - prog) * (0.4 + random(`occ-sp-o-${i}`) * 0.6);
-    const sz = 4 + random(`occ-sp-z-${i}`) * 9;
-    sparks.push(<circle key={i} cx={x} cy={y} r={sz} fill={i % 2 === 0 ? CORAL : VIOLET} opacity={o} />);
-  }
-  const flicker = 0.85 + 0.15 * Math.sin(frame * 0.4);
-  return (
-    <g opacity={fade}>
-      <circle cx={1920} cy={1020} r={520 * flicker} fill="url(#occbulbg)" opacity={0.75 * Math.min(1, s)} />
-      {sparks}
-      {rays}
-      <g opacity={Math.min(1, s)} transform={`translate(1920, 1020) scale(${0.7 + Math.min(1, s) * 0.3})`}>
-        <circle r={235} fill="rgba(167,139,250,0.10)" stroke={VIOLET} strokeWidth={7} filter="url(#occglow)" />
-        <path d="M -55 40 Q -55 -70 0 -70 Q 55 -70 55 40 Q 55 90 28 105 L -28 105 Q -55 90 -55 40 Z"
-          fill="none" stroke={CORAL} strokeWidth={12} strokeLinecap="round" />
-        <line x1={0} y1={105} x2={0} y2={150} stroke={CORAL} strokeWidth={12} strokeLinecap="round" />
-        <rect x={-95} y={150} width={190} height={46} rx={12} fill={VIOLET_DEEP} />
-        <rect x={-95} y={206} width={190} height={46} rx={12} fill={VIOLET_DEEP} opacity={0.75} />
-        <rect x={-70} y={262} width={140} height={40} rx={12} fill={VIOLET_DEEP} opacity={0.5} />
-      </g>
-      <text x={1920} y={1560} fill={MUTED} fontSize={40} fontFamily={MONO} letterSpacing={4} textAnchor="middle" opacity={fade}>
-        STEP 01 — CAPTURE YOUR EXPERTISE
-      </text>
-      {flash > 0.01 && <rect x={0} y={0} width={3840} height={2160} fill="#FFFFFF" opacity={flash * 0.35} />}
-    </g>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Scene B (120-500): outline branches into module nodes, lessons fill in
-// ---------------------------------------------------------------------------
-const MODULES = [
-  {t: 'HOOKS & OUTCOMES', lessons: ['video · the promise', 'quiz · dream outcome']},
-  {t: 'FILM & EDIT', lessons: ['video · setup guide', 'video · edit flow', 'quiz · gear check']},
-  {t: 'WORKSHEETS', lessons: ['video · templates', 'quiz · practice set']},
-  {t: 'ASSESSMENTS', lessons: ['video · quiz design', 'video · feedback loops']},
-  {t: 'LAUNCH ASSETS', lessons: ['video · sales page', 'quiz · price test']},
-];
-const MX = [880, 1400, 1920, 2440, 2960];
-
-const Tree: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  if (frame < 120 || frame > 505) return null;
-  const t = frame - 120;
-  const fadeIn = interpolate(frame, [120, 150], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const fadeOut = interpolate(frame, [470, 505], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const draw = interpolate(t, [0, 150], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  return (
-    <g opacity={fadeIn * fadeOut}>
-      <text x={1920} y={620} fill={MUTED} fontSize={40} fontFamily={MONO} letterSpacing={4} textAnchor="middle">
-        STEP 02 — OUTLINE → MODULES → LESSONS
-      </text>
-      {/* spine */}
-      <line x1={660} y1={900} x2={3180} y2={900} stroke={VIOLET} strokeWidth={7}
-        pathLength={1} strokeDasharray={1} strokeDashoffset={1 - draw} />
-      {MX.map((x, i) => (
-        <line key={`b${i}`} x1={x} y1={900} x2={x} y2={760} stroke={VIOLET} strokeWidth={5}
-          pathLength={1} strokeDasharray={1} strokeDashoffset={1 - draw} opacity={0.85} />
+      <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        {stars.map((star, i) => (
+          <circle key={i} cx={star.x} cy={star.y} r={star.size} fill="#ffffff" fillOpacity={star.o} />
+        ))}
+      </svg>
+      <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        {grain.map((dot, i) => (
+          <circle key={i} cx={dot.x} cy={dot.y} r={dot.size} fill={dot.gold ? "#ffd166" : "#aaccff"} fillOpacity={dot.o} />
+        ))}
+      </svg>
+      <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        {lines.map((line, i) => (
+          <line key={i} x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke="#ffd166" strokeWidth={3} strokeOpacity={line.o} />
+        ))}
+      </svg>
+      {nodes.map((node, i) => (
+        <div key={i} style={{ position: "absolute", left: node.x - 7, top: node.y - 7, width: 14, height: 14, borderRadius: "50%", backgroundColor: "#ffe08a", opacity: 0.55 + Math.sin(progress * twoPi * 2 + node.phase) * 0.3, filter: "drop-shadow(0 0 12px #ffd166)" }} />
       ))}
-      {MODULES.map((m, i) => {
-        const s = spring({frame: t - 60 - i * 34, fps, config: {damping: 200, stiffness: 110}});
-        if (s <= 0.001) return null;
-        const sc = Math.max(0.001, Math.min(1, s));
+      {[0, 1, 2, 3, 4].map((i) => {
+        const ringProgress = (progress + i / 5) % 1;
         return (
-          <g key={i} opacity={sc} transform={`translate(${MX[i]}, 560) scale(${sc})`}>
-            <rect x={-200} y={-70} width={400} height={170} rx={30} fill="#151020" stroke={i % 2 === 0 ? VIOLET : CORAL} strokeWidth={5} filter="url(#occglow)" />
-            <text y={-12} fill={MUTED} fontSize={26} fontFamily={MONO} letterSpacing={3} textAnchor="middle">
-              MODULE {i + 1}
-            </text>
-            <text y={44} fill={INK} fontSize={34} fontFamily={FONT} fontWeight={800} textAnchor="middle">
-              {m.t}
-            </text>
-            <circle cx={0} cy={150} r={10} fill={CORAL} />
-            <line x1={0} y1={160} x2={0} y2={230} stroke={VIOLET} strokeWidth={4} />
-          </g>
+          <div key={i} style={{ position: "absolute", left: flameX - ringProgress * width * 0.4, top: flameY - ringProgress * width * 0.4, width: ringProgress * width * 0.8, height: ringProgress * width * 0.8, borderRadius: "50%", border: "4px solid #ffd166", opacity: (1 - ringProgress) * 0.4 }} />
         );
       })}
-      {/* lesson chips fill in (280-480) */}
-      {MODULES.map((m, i) =>
-        m.lessons.map((l, j) => {
-          const s = spring({frame: frame - 285 - (i * 3 + j) * 22, fps, config: {damping: 200, stiffness: 120}});
-          if (s <= 0.001) return null;
-          const isVideo = l.startsWith('video');
-          const x = MX[i];
-          const y = 1000 + j * 118;
-          return (
-            <g key={`${i}-${j}`} opacity={Math.min(1, s)} transform={`translate(${x}, ${y + (1 - Math.min(1, s)) * 40})`}>
-              <rect x={-195} y={-42} width={390} height={92} rx={46} fill="rgba(167,139,250,0.10)" stroke={GRID.replace('0.10', '0.5')} strokeWidth={2.5} />
-              {isVideo ? (
-                <g>
-                  <circle cx={-148} cy={4} r={24} fill={CORAL} />
-                  <polygon points="-141,-8 -141,16 -123,4" fill="#0C0714" />
-                </g>
-              ) : (
-                <g>
-                  <circle cx={-148} cy={4} r={24} fill="none" stroke={VIOLET} strokeWidth={6} />
-                  <text x={-148} y={15} fill={VIOLET} fontSize={32} fontFamily={FONT} fontWeight={800} textAnchor="middle">?</text>
-                </g>
-              )}
-              <text x={-108} y={16} fill={INK} fontSize={30} fontFamily={FONT} fontWeight={600}>
-                {l}
-              </text>
-            </g>
-          );
-        })
-      )}
-      <text x={1920} y={1620} fill={MUTED} fontSize={34} fontFamily={FONT} textAnchor="middle">
-        {MODULES.reduce((n, m) => n + m.lessons.length, 0)} lessons mapped before a single camera rolls
-      </text>
-    </g>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Scene C (460-640): pricing card + sales page assemble
-// ---------------------------------------------------------------------------
-const SalesPage: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  if (frame < 460 || frame > 645) return null;
-  const fadeIn = interpolate(frame, [460, 490], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const fadeOut = interpolate(frame, [610, 645], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const feats = ['5 core modules', '12 worksheets', 'Quiz bank + answers', 'Lifetime updates', 'Community access'];
-  return (
-    <g opacity={fadeIn * fadeOut}>
-      <text x={1920} y={620} fill={MUTED} fontSize={40} fontFamily={MONO} letterSpacing={4} textAnchor="middle">
-        STEP 03 — PACKAGE & PRICE
-      </text>
-      {/* sales page wireframe (left) */}
-      {(() => {
-        const s = spring({frame: frame - 470, fps, config: {damping: 200, stiffness: 95}});
-        if (s <= 0.001) return null;
-        return (
-          <g opacity={Math.min(1, s)} transform={`translate(480, 700) scale(${0.92 + Math.min(1, s) * 0.08})`}>
-            <rect x={0} y={0} width={1250} height={1080} rx={36} fill="#100B1C" stroke={VIOLET} strokeWidth={5} />
-            <rect x={60} y={60} width={1130} height={220} rx={24} fill="url(#occline)" opacity={0.85} />
-            <text x={640} y={190} fill="#0C0714" fontSize={64} fontFamily={FONT} fontWeight={800} textAnchor="middle">
-              MASTER THE SKILL
-            </text>
-            {[0, 1, 2].map((i) => (
-              <rect key={i} x={60} y={340 + i * 74} width={1130 - i * 220} height={34} rx={17} fill={GRID.replace('0.10', '0.28')} />
-            ))}
-            <rect x={60} y={590} width={420} height={110} rx={55} fill={CORAL} filter="url(#occglow)" />
-            <text x={270} y={662} fill="#0C0714" fontSize={48} fontFamily={FONT} fontWeight={800} textAnchor="middle">
-              ENROLL NOW
-            </text>
-            {[0, 1, 2].map((i) => {
-              const on = interpolate(frame - 500 - i * 30, [0, 20], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-              return (
-                <g key={`sb${i}`} opacity={on}>
-                  <circle cx={100} cy={800 + i * 90} r={20} fill="none" stroke={CORAL} strokeWidth={7} />
-                  <polygon points="92,800 98,810 112,794" transform={`translate(${100 - 100},${800 + i * 90 - (800 + i * 90)})`} fill="none" />
-                  <rect x={150} y={786 + i * 90} width={560} height={30} rx={15} fill={GRID.replace('0.10', '0.28')} />
-                </g>
-              );
-            })}
-          </g>
-        );
-      })()}
-      {/* pricing card (right) */}
-      {(() => {
-        const s = spring({frame: frame - 530, fps, config: {damping: 200, stiffness: 95}});
-        if (s <= 0.001) return null;
-        return (
-          <g opacity={Math.min(1, s)} transform={`translate(1990, 700) scale(${0.92 + Math.min(1, s) * 0.08})`}>
-            <rect x={0} y={0} width={1370} height={1080} rx={36} fill="#171029" stroke={CORAL} strokeWidth={6} filter="url(#occglow)" />
-            <text x={685} y={130} fill={MUTED} fontSize={40} fontFamily={MONO} letterSpacing={6} textAnchor="middle">
-              FLAGSHIP COURSE
-            </text>
-            <text x={685} y={330} fill={INK} fontSize={190} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-              $297
-            </text>
-            <text x={685} y={410} fill={MUTED} fontSize={36} fontFamily={FONT} textAnchor="middle">
-              one-time · keep it forever
-            </text>
-            <line x1={80} y1={470} x2={1290} y2={470} stroke={GRID.replace('0.10', '0.4')} strokeWidth={2} />
-            {feats.map((f, i) => {
-              const on = interpolate(frame - 545 - i * 22, [0, 18], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-              return (
-                <g key={i} opacity={on}>
-                  <circle cx={150} cy={545 + i * 96} r={24} fill={CORAL} />
-                  <polygon points={`142,${545 + i * 96} 149,${552 + i * 96} 160,${538 + i * 96}`} fill="none" stroke="#0C0714" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
-                  <text x={200} y={559 + i * 96} fill={INK} fontSize={42} fontFamily={FONT} fontWeight={600}>
-                    {f}
-                  </text>
-                </g>
-              );
-            })}
-          </g>
-        );
-      })()}
-    </g>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Scene D (600-760): launch rocket streaks up
-// ---------------------------------------------------------------------------
-const Rocket: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  if (frame < 600 || frame > 765) return null;
-  const fadeIn = interpolate(frame, [600, 630], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const fadeOut = interpolate(frame, [735, 765], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const ry = interpolate(frame, [620, 745], [2100, 260], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const flick = 1 + 0.28 * Math.sin(frame * 0.85) + 0.12 * Math.sin(frame * 2.3);
-  const trailO = interpolate(frame, [620, 680], [0, 0.75], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const streaks: React.ReactElement[] = [];
-  for (let i = 0; i < 26; i++) {
-    const sx = 1920 + (random(`occ-rk-x-${i}`) - 0.5) * 900;
-    const len = 120 + random(`occ-rk-l-${i}`) * 420;
-    const yy = ((random(`occ-rk-y-${i}`) * 2160 + frame * (14 + random(`occ-rk-v-${i}`) * 22)) % 2160);
-    streaks.push(
-      <line key={i} x1={sx} y1={yy} x2={sx} y2={yy + len} stroke={CORAL} strokeWidth={5 + random(`occ-rk-w-${i}`) * 5} strokeLinecap="round" opacity={0.18 + random(`occ-rk-o-${i}`) * 0.2} />
-    );
-  }
-  return (
-    <g opacity={fadeIn * fadeOut}>
-      <text x={1920} y={480} fill={CORAL} fontSize={64} fontFamily={FONT} fontWeight={800} letterSpacing={6} textAnchor="middle">
-        LAUNCH DAY
-      </text>
-      {streaks}
-      <rect x={1870} y={ry + 330} width={100} height={2160 - ry} fill="url(#occline)" opacity={trailO * 0.5} />
-      <g transform={`translate(1920, ${ry})`}>
-        <polygon points="-70,330 -150,330 0,560 150,330 70,330" fill={CORAL} opacity={0.9 * flick} transform={`scale(1, ${flick})`} />
-        <polygon points="-45,330 -95,330 0,470 95,330 45,330" fill="#FFF3E8" opacity={0.95 * flick} transform={`scale(1, ${flick})`} />
-        <polygon points="-150,-40 -260,180 -150,180" fill={VIOLET_DEEP} />
-        <polygon points="150,-40 260,180 150,180" fill={VIOLET_DEEP} />
-        <rect x={-150} y={-280} width={300} height={620} rx={150} fill="#1B1430" stroke={VIOLET} strokeWidth={7} filter="url(#occglow)" />
-        <circle cx={0} cy={-120} r={78} fill="rgba(167,139,250,0.25)" stroke={VIOLET} strokeWidth={7} />
-        <circle cx={0} cy={-120} r={40} fill={CORAL_SOFT} opacity={0.9} />
-        <rect x={-110} y={120} width={220} height={60} rx={30} fill={CORAL} />
-        <text y={165} fill="#0C0714" fontSize={42} fontFamily={MONO} fontWeight={800} textAnchor="middle">GO</text>
-      </g>
-      <text x={1920} y={1560} fill={MUTED} fontSize={36} fontFamily={FONT} textAnchor="middle">
-        doors open — your curriculum goes to work
-      </text>
-    </g>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Scene E (720-900): first enrollments roll in, revenue ticks up
-// ---------------------------------------------------------------------------
-const NAMES = ['AR', 'JM', 'SK', 'LT', 'NP', 'DW', 'EH', 'BO', 'CT', 'MF', 'GZ', 'HU', 'IV', 'QJ'];
-const Enroll: React.FC<{frame: number; fps: number}> = ({frame, fps}) => {
-  if (frame < 720) return null;
-  const fadeIn = interpolate(frame, [720, 750], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const rev = interpolate(frame, [745, 890], [0, 12480], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const students = Math.round(interpolate(frame, [745, 890], [0, 87], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
-  const pulse = 0.5 + 0.5 * Math.sin(frame * 0.18);
-  return (
-    <g opacity={fadeIn}>
-      <text x={1920} y={600} fill={MUTED} fontSize={40} fontFamily={MONO} letterSpacing={4} textAnchor="middle">
-        STEP 04 — FIRST ENROLLMENTS
-      </text>
-      <rect x={1320} y={700} width={1200} height={420} rx={40} fill="#100B1C" stroke={CORAL} strokeWidth={5} filter="url(#occglow)" />
-      <text x={1920} y={800} fill={MUTED} fontSize={38} fontFamily={MONO} letterSpacing={5} textAnchor="middle">
-        REVENUE
-      </text>
-      <text x={1920} y={990} fill={CORAL} fontSize={150} fontFamily={MONO} fontWeight={800} textAnchor="middle">
-        ${Math.round(rev).toLocaleString('en-US')}
-      </text>
-      <text x={1920} y={1070} fill={VIOLET} fontSize={40} fontFamily={FONT} fontWeight={700} textAnchor="middle">
-        {students} students and counting
-      </text>
-      {/* avatar grid rolling in */}
-      {NAMES.map((n, i) => {
-        const col = i % 7;
-        const rowI = Math.floor(i / 7);
-        const tx = 640 + col * 400;
-        const ty = 1300 + rowI * 260;
-        const s = spring({frame: frame - 750 - i * 12, fps, config: {damping: 200, stiffness: 130}});
-        if (s <= 0.001) return null;
-        const sc = Math.max(0.001, Math.min(1, s));
-        const sx = interpolate(s, [0, 1], [-500, tx], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-        return (
-          <g key={i} opacity={sc} transform={`translate(${sx}, ${ty}) scale(${sc})`}>
-            <circle r={88} fill={i % 2 === 0 ? 'rgba(167,139,250,0.18)' : 'rgba(255,122,107,0.16)'} stroke={i % 2 === 0 ? VIOLET : CORAL} strokeWidth={4} />
-            <text y={20} fill={INK} fontSize={56} fontFamily={FONT} fontWeight={800} textAnchor="middle">
-              {n}
-            </text>
-            <circle cx={52} cy={-52} r={22} fill={CORAL} opacity={0.6 + pulse * 0.4} />
-            <text x={52} y={-40} fill="#0C0714" fontSize={26} fontFamily={FONT} fontWeight={800} textAnchor="middle">+</text>
-          </g>
-        );
-      })}
-    </g>
-  );
-};
-
-const Stage: React.FC<{frame: number; fps: number}> = ({frame, fps}) => (
-  <svg width={3840} height={2160} style={{position: 'absolute', top: 0, left: 0}}>
-    <Defs p="occ" />
-    <Bulb frame={frame} fps={fps} />
-    <Tree frame={frame} fps={fps} />
-    <SalesPage frame={frame} fps={fps} />
-    <Rocket frame={frame} fps={fps} />
-    <Enroll frame={frame} fps={fps} />
-  </svg>
-);
-
-const Footer: React.FC<{frame: number}> = ({frame}) => {
-  const fade = interpolate(frame, [120, 170], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  return (
-    <div style={{position: 'absolute', bottom: 44, left: 0, width: 3840, textAlign: 'center', color: 'rgba(205,190,240,0.5)', fontFamily: FONT, fontSize: 26, opacity: fade}}>
-      Illustrative course-creation concept — enrollment and revenue figures are illustrative, not a promise.
+      {scanLines.map((line, i) => (
+        <div key={i} style={{ position: "absolute", left: 0, top: line.y, width, height: 10, backgroundColor: "#ffe08a", opacity: line.o }} />
+      ))}
+      <div style={{ position: "absolute", left: 0, top: scanY, width, height: 160, background: "linear-gradient(180deg, transparent, rgba(255, 220, 130, 0.22), transparent)" }} />
+      {smoke.map((puff, i) => (
+        <div key={i} style={{ position: "absolute", left: puff.x - puff.size / 2, top: puff.y - puff.size / 2, width: puff.size, height: puff.size, borderRadius: "50%", backgroundColor: "#9db8e8", opacity: puff.o, filter: "blur(6px)" }} />
+      ))}
+      <div style={{ position: "absolute", left: flameX - width * 0.085, top: baseY - height * 0.4, width: width * 0.17, height: height * 0.46, background: "linear-gradient(180deg, #fff8e6, #f5d76e 30%, #e8b64c 75%, #b8860b)", borderRadius: `${width * 0.02}px ${width * 0.02}px 0 0` }} />
+      <div style={{ position: "absolute", left: flameX - width * 0.02, top: baseY - height * 0.4, width: width * 0.04, height: height * 0.46, background: "linear-gradient(180deg, rgba(255,255,255,0.5), transparent)", borderRadius: width * 0.02 }} />
+      <div style={{ position: "absolute", left: secondX - width * 0.045, top: baseY - height * 0.22, width: width * 0.09, height: height * 0.28, background: "linear-gradient(180deg, #ffffff, #dbeafe 40%, #c9a227)", borderRadius: `${width * 0.012}px ${width * 0.012}px 0 0` }} />
+      <div style={{ position: "absolute", left: flameX - 3, top: baseY - height * 0.4 - 42, width: 6, height: 42, backgroundColor: "#3a2a12" }} />
+      <div style={{ position: "absolute", left: secondX - 2, top: baseY - height * 0.22 - 30, width: 4, height: 30, backgroundColor: "#3a2a12" }} />
+      <div style={{ position: "absolute", left: flameX - (mainFlameW / 2) * mainScale, top: flameY - mainFlameH * mainScale, width: mainFlameW * mainScale, height: mainFlameH * mainScale, borderRadius: "50% 50% 50% 50% / 62% 62% 38% 38%", background: "radial-gradient(circle at 50% 74%, #fffbe6 0%, #ffd166 36%, #ff9d00 66%, #ff5e00 100%)", opacity: mainOpacity, filter: `drop-shadow(0 0 ${mainGlow}px #ffb703)`, transform: `rotate(${mainFlicker * 4}deg)` }} />
+      <div style={{ position: "absolute", left: flameX - (mainFlameW * 0.28) * mainScale, top: flameY - mainFlameH * 0.62 * mainScale, width: mainFlameW * 0.56 * mainScale, height: mainFlameH * 0.62 * mainScale, borderRadius: "50%", backgroundColor: "#fffbe6", opacity: 0.88 }} />
+      <div style={{ position: "absolute", left: secondX - (secondFlameW / 2) * secondScale, top: secondY - secondFlameH * secondScale, width: secondFlameW * secondScale, height: secondFlameH * secondScale, borderRadius: "50% 50% 50% 50% / 62% 62% 38% 38%", background: "radial-gradient(circle at 50% 74%, #fffbe6 0%, #ffd166 38%, #ff9d00 68%, #ff5e00 100%)", opacity: secondOpacity, filter: `drop-shadow(0 0 ${secondGlow}px #ffb703)`, transform: `rotate(${secondFlicker * 4}deg)` }} />
+      <div style={{ position: "absolute", left: secondX - secondFlameW * 0.15, top: secondY - secondFlameH * 0.6, width: secondFlameW * 0.3, height: secondFlameH * 0.6, borderRadius: "50%", backgroundColor: "#fffbe6", opacity: 0.85 }} />
+      {embers.map((ember, i) => (
+        <div key={i} style={{ position: "absolute", left: ember.x, top: ember.y, width: ember.size, height: ember.size, borderRadius: "50%", backgroundColor: "#ffca3a", opacity: ember.o, filter: "drop-shadow(0 0 10px #ffb703)" }} />
+      ))}
+      <div style={{ position: "absolute", left: 0, top: baseY, width, height: height * 0.14, background: "linear-gradient(180deg, rgba(255, 190, 60, 0.28), transparent)" }} />
     </div>
-  );
-};
-
-export const OnlineCourseCreationFlow: React.FC = () => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  return (
-    <AbsoluteFill style={{backgroundColor: BG, fontFamily: FONT}}>
-      <Background frame={frame} />
-      <Particles frame={frame} />
-      <Title frame={frame} />
-      <Stage frame={frame} fps={fps} />
-      <Ticker frame={frame} />
-      <Dither frame={frame} />
-      <Grain frame={frame} />
-      <Corners frame={frame} />
-      <Footer frame={frame} />
-    </AbsoluteFill>
   );
 };
