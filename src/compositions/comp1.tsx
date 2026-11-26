@@ -103,16 +103,75 @@ export const WindowAtDusk: React.FC = () => {
     return { x: ix, y: iy, size, o, rot };
   });
 
-  // 32 slow rain streaks running down the panes, modulo cycles (perfect loop).
-  const rainStreaks = Array.from({ length: 32 }, (_, i) => {
+  // 64 SHARP rain streaks running down the panes: thin 2px, hard-edged solid
+  // colour, high contrast, modulo cycles (perfect loop).
+  const rainStreaks = Array.from({ length: 64 }, (_, i) => {
     const offset = seededRandom(i * 163 + 29);
     const speed = 0.3 + seededRandom(i * 167 + 33) * 0.35;
     const cycle = (progress * speed + offset) % 1;
     const rx = innerX + (0.06 + seededRandom(i * 173 + 37) * 0.88) * innerW;
     const ry = innerY + cycle * innerH * 0.9;
     const len = 70 + seededRandom(i * 179 + 41) * 160;
-    const o = 0.12 + seededRandom(i * 181 + 43) * 0.22;
+    const o = 0.3 + seededRandom(i * 181 + 43) * 0.5;
     return { x: rx, y: ry, len, o };
+  });
+
+  // 48 SHARP snow crystals: 6-point hard-edged shapes (thin lines) falling
+  // inside the window, modulo wrap (perfect loop).
+  const snowCrystals = Array.from({ length: 48 }, (_, i) => {
+    const offset = seededRandom(i * 367 + 29);
+    const speed = 0.4 + seededRandom(i * 373 + 31) * 0.8;
+    const cycle = (progress * speed + offset) % 1;
+    const sx = innerX + seededRandom(i * 379 + 37) * innerW + Math.sin(progress * twoPi * 2 + i * 1.1) * 28;
+    const sy = innerY + cycle * innerH;
+    const size = 12 + seededRandom(i * 383 + 41) * 14;
+    const o = 0.5 + seededRandom(i * 389 + 43) * 0.45;
+    const rot = seededRandom(i * 397 + 47) * 60;
+    return { x: sx, y: sy, size, o, rot };
+  });
+
+  // 130 SHARP star sparkles with 4-point cross flares in the night sky inside
+  // the window: thin bright hard lines, fast twinkle on integer cycles (perfect loop).
+  const sparkles = Array.from({ length: 130 }, (_, i) => {
+    const sx = innerX + (0.05 + seededRandom(i * 331 + 7) * 0.85) * innerW;
+    const sy = innerY + (0.03 + seededRandom(i * 337 + 11) * 0.42) * innerH;
+    const size = 10 + seededRandom(i * 347 + 17) * 22;
+    const cycles = 5 + Math.floor(seededRandom(i * 353 + 19) * 6);
+    const o = 0.15 + Math.abs(Math.sin(progress * twoPi * cycles + i * 2.3)) * 0.85;
+    const rot = seededRandom(i * 359 + 23) * 45;
+    return { x: sx, y: sy, size, o, rot };
+  });
+
+  // 96 SHARP frost crystal line segments spreading from the four glass corners:
+  // thin hard branching strokes, slight integer-cycle shimmer (perfect loop).
+  const frostLines = Array.from({ length: 96 }, (_, i) => {
+    const corner = i % 4;
+    const cx0 = corner % 2 === 0 ? innerX : innerX + innerW;
+    const cy0 = corner < 2 ? innerY : innerY + innerH;
+    const dirX = corner % 2 === 0 ? 1 : -1;
+    const dirY = corner < 2 ? 1 : -1;
+    const along = seededRandom(i * 401 + 53) * innerW * 0.24;
+    const across = (seededRandom(i * 409 + 59) - 0.5) * innerH * 0.3;
+    const x1 = cx0 + dirX * along * 0.7 + across * 0.35;
+    const y1 = cy0 + dirY * Math.abs(across) * 0.8 + along * 0.25;
+    const ang = seededRandom(i * 419 + 61) * Math.PI * 2;
+    const len = 18 + seededRandom(i * 421 + 67) * 70;
+    const x2 = x1 + Math.cos(ang) * len;
+    const y2 = y1 + Math.sin(ang) * len;
+    const o = (0.25 + seededRandom(i * 431 + 71) * 0.45) * (0.7 + 0.3 * Math.sin(progress * twoPi * 2 + i * 1.3));
+    return { x: x1, y: y1, x2, y2, o };
+  });
+
+  // 48 SHARP dust motes drifting in the candlelight above the sill: tiny hard
+  // bright specks, fast twinkle on integer cycles (perfect loop).
+  const dustMotes = Array.from({ length: 48 }, (_, i) => {
+    const dx = centerX + (seededRandom(i * 433 + 73) - 0.5) * winW * 0.52;
+    const dy = baseY - height * 0.05 - seededRandom(i * 439 + 79) * height * 0.3;
+    const size = 2 + seededRandom(i * 443 + 83) * 3;
+    const drift = Math.sin(progress * twoPi * 2 + i * 1.4) * 18;
+    const driftY = Math.cos(progress * twoPi * 3 + i * 2.1) * 12;
+    const o = 0.25 + Math.abs(Math.sin(progress * twoPi * 4 + i * 1.9)) * 0.6;
+    return { x: dx, y: dy, size, o, drift, driftY };
   });
 
   // 70 distant city windows twinkling slowly with integer cycles.
@@ -180,15 +239,16 @@ export const WindowAtDusk: React.FC = () => {
     return { x: ex, y: ey, size, o };
   });
 
-  // Dense animated grain across the frame: positions drift every frame,
-  // low opacity so the copy space stays clean and dark (grain only, no snow/stars there).
+  // Dense SHARP animated grain across the frame: 4-7px dots, high contrast,
+  // positions jump to a new seeded spot EVERY frame (frame-hashed, so each
+  // frame is a fresh hard pattern). Copy space stays dark; grain only there.
   const grain = Array.from({ length: 360 }, (_, i) => {
     const baseX = seededRandom(i * 47 + 19) * width;
     const baseY = seededRandom(i * 53 + 23) * height;
-    const gx = baseX + Math.sin(progress * twoPi * 3 + i * 1.7) * 34;
-    const gy = baseY + Math.cos(progress * twoPi * 2 + i * 2.3) * 26;
-    const size = 2 + seededRandom(i * 59 + 29) * 5;
-    const o = 0.05 + Math.abs(Math.sin(progress * twoPi * 4 + i * 2.1)) * 0.16;
+    const gx = baseX + (seededRandom(i * 101 + frame * 17) - 0.5) * 90;
+    const gy = baseY + (seededRandom(i * 103 + frame * 23) - 0.5) * 70;
+    const size = 4 + seededRandom(i * 59 + 29) * 3;
+    const o = 0.12 + Math.abs(Math.sin(progress * twoPi * 4 + i * 2.1)) * 0.25;
     const gold = seededRandom(i * 61 + 31) > 0.6;
     return { x: gx, y: gy, size, o, gold };
   });
@@ -224,6 +284,18 @@ export const WindowAtDusk: React.FC = () => {
     return { x: dx, y: dy, o };
   });
 
+  // Fine SHARP crosshatch weave on both curtains: thin hard vertical + horizontal
+  // lines, low opacity, static positions (curtains sway as a whole, integer cycles).
+  const curtainHatchV = Array.from({ length: 16 }, (_, i) => ({ x: (i / 15) * winW * 0.075 }));
+  const curtainHatchH = Array.from({ length: 22 }, (_, i) => ({ y: (i / 21) * winH }));
+
+  // 3 extra SHARP moon craters: hard-edged rings with bright rims.
+  const moonCratersSharp = [
+    { fx: 0.7, fy: 0.115, r: 0.008 },
+    { fx: 0.765, fy: 0.145, r: 0.006 },
+    { fx: 0.725, fy: 0.225, r: 0.012 },
+  ];
+
   // Nine candles on the sill, shamash taller in the centre.
   const candles = [
     { frac: -0.2, h: 0.055, shamash: false },
@@ -248,9 +320,12 @@ export const WindowAtDusk: React.FC = () => {
         <div style={{ position: "absolute", left: innerW * 0.68, top: innerH * 0.1, width: innerW * 0.14, height: innerW * 0.14, borderRadius: "50%", background: "radial-gradient(circle, rgba(240, 244, 255, 0.95) 0%, rgba(200, 215, 255, 0.55) 45%, transparent 72%)" }} />
         <div style={{ position: "absolute", left: innerW * 0.62, top: innerH * 0.05, width: innerW * 0.26, height: innerW * 0.26, borderRadius: "50%", background: "radial-gradient(circle, rgba(190, 210, 255, 0.25), transparent 65%)", opacity: moonPulse }} />
         <div style={{ position: "absolute", left: innerW * 0.55, top: innerH * 0.02, width: innerW * 0.4, height: innerW * 0.4, borderRadius: "50%", background: "radial-gradient(circle, rgba(170, 200, 255, 0.14), transparent 68%)", opacity: 0.6 + moonPulse * 0.3 }} />
-        <div style={{ position: "absolute", left: innerW * 0.715, top: innerH * 0.135, width: innerW * 0.02, height: innerW * 0.02, borderRadius: "50%", backgroundColor: "rgba(160, 175, 210, 0.5)" }} />
-        <div style={{ position: "absolute", left: innerW * 0.755, top: innerH * 0.17, width: innerW * 0.013, height: innerW * 0.013, borderRadius: "50%", backgroundColor: "rgba(160, 175, 210, 0.45)" }} />
-        <div style={{ position: "absolute", left: innerW * 0.735, top: innerH * 0.2, width: innerW * 0.01, height: innerW * 0.01, borderRadius: "50%", backgroundColor: "rgba(160, 175, 210, 0.4)" }} />
+        <div style={{ position: "absolute", left: innerW * 0.715, top: innerH * 0.135, width: innerW * 0.02, height: innerW * 0.02, borderRadius: "50%", backgroundColor: "rgba(140, 155, 190, 0.6)", border: "2px solid rgba(120, 140, 185, 0.85)", boxSizing: "border-box" }} />
+        <div style={{ position: "absolute", left: innerW * 0.755, top: innerH * 0.17, width: innerW * 0.013, height: innerW * 0.013, borderRadius: "50%", backgroundColor: "rgba(140, 155, 190, 0.6)", border: "2px solid rgba(120, 140, 185, 0.85)", boxSizing: "border-box" }} />
+        <div style={{ position: "absolute", left: innerW * 0.735, top: innerH * 0.2, width: innerW * 0.01, height: innerW * 0.01, borderRadius: "50%", backgroundColor: "rgba(140, 155, 190, 0.6)", border: "2px solid rgba(120, 140, 185, 0.85)", boxSizing: "border-box" }} />
+        {moonCratersSharp.map((c, i) => (
+          <div key={i} style={{ position: "absolute", left: innerW * c.fx, top: innerH * c.fy, width: innerW * c.r * 2, height: innerW * c.r * 2, borderRadius: "50%", backgroundColor: "rgba(135, 150, 185, 0.65)", border: "2px solid rgba(225, 235, 255, 0.9)", boxSizing: "border-box" }} />
+        ))}
         <svg style={{ position: "absolute", left: 0, top: 0, width: innerW, height: innerH }} width={innerW} height={innerH} viewBox={`0 0 ${innerW} ${innerH}`}>
           {farBuildings.map((b, i) => (
             <rect key={i} x={b.x - innerX} y={b.y - innerY} width={b.w} height={b.h} fill="#131f45" />
@@ -278,6 +353,13 @@ export const WindowAtDusk: React.FC = () => {
             ) : null}
           </div>
         ))}
+        {sparkles.map((s, i) => (
+          <div key={i} style={{ position: "absolute", left: s.x - innerX - s.size / 2, top: s.y - innerY - s.size / 2, width: s.size, height: s.size, opacity: s.o, transform: `rotate(${s.rot}deg)` }}>
+            <div style={{ position: "absolute", left: 0, top: s.size / 2 - 1, width: s.size, height: 2, backgroundColor: "#ffffff" }} />
+            <div style={{ position: "absolute", left: s.size / 2 - 1, top: 0, width: 2, height: s.size, backgroundColor: "#ffffff" }} />
+            <div style={{ position: "absolute", left: s.size / 2 - 2, top: s.size / 2 - 2, width: 4, height: 4, borderRadius: "50%", backgroundColor: "#ffffff" }} />
+          </div>
+        ))}
         {iceCrystals.map((c, i) => (
           <div key={i} style={{ position: "absolute", left: c.x - innerX, top: c.y - innerY, width: c.size, height: c.size, backgroundColor: "rgba(210, 230, 255, 0.85)", opacity: c.o, transform: `rotate(${c.rot}deg)`, clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }} />
         ))}
@@ -291,12 +373,24 @@ export const WindowAtDusk: React.FC = () => {
             ) : null}
           </div>
         ))}
+        {snowCrystals.map((c, i) => (
+          <div key={i} style={{ position: "absolute", left: c.x - innerX - c.size / 2, top: c.y - innerY - c.size / 2, width: c.size, height: c.size, opacity: c.o, transform: `rotate(${c.rot}deg)` }}>
+            <div style={{ position: "absolute", left: 0, top: c.size / 2 - 1, width: c.size, height: 2, backgroundColor: "#ffffff" }} />
+            <div style={{ position: "absolute", left: 0, top: c.size / 2 - 1, width: c.size, height: 2, backgroundColor: "#ffffff", transform: "rotate(60deg)" }} />
+            <div style={{ position: "absolute", left: 0, top: c.size / 2 - 1, width: c.size, height: 2, backgroundColor: "#ffffff", transform: "rotate(120deg)" }} />
+          </div>
+        ))}
         {foregroundSnow.map((flake, i) => (
           <div key={i} style={{ position: "absolute", left: flake.x - innerX, top: flake.y - innerY, width: flake.size, height: flake.size, borderRadius: "50%", background: "radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.35) 55%, transparent 75%)", opacity: flake.o }} />
         ))}
         {rainStreaks.map((r, i) => (
-          <div key={i} style={{ position: "absolute", left: r.x - innerX, top: r.y - innerY, width: 3, height: r.len, background: "linear-gradient(180deg, transparent, rgba(200, 225, 255, 0.55), transparent)", opacity: r.o, borderRadius: 2 }} />
+          <div key={i} style={{ position: "absolute", left: r.x - innerX, top: r.y - innerY, width: 2, height: r.len, backgroundColor: "rgba(210, 230, 255, 0.9)", opacity: r.o }} />
         ))}
+        <svg style={{ position: "absolute", left: 0, top: 0, width: innerW, height: innerH, pointerEvents: "none" }} width={innerW} height={innerH} viewBox={`0 0 ${innerW} ${innerH}`}>
+          {frostLines.map((f, i) => (
+            <line key={i} x1={f.x1 - innerX} y1={f.y1 - innerY} x2={f.x2 - innerX} y2={f.y2 - innerY} stroke="#dceaff" strokeWidth={2} strokeOpacity={f.o} strokeLinecap="round" />
+          ))}
+        </svg>
         <div style={{ position: "absolute", left: innerW * (0.1 + Math.sin(progress * twoPi) * 0.08), top: -innerH * 0.1, width: innerW * 0.16, height: innerH * 1.2, background: "linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent)", transform: "rotate(12deg)" }} />
         <div style={{ position: "absolute", left: innerW * (0.75 - Math.sin(progress * twoPi * 2) * 0.1) + shimmerX * 0.4, top: -innerH * 0.1, width: innerW * 0.1, height: innerH * 1.2, background: "linear-gradient(90deg, transparent, rgba(190, 215, 255, 0.09), transparent)", transform: "rotate(-10deg)" }} />
         <div style={{ position: "absolute", left: innerW * 0.3 + beamSweep, top: -innerH * 0.1, width: innerW * 0.2, height: innerH * 1.2, background: "linear-gradient(90deg, transparent, rgba(200, 220, 255, 0.1), transparent)", transform: "rotate(18deg)" }} />
@@ -305,10 +399,20 @@ export const WindowAtDusk: React.FC = () => {
       <div style={{ position: "absolute", left: winX - width * 0.006, top: winY - height * 0.006, width: winW + width * 0.012, height: winH + height * 0.012, border: `${frameThick}px solid #2a1c10`, boxSizing: "border-box", pointerEvents: "none" }} />
       <div style={{ position: "absolute", left: centerX - width * 0.004, top: winY, width: width * 0.008, height: winH, backgroundColor: "#2a1c10" }} />
       <div style={{ position: "absolute", left: winX, top: winY + winH / 2 - height * 0.004, width: winW, height: height * 0.008, backgroundColor: "#2a1c10" }} />
+      <div style={{ position: "absolute", left: centerX - width * 0.004 - 2, top: winY, width: 2, height: winH, backgroundColor: "rgba(255, 235, 190, 0.65)" }} />
+      <div style={{ position: "absolute", left: centerX + width * 0.004, top: winY, width: 2, height: winH, backgroundColor: "rgba(160, 190, 255, 0.55)" }} />
+      <div style={{ position: "absolute", left: winX, top: winY + winH / 2 - height * 0.004 - 2, width: winW, height: 2, backgroundColor: "rgba(255, 235, 190, 0.65)" }} />
+      <div style={{ position: "absolute", left: winX, top: winY + winH / 2 + height * 0.004, width: winW, height: 2, backgroundColor: "rgba(160, 190, 255, 0.55)" }} />
       <svg style={{ position: "absolute", left: winX + curtainSway, top: winY, width: winW * 0.075, height: winH }} width={winW * 0.075} height={winH} viewBox={`0 0 ${winW * 0.075} ${winH}`}>
         <rect x={0} y={0} width={winW * 0.075} height={winH} fill="#1b1440" fillOpacity={0.92} />
         {curtainFolds.map((f, i) => (
           <rect key={i} x={f.x - winX} y={0} width={7} height={winH} fill={i % 2 === 0 ? "#241a55" : "#120c2e"} fillOpacity={0.85} />
+        ))}
+        {curtainHatchV.map((h, i) => (
+          <line key={i} x1={h.x} y1={0} x2={h.x} y2={winH} stroke="#9d8ce0" strokeWidth={1.5} strokeOpacity={0.16} />
+        ))}
+        {curtainHatchH.map((h, i) => (
+          <line key={i} x1={0} y1={h.y} x2={winW * 0.075} y2={h.y} stroke="#9d8ce0" strokeWidth={1.5} strokeOpacity={0.16} />
         ))}
         {curtainDiamonds.map((d, i) => (
           <rect key={i} x={d.x - winX - curtainSway} y={d.y - winY} width={14} height={14} fill="#c9a227" fillOpacity={d.o * 0.55} transform={`rotate(45 ${d.x - winX - curtainSway + 7} ${d.y - winY + 7})`} />
@@ -319,6 +423,12 @@ export const WindowAtDusk: React.FC = () => {
         <rect x={0} y={0} width={winW * 0.075} height={winH} fill="#1b1440" fillOpacity={0.92} />
         {curtainFoldsR.map((f, i) => (
           <rect key={i} x={f.x - curtainBaseR} y={0} width={7} height={winH} fill={i % 2 === 0 ? "#241a55" : "#120c2e"} fillOpacity={0.85} />
+        ))}
+        {curtainHatchV.map((h, i) => (
+          <line key={i} x1={h.x} y1={0} x2={h.x} y2={winH} stroke="#9d8ce0" strokeWidth={1.5} strokeOpacity={0.16} />
+        ))}
+        {curtainHatchH.map((h, i) => (
+          <line key={i} x1={0} y1={h.y} x2={winW * 0.075} y2={h.y} stroke="#9d8ce0" strokeWidth={1.5} strokeOpacity={0.16} />
         ))}
         {curtainDiamondsR.map((d, i) => (
           <rect key={i} x={d.x - curtainBaseR - curtainSwayR} y={d.y - winY} width={14} height={14} fill="#c9a227" fillOpacity={d.o * 0.55} transform={`rotate(45 ${d.x - curtainBaseR - curtainSwayR + 7} ${d.y - winY + 7})`} />
@@ -363,11 +473,22 @@ export const WindowAtDusk: React.FC = () => {
       {embers.map((e, i) => (
         <div key={i} style={{ position: "absolute", left: e.x, top: e.y, width: e.size, height: e.size, borderRadius: "50%", backgroundColor: "#ffcf5e", opacity: e.o, filter: "drop-shadow(0 0 6px #ffb703)" }} />
       ))}
+      {dustMotes.map((m, i) => (
+        <div key={i} style={{ position: "absolute", left: m.x + m.drift, top: m.y + m.driftY, width: m.size, height: m.size, backgroundColor: "#ffe9a8", opacity: m.o, filter: "drop-shadow(0 0 4px #ffdf80)" }} />
+      ))}
       <div style={{ position: "absolute", left: winX - width * 0.02, top: sillY + height * 0.028, width: winW + width * 0.04, height: height * 0.05, background: `linear-gradient(180deg, rgba(255, 190, 60, ${0.2 + warmPulse * 0.06}), transparent)` }} />
       <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         {grain.map((dot, i) => (
           <circle key={i} cx={dot.x} cy={dot.y} r={dot.size} fill={dot.gold ? "#ffd166" : "#aaccff"} fillOpacity={dot.o} />
         ))}
+      </svg>
+      <svg style={{ position: "absolute", left: 0, top: 0, width, height, pointerEvents: "none" }} width={width} height={height}>
+        <defs>
+          <pattern id="diagStripes" width={14} height={14} patternUnits="userSpaceOnUse" patternTransform={`translate(${progress * 14 * 20} ${progress * 14 * 20})`}>
+            <line x1={0} y1={14} x2={14} y2={0} stroke="rgba(255, 255, 255, 0.08)" strokeWidth={2} />
+          </pattern>
+        </defs>
+        <rect x={0} y={0} width={width} height={height} fill="url(#diagStripes)" />
       </svg>
     </div>
   );
