@@ -6,271 +6,400 @@ function seededRandom(seed: number): number {
   return x - Math.floor(x);
 }
 
-export const EightNightsOneByOne: React.FC = () => {
+export const ShamashLightsFirstCandle: React.FC = () => {
   const frame = useCurrentFrame();
-  const { width, height, durationInFrames } = useVideoConfig();
+  const { width, height, fps, durationInFrames } = useVideoConfig();
   const progress = frame / durationInFrames;
   const twoPi = Math.PI * 2;
-  const centerX = width * 0.68;
-  const baseY = height * 0.76;
-  const gradientAngle = progress * 90;
-  const globalPulse = Math.sin(progress * twoPi);
+
+  // Menorah sits centre-right; the left third of frame stays empty dark copy space.
+  const groupX = width * 0.63;
+  const baseY = height * 0.78;
+  const candleGap = width * 0.052;
+
+  // Fade in 0.4s at start, fade out 0.5s at end.
+  const fadeIn = interpolate(frame, [0, fps * 0.4], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const fadeOut = interpolate(frame, [durationInFrames - fps * 0.5, durationInFrames], [1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const overallOpacity = fadeIn * fadeOut;
+
+  // Scene starts dark and still, then warms as the flames grow.
+  const darkOverlay = interpolate(frame, [0, fps * 5, fps * 11, fps * 15], [0.62, 0.5, 0.18, 0.08], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const warmWash = interpolate(frame, [fps * 8, fps * 15], [0, 0.34], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const glowStrength = interpolate(frame, [fps * 5, fps * 11, fps * 15], [0.12, 0.5, 0.85], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const gradientAngle = 205 + Math.sin(progress * twoPi) * 24 + Math.sin(progress * twoPi * 2 + 0.8) * 8;
+  // Slow camera push-in, 1.00 to 1.05 over the 15s, toward the menorah.
   const cameraScale = 1 + progress * 0.05;
-  const washBreath = Math.sin(frame * 0.07);
-  const washBreath2 = Math.sin(frame * 0.11 + 1.3);
+  // Warm wash breathes as the flames grow; glow pulses with the flicker.
+  const warmBreath = 0.85 + Math.sin(progress * twoPi * 3) * 0.15;
+  const glowPulse = 0.85 + Math.sin(progress * twoPi * 4) * 0.15;
+
+  // Match strike 3-5s: match appears, spark flash peaks, then fades.
+  const matchOpacity = interpolate(frame, [fps * 3, fps * 3.3, fps * 4.8, fps * 5.4], [0, 1, 1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const sparkFlash = interpolate(frame, [fps * 3.2, fps * 3.7, fps * 4.4, fps * 5.2], [0, 1, 0.55, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  // Shamash flame grows steady 5-8s.
+  const shamashScale = interpolate(frame, [fps * 4.2, fps * 5, fps * 8], [0, 0.65, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const shamashOpacity = interpolate(frame, [fps * 4.2, fps * 5], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  // Shamash flame leans toward the first candle 8-10.5s, then stands straight again.
+  const leanAngle = interpolate(frame, [fps * 8, fps * 9.5, fps * 11], [0, 16, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  // First candle catches 9.5-11s and burns steady to the end.
+  const firstScale = interpolate(frame, [fps * 9.5, fps * 10.2, fps * 11], [0, 0.6, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const firstOpacity = interpolate(frame, [fps * 9.5, fps * 10.2], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   const candles = [
-    { frac: -0.2, h: 0.2, shamash: false },
-    { frac: -0.15, h: 0.23, shamash: false },
-    { frac: -0.1, h: 0.26, shamash: false },
-    { frac: -0.05, h: 0.28, shamash: false },
-    { frac: 0, h: 0.34, shamash: true },
-    { frac: 0.05, h: 0.28, shamash: false },
-    { frac: 0.1, h: 0.26, shamash: false },
-    { frac: 0.15, h: 0.23, shamash: false },
-    { frac: 0.2, h: 0.2, shamash: false },
+    { frac: -4, h: 0.19, shamash: false },
+    { frac: -3, h: 0.22, shamash: false },
+    { frac: -2, h: 0.25, shamash: false },
+    { frac: -1, h: 0.27, shamash: false },
+    { frac: 0, h: 0.33, shamash: true },
+    { frac: 1, h: 0.27, shamash: false },
+    { frac: 2, h: 0.25, shamash: false },
+    { frac: 3, h: 0.22, shamash: false },
+    { frac: 4, h: 0.19, shamash: false },
   ];
 
-  const lightFrameFor = (i: number): number => {
-    if (candles[i].shamash) {
-      return 0;
-    }
-    const order = i < 4 ? i : i - 1;
-    return 60 + order * 96;
-  };
-
-  const litFor = (i: number): number => {
-    const lightFrame = lightFrameFor(i);
-    return interpolate(frame, [lightFrame, lightFrame + 18], [0, 1], {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-    });
-  };
-
-  let litCount = 0;
-  for (let i = 0; i < candles.length; i++) {
-    litCount += litFor(i);
-  }
-
-  // ---- 1. Bokeh orbs: 68 large soft orbs, right side only (x 0.42 - 0.98) ----
-  const bokeh = Array.from({ length: 68 }, (_, i) => {
-    const bx = (0.42 + seededRandom(i * 101 + 7) * 0.56) * width;
-    const by = (0.03 + seededRandom(i * 103 + 11) * 0.68) * height;
-    const radius = 46 + seededRandom(i * 107 + 13) * 170;
-    const gold = seededRandom(i * 109 + 17) > 0.42;
-    const phase = seededRandom(i * 113 + 19) * twoPi;
-    const cycles = 1 + Math.floor(seededRandom(i * 127 + 23) * 3);
-    const baseO = 0.05 + seededRandom(i * 131 + 29) * 0.11;
-    return { bx, by, radius, gold, phase, cycles, baseO };
+  // --- EXTREME DETAIL LAYER 1: 116 large soft bokeh orbs behind the menorah ---
+  // ROUND 2: raised from 64 to 116 orbs, larger sizes, faster drift, wider
+  // twinkle and opacity range, so the right side never compresses flat.
+  // Confined to the right 58% of frame (x >= 0.42 * width) so the left copy
+  // space stays dark. Gold and blue, drifting, twinkling at different
+  // rates, out of focus (blurred radial gradients).
+  const bokeh = Array.from({ length: 116 }, (_, i) => {
+    const s1 = seededRandom(i * 101 + 7);
+    const s2 = seededRandom(i * 103 + 13);
+    const s3 = seededRandom(i * 107 + 21);
+    const s4 = seededRandom(i * 109 + 29);
+    const baseX = width * (0.42 + s1 * 0.55);
+    const baseYb = height * (0.05 + s2 * 0.82);
+    const driftX = Math.sin(progress * twoPi * (0.4 + s3 * 0.7) + i * 1.7) * (50 + s4 * 120);
+    const driftY = Math.cos(progress * twoPi * (0.35 + s4 * 0.6) + i * 2.3) * (40 + s3 * 95);
+    const size = 42 + s2 * 190;
+    const twinkle = 0.5 + Math.sin(progress * twoPi * (1.5 + s1 * 4) + i * 2.9) * 0.5;
+    const gold = s3 > 0.42;
+    const o = (0.07 + s4 * 0.28) * (0.4 + twinkle * 0.6) * (0.35 + glowStrength * 0.65);
+    return { x: baseX + driftX, y: baseYb + driftY, size, o, gold, blur: 6 + s1 * 16 };
   });
 
-  // ---- 2a. Curtain folds: 48 thin vertical stripes, right side only ----
-  const curtain = Array.from({ length: 48 }, (_, i) => {
-    const x = width * 0.44 + (i / 48) * width * 0.56;
-    const w = (width * 0.56) / 48 + 6;
-    const fold = seededRandom(i * 137 + 31);
-    const phase = seededRandom(i * 139 + 37) * twoPi;
-    return { x, w, fold, phase };
+  // --- EXTREME DETAIL LAYER 2: textured curtain-fold wall behind the menorah ---
+  // 46 thin vertical folds across the right 60% of frame, each a gradient
+  // stripe whose brightness slides with the frame, plus a slow warm light
+  // wash sweeping across the folds.
+  const curtainX0 = width * 0.4;
+  const curtainW = width * 0.6;
+  const foldCount = 46;
+  const foldWidth = curtainW / foldCount;
+  const folds = Array.from({ length: foldCount }, (_, i) => {
+    const slide = Math.sin(progress * twoPi * 0.8 + i * 0.55) * 0.5 + 0.5;
+    const deep = i % 2 === 0;
+    const o = (deep ? 0.1 : 0.22) + slide * 0.16 + glowStrength * 0.08;
+    const warm = seededRandom(i * 31 + 5) > 0.5;
+    return { x: curtainX0 + i * foldWidth, o, warm };
   });
-  const washCenter = width * (0.44 + 0.5 * (0.5 + 0.5 * Math.sin(progress * twoPi)));
+  const washX = curtainX0 + Math.sin(progress * twoPi * 0.6) * curtainW * 0.28 + curtainW * 0.2;
 
-  // ---- 2b. Twinkling stars: 92 tiny stars, upper right only ----
-  const stars = Array.from({ length: 92 }, (_, i) => {
-    const sx = (0.45 + seededRandom(i * 149 + 41) * 0.53) * width;
-    const sy = (0.02 + seededRandom(i * 151 + 43) * 0.33) * height;
-    const size = 2 + seededRandom(i * 157 + 47) * 5;
-    const phase = seededRandom(i * 163 + 53) * twoPi;
-    const cycles = 1 + Math.floor(seededRandom(i * 167 + 59) * 4);
-    const gold = seededRandom(i * 173 + 61) > 0.5;
-    return { sx, sy, size, phase, cycles, gold };
-  });
-
-  // ---- 5. Embers: 44 rising embers from lit flames ----
-  const embers = Array.from({ length: 44 }, (_, i) => {
-    const candleIndex = Math.floor(seededRandom(i * 5 + 2) * 9);
-    const lightFrame = lightFrameFor(candleIndex);
-    const offset = seededRandom(i * 11 + 3);
-    const cycle = ((frame - lightFrame) * 0.004 + offset) % 1;
-    const cx = centerX + candles[candleIndex].frac * width;
-    const candleTop = baseY - candles[candleIndex].h * height;
-    const ex = cx + (seededRandom(i * 13 + 4) - 0.5) * 70 + Math.sin(frame * 0.05 + i) * 18;
-    const ey = candleTop - 130 - cycle * height * 0.22;
-    const size = 3 + seededRandom(i * 17 + 6) * 6;
-    const o = litFor(candleIndex) * Math.max(0, 1 - cycle) * 0.6;
-    return { x: ex, y: ey, size, o };
+  // --- EXTREME DETAIL LAYER 3: 132 tiny twinkling stars, upper right only ---
+  // ROUND 2: raised from 88 to 132 stars, wider size and brightness range.
+  const stars = Array.from({ length: 132 }, (_, i) => {
+    const s1 = seededRandom(i * 211 + 3);
+    const s2 = seededRandom(i * 223 + 9);
+    const s3 = seededRandom(i * 227 + 17);
+    const x = width * (0.55 + s1 * 0.43);
+    const y = height * (0.03 + s2 * 0.36);
+    const tw = 0.5 + Math.sin(progress * twoPi * (1.5 + s3 * 4) + i * 3.1) * 0.5;
+    const size = 2 + s3 * 7;
+    const o = 0.08 + tw * (0.3 + s2 * 0.45);
+    return { x, y, size, o, gold: s1 > 0.55 };
   });
 
-  // ---- 3. Film grain: 264 dots, per-frame changing opacity ----
-  const grain = Array.from({ length: 264 }, (_, i) => {
-    const baseX = seededRandom(i * 37 + 11);
-    const baseY = seededRandom(i * 41 + 13);
-    const driftX = Math.sin(frame * 0.11 + i * 1.7) * 9;
-    const driftY = Math.cos(frame * 0.09 + i * 2.1) * 7;
-    const gx = ((baseX + frame * 0.0004 * (0.5 + seededRandom(i * 53 + 23))) % 1) * width + driftX;
-    const gy = ((baseY + frame * 0.0003 * (0.5 + seededRandom(i * 59 + 29))) % 1) * height + driftY;
+  // --- EXTREME DETAIL LAYER 4: film grain, 360 dots, full frame, raised opacity ---
+  // ROUND 2: raised from 260 to 360 dots and lifted opacity, so the dark
+  // frame never compresses flat. Positions and opacity jump every frame via
+  // seededRandom + frame. Copy space gets grain only, nothing else.
+  const grain = Array.from({ length: 360 }, (_, i) => {
+    const gx = (seededRandom(i * 37 + 11) * width + seededRandom(i * 53 + frame * 7) * 260) % width;
+    const gy = (seededRandom(i * 41 + 13) * height + seededRandom(i * 59 + frame * 11) * 200) % height;
     const size = 2 + seededRandom(i * 43 + 17) * 5;
-    const o = 0.03 + Math.abs(Math.sin(frame * 0.23 + i * 2.3)) * 0.07;
+    const o = 0.06 + Math.abs(Math.sin(progress * twoPi * 6 + i * 2.3)) * 0.16 + seededRandom(i * 61 + frame * 3) * 0.08;
     const gold = seededRandom(i * 47 + 19) > 0.5;
     return { x: gx, y: gy, size, o, gold };
   });
 
-  // ---- 4. Wood grain: 48 lines ----
-  const woodLines = Array.from({ length: 48 }, (_, i) => {
-    const ly = baseY + height * 0.125 + seededRandom(i * 61 + 31) * height * 0.125;
-    const lx = (0.02 + seededRandom(i * 67 + 37) * 0.12) * width;
-    const lw = (0.5 + seededRandom(i * 71 + 41) * 0.46) * width;
-    const lo = 0.05 + seededRandom(i * 73 + 43) * 0.13 + Math.abs(Math.sin(frame * 0.05 + i)) * 0.04;
-    const warm = seededRandom(i * 79 + 47) > 0.5;
-    return { x: lx, y: ly, w: lw, o: lo, warm };
+  // --- EXTREME DETAIL LAYER 5a: embers, 116 total (58 from each lit flame) ---
+  // ROUND 2: raised from 64 to 116 embers, wider rise paths and drift.
+  const embers = Array.from({ length: 116 }, (_, i) => {
+    const fromShamash = i < 58;
+    const sourceX = fromShamash ? groupX : groupX + candleGap;
+    const offset = seededRandom(i * 11 + 2);
+    const cycle = (progress * (0.7 + seededRandom(i * 5 + 1) * 0.9) + offset) % 1;
+    const ex = sourceX + (seededRandom(i * 13 + 4) - 0.5) * width * 0.09 + Math.sin(progress * twoPi * 2 + i) * 30;
+    const ey = baseY - height * 0.34 - cycle * height * 0.36;
+    const size = 3 + seededRandom(i * 17 + 6) * 9;
+    const lit = fromShamash ? shamashOpacity : firstOpacity;
+    return { x: ex, y: ey, size, o: (1 - cycle) * lit * (0.4 + seededRandom(i * 19 + 8) * 0.5) };
   });
 
-  // ---- 4. Tablecloth check pattern: 12 horizontal + 58 vertical lines ----
-  const clothH = Array.from({ length: 12 }, (_, k) => {
-    return baseY + height * 0.125 + (k / 11) * height * 0.135;
-  });
-  const clothV = Array.from({ length: 58 }, (_, k) => {
-    return (k / 57) * width;
+  // --- EXTREME DETAIL LAYER 5a2 (ROUND 2): 32 floating dust motes in the candlelight ---
+  // Tiny pale-gold specks drifting slowly in the warm air above and around
+  // the flames, right side only, twinkling as they catch the light.
+  const dustMotes = Array.from({ length: 32 }, (_, i) => {
+    const s1 = seededRandom(i * 301 + 5);
+    const s2 = seededRandom(i * 307 + 11);
+    const s3 = seededRandom(i * 311 + 17);
+    const baseX = groupX + (s1 - 0.5) * width * 0.34;
+    const baseYd = baseY - height * (0.08 + s2 * 0.34);
+    const dx = Math.sin(progress * twoPi * (0.3 + s3 * 0.5) + i * 2.1) * 46;
+    const dy = Math.cos(progress * twoPi * (0.25 + s1 * 0.4) + i * 1.3) * 34 - progress * height * 0.03;
+    const tw = 0.5 + Math.sin(progress * twoPi * (2 + s2 * 4) + i * 3.7) * 0.5;
+    const size = 2 + s3 * 6;
+    return { x: baseX + dx, y: baseYd + dy, size, o: (0.1 + tw * 0.45) * (0.3 + glowStrength * 0.7) };
   });
 
-  // ---- 5. Rotating light ray fan: 14 rays behind the menorah ----
+  // --- EXTREME DETAIL LAYER 5b: match spark burst, 18 dots (as before) ---
+  const sparks = Array.from({ length: 18 }, (_, i) => {
+    const angle = seededRandom(i * 3 + 1) * twoPi;
+    const dist = seededRandom(i * 7 + 2) * 90 * sparkFlash;
+    const sx = groupX + Math.cos(angle) * dist;
+    const sy = baseY - height * 0.36 + Math.sin(angle) * dist;
+    const size = 3 + seededRandom(i * 5 + 3) * 8;
+    return { x: sx, y: sy, size, o: sparkFlash * (0.5 + seededRandom(i * 9 + 4) * 0.5) };
+  });
+
+  // --- EXTREME DETAIL LAYER 5c: match spark trail, 34 dots ---
+  // A glowing trail arcing from the match head toward the shamash wick,
+  // revealed progressively during the 3-5s strike, fading with sparkFlash.
+  const sparkTrail = Array.from({ length: 34 }, (_, i) => {
+    const t = i / 33;
+    const tx = groupX - 52 + t * 70 + Math.sin(t * 9 + progress * twoPi * 3) * 14;
+    const ty = baseY - height * 0.36 - 22 + t * 46 + Math.cos(t * 7 + i) * 10;
+    const reveal = interpolate(frame, [fps * (3 + t * 1.6), fps * (3.4 + t * 1.6)], [0, 1], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+    const size = 3 + seededRandom(i * 23 + 11) * 8;
+    return { x: tx, y: ty, size, o: sparkFlash * reveal * (0.4 + seededRandom(i * 29 + 7) * 0.6) };
+  });
+
+  // --- EXTREME DETAIL LAYER 5d: rotating light ray fan behind the menorah ---
+  // 14 rays fanning out from behind the flames, rotating very slowly
+  // (one full turn per ~100s, so ~54deg over the clip), very low opacity.
+  const rayCenterX = groupX;
+  const rayCenterY = baseY - height * 0.2;
+  const rayAngle = progress * 54;
   const rays = Array.from({ length: 14 }, (_, i) => {
-    const angle = -70 + (i / 13) * 140;
-    const rayO = 0.025 + seededRandom(i * 179 + 67) * 0.035;
-    const rayW = 34 + seededRandom(i * 181 + 71) * 60;
-    return { angle, rayO, rayW };
+    const a = (i / 14) * twoPi;
+    const len = height * (0.5 + seededRandom(i * 41 + 3) * 0.35);
+    const x2 = rayCenterX + Math.cos(a) * len;
+    const y2 = rayCenterY + Math.sin(a) * len;
+    return { x2, y2, w: 3 + seededRandom(i * 43 + 5) * 14, o: 0.03 + seededRandom(i * 47 + 9) * 0.07 };
   });
-  const rayRotation = progress * 90;
 
-  const fadeIn = 1 - interpolate(frame, [0, 24], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
+  // --- EXTREME DETAIL LAYER 6: fine gold texture lines on the menorah ---
+  // Extra thin strokes paralleling the main arc (top and bottom edges),
+  // small engraved ticks along the arms, and vertical grain lines on the stem.
+  const armTexture = Array.from({ length: 12 }, (_, i) => {
+    const t = (i + 0.5) / 12;
+    const x = groupX - candleGap * 4 + t * candleGap * 8;
+    const arcY = baseY + 4 * t * (1 - t) * height * 0.075;
+    return { x, y: arcY };
   });
-  const fadeOut = interpolate(frame, [durationInFrames - 30, durationInFrames], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const fadeOpacity = Math.max(fadeIn, fadeOut);
+  const stemLines = [-14, -8, -2, 4, 10];
 
-  const tableShimmer = 0.1 + Math.abs(Math.sin(progress * twoPi * 2)) * 0.08;
+  const shamashX = groupX;
+  const firstX = groupX + candleGap;
+  const shamashTop = baseY - height * 0.33;
+  const firstTop = baseY - height * 0.27;
+  // Stronger three-frequency flame flicker so the flames never sit still.
+  const shamashFlicker = Math.sin(progress * twoPi * 7) * 0.6 + Math.sin(progress * twoPi * 13 + 1.1) * 0.4 + Math.sin(progress * twoPi * 23 + 0.5) * 0.35;
+  const firstFlicker = Math.sin(progress * twoPi * 7 + 1.4) * 0.6 + Math.sin(progress * twoPi * 11 + 2.2) * 0.4 + Math.sin(progress * twoPi * 19 + 2.8) * 0.35;
+  // Pulsing halos: each flame gets two halo rings pulsing at different rates.
+  const shamashHalo1 = 0.55 + Math.sin(progress * twoPi * 5) * 0.3;
+  const shamashHalo2 = 0.55 + Math.sin(progress * twoPi * 9 + 1.2) * 0.3;
+  const firstHalo1 = 0.55 + Math.sin(progress * twoPi * 5 + 0.9) * 0.3;
+  const firstHalo2 = 0.55 + Math.sin(progress * twoPi * 8 + 2.1) * 0.3;
+  // ROUND 2: third pulsing halo per flame, slower and wider than the first two.
+  const shamashHalo3 = 0.6 + Math.sin(progress * twoPi * 3 + 2.4) * 0.35;
+  const firstHalo3 = 0.6 + Math.sin(progress * twoPi * 3 + 0.7) * 0.35;
+  // Table reflection grows as the flames grow, with a shimmering band.
+  const reflectionOpacity = glowStrength * 0.5;
+  const shimmerX = Math.sin(progress * twoPi * 1.4) * width * 0.06;
+  // ROUND 2: second shimmering reflection band, drifting the opposite way.
+  const shimmerX2 = Math.sin(progress * twoPi * 1.1 + 2.0) * width * 0.05;
+  // ROUND 2: large warm radial glow behind the menorah, breathing and drifting.
+  const bigGlowX = groupX - width * 0.32 + Math.sin(progress * twoPi * 0.7) * 140;
+  const bigGlowY = baseY - height * 0.3 + Math.cos(progress * twoPi * 0.9) * 90;
+  const bigGlowScale = 0.9 + Math.sin(progress * twoPi * 2) * 0.12 + glowStrength * 0.25;
+  // ROUND 2: deep-blue animated gradient wash sweeping across the right side.
+  const blueWashX = width * 0.42 + Math.sin(progress * twoPi * 0.55) * width * 0.2;
+  // ROUND 2: faint gold wall pattern (Star of David + concentric circles)
+  // slowly rotating behind the menorah, very low opacity.
+  const wallPatternAngle = progress * 36;
+  const wallPatternR = height * 0.34;
+  const wallPatternX = groupX;
+  const wallPatternY = baseY - height * 0.2;
 
   return (
-    <div style={{ width, height, position: "relative", overflow: "hidden", background: `linear-gradient(${gradientAngle}deg, #03051a, #0a1a4e, #123a8f, #0d2a6e, #03051a)` }}>
-      <div style={{ width, height, position: "relative", transform: `scale(${cameraScale})`, transformOrigin: "68% 62%" }}>
-      <div style={{ position: "absolute", left: centerX - width * 0.32 + Math.sin(progress * twoPi) * 60, top: height * 0.3 + Math.cos(progress * twoPi) * 40, width: width * 0.55, height: height * 0.55, borderRadius: "50%", background: `radial-gradient(circle, rgba(255, 190, 60, ${0.12 + litCount * 0.04 + washBreath * 0.03}), transparent 65%)` }} />
-      <div style={{ position: "absolute", left: width * 0.1 + Math.sin(frame * 0.02) * 120, top: height * 0.05 + Math.cos(frame * 0.017) * 60, width: width * 0.7, height: height * 0.7, borderRadius: "50%", background: `radial-gradient(circle, rgba(70, 120, 255, ${0.08 + washBreath2 * 0.025}), transparent 65%)` }} />
-
-      {/* Curtain folds, right side only */}
-      {curtain.map((stripe, i) => {
-        const dist = Math.abs(stripe.x - washCenter) / (width * 0.25);
-        const washBoost = Math.max(0, 1 - dist) * 0.28;
-        const foldO = 0.16 + stripe.fold * 0.22 + Math.sin(frame * 0.03 + stripe.phase) * 0.06 + washBoost;
-        const light = i % 2 === 0;
-        return (
-          <div key={i} style={{ position: "absolute", left: stripe.x, top: 0, width: stripe.w, height: height * 0.88, background: light ? `linear-gradient(180deg, rgba(38, 62, 140, ${foldO}), rgba(6, 12, 44, ${foldO * 0.8}))` : `linear-gradient(180deg, rgba(8, 16, 54, ${foldO}), rgba(3, 6, 24, ${foldO * 0.8}))`, opacity: 0.85 }} />
-        );
-      })}
-      {/* Slow moving light wash across the curtain */}
-      <div style={{ position: "absolute", left: washCenter - width * 0.14, top: 0, width: width * 0.28, height: height * 0.88, background: `linear-gradient(90deg, transparent, rgba(255, 214, 120, ${0.1 + washBreath * 0.03}), transparent)` }} />
-
-      {/* Twinkling stars, upper right only */}
-      {stars.map((star, i) => {
-        const tw = 0.15 + 0.55 * Math.abs(Math.sin(progress * twoPi * star.cycles + star.phase));
-        return (
-          <div key={i} style={{ position: "absolute", left: star.sx, top: star.sy, width: star.size, height: star.size, borderRadius: "50%", backgroundColor: star.gold ? "#ffd166" : "#ffffff", opacity: tw, filter: `drop-shadow(0 0 ${star.size * 2}px ${star.gold ? "#ffb703" : "#aaccff"})` }} />
-        );
-      })}
-
-      {/* Bokeh orbs, right side only, drifting and twinkling */}
-      {bokeh.map((orb, i) => {
-        const dx = Math.sin(progress * twoPi + orb.phase) * 26;
-        const dy = Math.cos(progress * twoPi * 2 + orb.phase) * 16;
-        const tw = 0.65 + 0.35 * Math.sin(progress * twoPi * orb.cycles + orb.phase);
-        const o = orb.baseO * tw;
-        return (
-          <div key={i} style={{ position: "absolute", left: orb.bx + dx - orb.radius, top: orb.by + dy - orb.radius, width: orb.radius * 2, height: orb.radius * 2, borderRadius: "50%", background: orb.gold ? `radial-gradient(circle, rgba(255, 205, 90, ${o}) 0%, rgba(255, 160, 40, ${o * 0.45}) 45%, transparent 72%)` : `radial-gradient(circle, rgba(140, 180, 255, ${o}) 0%, rgba(70, 110, 255, ${o * 0.45}) 45%, transparent 72%)`, opacity: 1 }} />
-        );
-      })}
-
-      {/* Rotating light ray fan behind the menorah */}
-      {rays.map((ray, i) => (
-        <div key={i} style={{ position: "absolute", left: centerX - ray.rayW / 2, top: baseY - height * 0.58, width: ray.rayW, height: height * 0.62, background: `linear-gradient(180deg, rgba(255, 205, 100, ${ray.rayO + litCount * 0.004}), transparent 85%)`, opacity: 0.9, transform: `rotate(${ray.angle + rayRotation}deg)`, transformOrigin: "50% 100%" }} />
-      ))}
-
-      {/* Table surface */}
-      <div style={{ position: "absolute", left: 0, top: baseY + height * 0.12, width, height: height * 0.14, background: "linear-gradient(180deg, #2a1a08, #17100a)" }} />
-      {/* Tablecloth check pattern */}
-      {clothH.map((y, k) => (
-        <div key={k} style={{ position: "absolute", left: 0, top: y, width, height: 2, backgroundColor: "#c9a35a", opacity: 0.1 + Math.abs(Math.sin(frame * 0.04 + k)) * 0.05 }} />
-      ))}
-      {clothV.map((x, k) => (
-        <div key={k} style={{ position: "absolute", left: x, top: baseY + height * 0.12, width: 2, height: height * 0.14, backgroundColor: "#c9a35a", opacity: 0.09 + Math.abs(Math.sin(frame * 0.04 + k * 1.3)) * 0.05 }} />
-      ))}
-      {/* Tablecloth diamond dots at check intersections, right side */}
-      {Array.from({ length: 40 }, (_, i) => {
-        const dx = (0.46 + seededRandom(i * 191 + 73) * 0.5) * width;
-        const dy = baseY + height * 0.13 + seededRandom(i * 193 + 79) * height * 0.12;
-        const ds = 4 + seededRandom(i * 197 + 83) * 6;
-        const dO = 0.1 + Math.abs(Math.sin(frame * 0.06 + i * 1.9)) * 0.12;
-        return (
-          <div key={i} style={{ position: "absolute", left: dx, top: dy, width: ds, height: ds, backgroundColor: "#ffd166", opacity: dO, transform: "rotate(45deg)" }} />
-        );
-      })}
-      <div style={{ position: "absolute", left: centerX - width * 0.28, top: baseY + height * 0.12, width: width * 0.56, height: height * 0.02, background: `linear-gradient(90deg, transparent, rgba(255, 190, 60, ${tableShimmer + litCount * 0.03}), transparent)` }} />
-      {woodLines.map((line, i) => (
-        <div key={i} style={{ position: "absolute", left: line.x, top: line.y, width: line.w, height: 2 + seededRandom(i * 83 + 53) * 2, backgroundColor: line.warm ? "#ffca7a" : "#6b4a1f", opacity: line.o, borderRadius: 2 }} />
-      ))}
-      {/* Shimmering gold reflection under each candle, grows as it lights */}
-      {candles.map((candle, i) => {
-        const cx = centerX + candle.frac * width;
-        const lit = litFor(i);
-        const reflO = lit * (0.22 + 0.12 * Math.abs(Math.sin(frame * 0.1 + i * 2.2)));
-        return (
-          <div key={i} style={{ position: "absolute", left: cx - 46, top: baseY + height * 0.125, width: 92, height: height * 0.1 * (0.4 + lit * 0.6), background: `linear-gradient(180deg, rgba(255, 190, 60, ${reflO}), rgba(255, 140, 20, ${reflO * 0.4}) 55%, transparent)`, opacity: 1 }} />
-        );
-      })}
-      <div style={{ position: "absolute", left: centerX - width * 0.16, top: baseY + height * 0.02, width: width * 0.32, height: height * 0.12, borderRadius: "50%", background: `radial-gradient(ellipse, rgba(255, 170, 40, ${0.1 + litCount * 0.03}), transparent 70%)` }} />
-
-      {/* Menorah */}
+    <div style={{ width, height, position: "relative", overflow: "hidden", opacity: overallOpacity, background: `linear-gradient(${gradientAngle}deg, #04061f, #0a1748, #122a6e, #3a1e5e, #04061f)` }}>
+      <div style={{ width, height, position: "absolute", left: 0, top: 0, transform: `scale(${cameraScale})`, transformOrigin: `${groupX}px ${baseY}px` }}>
+      <div style={{ position: "absolute", left: groupX - width * 0.42 + Math.sin(progress * twoPi) * 120, top: height * 0.1 + Math.cos(progress * twoPi) * 80, width: width * 0.6, height: height * 0.6, borderRadius: "50%", background: "radial-gradient(circle, rgba(70, 120, 255, 0.22), transparent 65%)" }} />
+      <div style={{ position: "absolute", left: groupX - width * 0.3, top: baseY - height * 0.42, width: width * 0.6, height: height * 0.6, borderRadius: "50%", background: `radial-gradient(circle, rgba(255, 190, 60, ${0.1 + glowStrength * 0.4 * glowPulse}), transparent 62%)`, opacity: glowStrength * glowPulse }} />
+      <div style={{ position: "absolute", left: groupX - width * 0.22 + Math.sin(progress * twoPi * 2) * 60, top: baseY - height * 0.5 + Math.cos(progress * twoPi * 2) * 40, width: width * 0.44, height: height * 0.5, borderRadius: "50%", background: `radial-gradient(circle, rgba(255, 170, 40, ${0.08 + glowStrength * 0.22 * glowPulse}), transparent 65%)` }} />
+      {/* ROUND 2: large warm radial glow behind the menorah, breathing and drifting */}
+      <div style={{ position: "absolute", left: bigGlowX - (width * 0.36 * bigGlowScale) / 2, top: bigGlowY - (height * 0.64 * bigGlowScale) / 2, width: width * 0.36 * bigGlowScale, height: height * 0.64 * bigGlowScale, borderRadius: "50%", background: `radial-gradient(circle, rgba(255, 180, 70, ${0.06 + glowStrength * 0.26 * glowPulse}), rgba(255, 120, 40, ${0.03 + glowStrength * 0.1}), transparent 68%)` }} />
+      {/* ROUND 2: deep-blue animated gradient wash sweeping across the right side */}
+      <div style={{ position: "absolute", left: blueWashX - width * 0.14, top: 0, width: width * 0.28, height, background: "linear-gradient(100deg, transparent, rgba(60, 110, 255, 0.12), rgba(120, 80, 220, 0.1), transparent)", opacity: 0.55 + Math.sin(progress * twoPi * 1.6) * 0.2 }} />
+      {/* Curtain folds: 46 vertical gradient stripes, right 60% only */}
       <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-        <path d={`M ${centerX - width * 0.2} ${baseY} Q ${centerX} ${baseY + height * 0.16} ${centerX + width * 0.2} ${baseY}`} stroke="#e8b64c" strokeWidth={30} fill="none" strokeLinecap="round" />
-        <path d={`M ${centerX} ${baseY + height * 0.02} L ${centerX} ${baseY + height * 0.1}`} stroke="#e8b64c" strokeWidth={30} strokeLinecap="round" />
-        <rect x={centerX - width * 0.11} y={baseY + height * 0.1} width={width * 0.22} height={height * 0.025} rx={height * 0.012} fill="#d4a017" />
+        {folds.map((fold, i) => (
+          <rect key={i} x={fold.x} y={0} width={foldWidth + 2} height={height} fill={fold.warm ? "#3a1e5e" : "#0a1748"} fillOpacity={fold.o} />
+        ))}
       </svg>
-      {candles.map((candle, i) => {
-        const cx = centerX + candle.frac * width;
-        const candleHeight = candle.h * height;
-        const candleTop = baseY - candleHeight;
-        const lit = litFor(i);
-        const flicker = Math.sin(frame * 0.42 + i * 1.7) * 0.85 + Math.sin(frame * 1.13 + i * 2.9) * 0.5;
-        const flameScale = lit * (1 + flicker * 0.22);
-        const flameOpacity = lit * (0.8 + flicker * 0.18);
-        const glow = 40 + flicker * 26 + litCount * 2;
-        const haloOpacity = lit * (0.4 + flicker * 0.22 + litCount * 0.02);
-        const slowPulse = 0.5 + 0.5 * Math.sin(progress * twoPi * 2 + i * 1.3);
-        return (
-          <div key={i}>
-            <div style={{ position: "absolute", left: cx - width * 0.012, top: candleTop, width: width * 0.024, height: candleHeight, background: candle.shamash ? "linear-gradient(180deg, #fff7d6, #f5d76e)" : "linear-gradient(180deg, #ffffff, #dbeafe)", borderRadius: width * 0.012 }} />
-            <div style={{ position: "absolute", left: cx - 2, top: candleTop - 26, width: 4, height: 26, backgroundColor: "#3a2a12" }} />
-            {/* Wide slow-pulsing halo behind every flame */}
-            <div style={{ position: "absolute", left: cx - (150 + slowPulse * 50) * flameScale, top: candleTop - (260 + slowPulse * 40) * flameScale, width: (300 + slowPulse * 100) * flameScale, height: (260 + slowPulse * 80) * flameScale, borderRadius: "50%", background: "radial-gradient(circle, rgba(255, 190, 60, 0.3) 0%, rgba(255, 120, 0, 0.12) 55%, transparent 75%)", opacity: lit * (0.25 + slowPulse * 0.3) }} />
-            <div style={{ position: "absolute", left: cx - (70 + flicker * 14) * flameScale, top: candleTop - (150 + flicker * 12) * flameScale, width: (140 + flicker * 28) * flameScale, height: (130 + flicker * 24) * flameScale, borderRadius: "50%", background: "radial-gradient(circle, rgba(255, 180, 40, 0.55) 0%, rgba(255, 120, 0, 0.22) 55%, transparent 75%)", opacity: haloOpacity, transform: `rotate(${flicker * 7}deg)` }} />
-            <div style={{ position: "absolute", left: cx - 38 * flameScale, top: candleTop - 158 * flameScale, width: 76 * flameScale, height: 138 * flameScale, borderRadius: "50% 50% 50% 50% / 62% 62% 38% 38%", background: "radial-gradient(circle at 50% 72%, #fffbe6 0%, #ffd166 38%, #ff9d00 68%, #ff5e00 100%)", opacity: flameOpacity, filter: `drop-shadow(0 0 ${glow}px #ffb703)`, transform: `rotate(${flicker * 7}deg)` }} />
-            <div style={{ position: "absolute", left: cx - 15, top: candleTop - 100, width: 30, height: 62, borderRadius: "50%", backgroundColor: "#fffbe6", opacity: flameOpacity * 0.85 }} />
-          </div>
-        );
-      })}
-      {embers.map((ember, i) => (
-        <div key={i} style={{ position: "absolute", left: ember.x, top: ember.y, width: ember.size, height: ember.size, borderRadius: "50%", backgroundColor: "#ffca3a", opacity: ember.o, filter: "drop-shadow(0 0 10px #ffb703)" }} />
+      {/* Slow warm light wash sweeping across the curtain folds */}
+      <div style={{ position: "absolute", left: washX - width * 0.12, top: 0, width: width * 0.24, height, background: "linear-gradient(90deg, transparent, rgba(255, 190, 80, 0.14), transparent)", opacity: 0.4 + glowStrength * 0.6 }} />
+      {/* Rotating light ray fan behind the menorah, very low opacity */}
+      <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        <g transform={`rotate(${rayAngle} ${rayCenterX} ${rayCenterY})`}>
+          {rays.map((ray, i) => (
+            <line key={i} x1={rayCenterX} y1={rayCenterY} x2={ray.x2} y2={ray.y2} stroke="#ffd166" strokeWidth={ray.w} strokeOpacity={ray.o * (0.4 + glowStrength * 0.6)} strokeLinecap="round" />
+          ))}
+        </g>
+      </svg>
+      {/* ROUND 2: faint gold wall pattern — Star of David + concentric circles,
+          slowly rotating behind the menorah, very low opacity */}
+      <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        <g transform={`rotate(${wallPatternAngle} ${wallPatternX} ${wallPatternY})`} opacity={0.05 + glowStrength * 0.07}>
+          <polygon points={`${wallPatternX},${wallPatternY - wallPatternR} ${wallPatternX + wallPatternR * 0.866},${wallPatternY + wallPatternR * 0.5} ${wallPatternX - wallPatternR * 0.866},${wallPatternY + wallPatternR * 0.5}`} fill="none" stroke="#ffd166" strokeWidth={6} />
+          <polygon points={`${wallPatternX},${wallPatternY + wallPatternR} ${wallPatternX + wallPatternR * 0.866},${wallPatternY - wallPatternR * 0.5} ${wallPatternX - wallPatternR * 0.866},${wallPatternY - wallPatternR * 0.5}`} fill="none" stroke="#ffd166" strokeWidth={6} />
+          <circle cx={wallPatternX} cy={wallPatternY} r={wallPatternR * 0.55} fill="none" stroke="#ffd166" strokeWidth={4} />
+          <circle cx={wallPatternX} cy={wallPatternY} r={wallPatternR * 0.75} fill="none" stroke="#ffd166" strokeWidth={3} />
+          <circle cx={wallPatternX} cy={wallPatternY} r={wallPatternR} fill="none" stroke="#ffe9a8" strokeWidth={3} />
+        </g>
+      </svg>
+      {/* 116 drifting, twinkling bokeh orbs behind the menorah */}
+      {bokeh.map((orb, i) => (
+        <div key={i} style={{ position: "absolute", left: orb.x - orb.size / 2, top: orb.y - orb.size / 2, width: orb.size, height: orb.size, borderRadius: "50%", background: orb.gold ? "radial-gradient(circle, rgba(255, 210, 110, 0.85), rgba(255, 170, 40, 0.25) 55%, transparent 72%)" : "radial-gradient(circle, rgba(140, 190, 255, 0.85), rgba(70, 120, 255, 0.25) 55%, transparent 72%)", opacity: orb.o, filter: `blur(${orb.blur}px)` }} />
       ))}
-      {/* Film grain over everything, full frame, low opacity */}
+      {/* 132 twinkling stars, upper right only */}
+      <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        {stars.map((star, i) => (
+          <circle key={i} cx={star.x} cy={star.y} r={star.size} fill={star.gold ? "#ffd166" : "#cfe4ff"} fillOpacity={star.o} />
+        ))}
+      </svg>
       <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         {grain.map((dot, i) => (
           <circle key={i} cx={dot.x} cy={dot.y} r={dot.size} fill={dot.gold ? "#ffd166" : "#aaccff"} fillOpacity={dot.o} />
         ))}
       </svg>
+      <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        <path d={`M ${groupX - candleGap * 4} ${baseY} Q ${groupX} ${baseY + height * 0.15} ${groupX + candleGap * 4} ${baseY}`} stroke="#e8b64c" strokeWidth={28} fill="none" strokeLinecap="round" />
+        <path d={`M ${groupX - candleGap * 4} ${baseY - 14} Q ${groupX} ${baseY + height * 0.15 - 14} ${groupX + candleGap * 4} ${baseY - 14}`} stroke="#f7d774" strokeWidth={3} fill="none" opacity={0.55} />
+        <path d={`M ${groupX - candleGap * 4} ${baseY + 14} Q ${groupX} ${baseY + height * 0.15 + 14} ${groupX + candleGap * 4} ${baseY + 14}`} stroke="#a67c00" strokeWidth={3} fill="none" opacity={0.5} />
+        {/* Fine gold texture lines paralleling the arc */}
+        <path d={`M ${groupX - candleGap * 4} ${baseY - 7} Q ${groupX} ${baseY + height * 0.15 - 7} ${groupX + candleGap * 4} ${baseY - 7}`} stroke="#ffe9a8" strokeWidth={1.5} fill="none" opacity={0.5} />
+        <path d={`M ${groupX - candleGap * 4} ${baseY + 7} Q ${groupX} ${baseY + height * 0.15 + 7} ${groupX + candleGap * 4} ${baseY + 7}`} stroke="#8a5f00" strokeWidth={1.5} fill="none" opacity={0.5} />
+        <path d={`M ${groupX - candleGap * 4} ${baseY - 21} Q ${groupX} ${baseY + height * 0.15 - 21} ${groupX + candleGap * 4} ${baseY - 21}`} stroke="#f7d774" strokeWidth={1.5} fill="none" opacity={0.35} />
+        <path d={`M ${groupX - candleGap * 4} ${baseY + 21} Q ${groupX} ${baseY + height * 0.15 + 21} ${groupX + candleGap * 4} ${baseY + 21}`} stroke="#a67c00" strokeWidth={1.5} fill="none" opacity={0.35} />
+        {/* Engraved ticks along the arms */}
+        {armTexture.map((tick, i) => (
+          <line key={i} x1={tick.x} y1={tick.y - 12} x2={tick.x} y2={tick.y + 12} stroke="#ffe9a8" strokeWidth={1.5} strokeOpacity={0.45} />
+        ))}
+        <path d={`M ${groupX - 9} ${baseY + height * 0.02} L ${groupX - 9} ${baseY + height * 0.09}`} stroke="#f7d774" strokeWidth={3} opacity={0.55} />
+        <path d={`M ${groupX + 9} ${baseY + height * 0.02} L ${groupX + 9} ${baseY + height * 0.09}`} stroke="#a67c00" strokeWidth={3} opacity={0.5} />
+        {/* Vertical grain lines on the stem */}
+        {stemLines.map((dx, i) => (
+          <line key={i} x1={groupX + dx} y1={baseY + height * 0.02} x2={groupX + dx} y2={baseY + height * 0.09} stroke="#ffe9a8" strokeWidth={1.5} strokeOpacity={0.4} />
+        ))}
+        <path d={`M ${groupX} ${baseY + height * 0.02} L ${groupX} ${baseY + height * 0.09}`} stroke="#e8b64c" strokeWidth={28} strokeLinecap="round" />
+        <rect x={groupX - width * 0.19} y={baseY + height * 0.09} width={width * 0.38} height={height * 0.024} rx={height * 0.012} fill="#d4a017" />
+        {/* Fine gold lines across the base bar */}
+        <line x1={groupX - width * 0.19} y1={baseY + height * 0.098} x2={groupX + width * 0.19} y2={baseY + height * 0.098} stroke="#ffe9a8" strokeWidth={1.5} strokeOpacity={0.5} />
+        <line x1={groupX - width * 0.19} y1={baseY + height * 0.106} x2={groupX + width * 0.19} y2={baseY + height * 0.106} stroke="#8a5f00" strokeWidth={1.5} strokeOpacity={0.5} />
+      </svg>
+      {candles.map((candle, i) => {
+        const cx = groupX + candle.frac * candleGap;
+        const candleHeight = candle.h * height;
+        const candleTop = baseY - candleHeight;
+        return (
+          <div key={i}>
+            <div style={{ position: "absolute", left: cx - width * 0.011, top: candleTop, width: width * 0.022, height: candleHeight, background: candle.shamash ? "linear-gradient(180deg, #fff7d6, #f5d76e)" : "linear-gradient(180deg, #fdfdfd, #dbeafe)", borderRadius: width * 0.011 }} />
+            <div style={{ position: "absolute", left: cx - width * 0.007, top: candleTop, width: width * 0.004, height: candleHeight, backgroundColor: "rgba(255, 255, 255, 0.65)", borderRadius: width * 0.002 }} />
+            <div style={{ position: "absolute", left: cx + width * 0.007, top: candleTop, width: width * 0.003, height: candleHeight, backgroundColor: "rgba(120, 110, 160, 0.35)", borderRadius: width * 0.0015 }} />
+            <div style={{ position: "absolute", left: cx - 2, top: candleTop - 24, width: 4, height: 24, backgroundColor: "#3a2a12" }} />
+          </div>
+        );
+      })}
+      {/* Pulsing halos behind each flame, two rates each */}
+      <div style={{ position: "absolute", left: shamashX - 200 * shamashHalo1, top: shamashTop - 200 * shamashHalo1, width: 400 * shamashHalo1, height: 400 * shamashHalo1, borderRadius: "50%", background: "radial-gradient(circle, rgba(255, 200, 80, 0.28), transparent 65%)", opacity: shamashOpacity * shamashHalo1 * 0.8 }} />
+      <div style={{ position: "absolute", left: shamashX - 130 * shamashHalo2, top: shamashTop - 130 * shamashHalo2, width: 260 * shamashHalo2, height: 260 * shamashHalo2, borderRadius: "50%", background: "radial-gradient(circle, rgba(255, 240, 180, 0.3), transparent 60%)", opacity: shamashOpacity * shamashHalo2 * 0.7 }} />
+      <div style={{ position: "absolute", left: firstX - 180 * firstHalo1, top: firstTop - 180 * firstHalo1, width: 360 * firstHalo1, height: 360 * firstHalo1, borderRadius: "50%", background: "radial-gradient(circle, rgba(255, 200, 80, 0.28), transparent 65%)", opacity: firstOpacity * firstHalo1 * 0.8 }} />
+      <div style={{ position: "absolute", left: firstX - 120 * firstHalo2, top: firstTop - 120 * firstHalo2, width: 240 * firstHalo2, height: 240 * firstHalo2, borderRadius: "50%", background: "radial-gradient(circle, rgba(255, 240, 180, 0.3), transparent 60%)", opacity: firstOpacity * firstHalo2 * 0.7 }} />
+      {/* ROUND 2: third pulsing halo per flame, slower and wider */}
+      <div style={{ position: "absolute", left: shamashX - 280 * shamashHalo3, top: shamashTop - 280 * shamashHalo3, width: 560 * shamashHalo3, height: 560 * shamashHalo3, borderRadius: "50%", background: "radial-gradient(circle, rgba(255, 170, 50, 0.16), transparent 68%)", opacity: shamashOpacity * shamashHalo3 * 0.6 }} />
+      <div style={{ position: "absolute", left: firstX - 250 * firstHalo3, top: firstTop - 250 * firstHalo3, width: 500 * firstHalo3, height: 500 * firstHalo3, borderRadius: "50%", background: "radial-gradient(circle, rgba(255, 170, 50, 0.16), transparent 68%)", opacity: firstOpacity * firstHalo3 * 0.6 }} />
+      <div style={{ position: "absolute", left: shamashX - 70 * shamashScale, top: shamashTop - 150 * shamashScale, width: 140 * shamashScale, height: 132 * shamashScale, borderRadius: "50% 50% 50% 50% / 62% 62% 38% 38%", background: "radial-gradient(circle at 50% 72%, #fffbe6 0%, #ffd166 38%, #ff9d00 68%, #ff5e00 100%)", opacity: shamashOpacity * (0.82 + shamashFlicker * 0.18), filter: `drop-shadow(0 0 ${30 + shamashFlicker * 16}px #ffb703)`, transform: `rotate(${leanAngle + shamashFlicker * 6}deg)` }} />
+      <div style={{ position: "absolute", left: shamashX - 26, top: shamashTop - 96, width: 52, height: 58, borderRadius: "50%", backgroundColor: "#fffbe6", opacity: shamashOpacity * 0.8 }} />
+      <div style={{ position: "absolute", left: firstX - 62 * firstScale, top: firstTop - 138 * firstScale, width: 124 * firstScale, height: 120 * firstScale, borderRadius: "50% 50% 50% 50% / 62% 62% 38% 38%", background: "radial-gradient(circle at 50% 72%, #fffbe6 0%, #ffd166 38%, #ff9d00 68%, #ff5e00 100%)", opacity: firstOpacity * (0.82 + firstFlicker * 0.18), filter: `drop-shadow(0 0 ${28 + firstFlicker * 16}px #ffb703)`, transform: `rotate(${firstFlicker * 6}deg)` }} />
+      <div style={{ position: "absolute", left: firstX - 22, top: firstTop - 88, width: 44, height: 52, borderRadius: "50%", backgroundColor: "#fffbe6", opacity: firstOpacity * 0.8 }} />
+      <div style={{ position: "absolute", left: shamashX - 24, top: shamashTop - 34, width: 230, height: 26, backgroundColor: "#8b5a2b", borderRadius: 13, opacity: matchOpacity, transform: "rotate(-32deg)", transformOrigin: "0px 13px" }} />
+      <div style={{ position: "absolute", left: shamashX - 52, top: shamashTop - 58, width: 42, height: 42, borderRadius: "50%", background: "radial-gradient(circle, #fff3b0 0%, #ff8c00 60%, #ff5e00 100%)", opacity: matchOpacity, filter: `drop-shadow(0 0 ${30 + sparkFlash * 50}px #ffb703)` }} />
+      {sparks.map((spark, i) => (
+        <div key={i} style={{ position: "absolute", left: spark.x, top: spark.y, width: spark.size, height: spark.size, borderRadius: "50%", backgroundColor: "#ffca3a", opacity: spark.o, filter: "drop-shadow(0 0 10px #ffb703)" }} />
+      ))}
+      {sparkTrail.map((dot, i) => (
+        <div key={i} style={{ position: "absolute", left: dot.x, top: dot.y, width: dot.size, height: dot.size, borderRadius: "50%", backgroundColor: "#ffe27a", opacity: dot.o, filter: "drop-shadow(0 0 10px #ffb703)" }} />
+      ))}
+      {embers.map((ember, i) => (
+        <div key={i} style={{ position: "absolute", left: ember.x, top: ember.y, width: ember.size, height: ember.size, borderRadius: "50%", backgroundColor: "#ffca3a", opacity: ember.o, filter: "drop-shadow(0 0 10px #ffb703)" }} />
+      ))}
+      {/* ROUND 2: floating dust motes in the candlelight */}
+      {dustMotes.map((mote, i) => (
+        <div key={i} style={{ position: "absolute", left: mote.x, top: mote.y, width: mote.size, height: mote.size, borderRadius: "50%", backgroundColor: "#ffe9a8", opacity: mote.o, filter: "drop-shadow(0 0 8px #ffca3a)" }} />
+      ))}
+      {/* Shimmering table reflection, grows with the flames */}
+      <div style={{ position: "absolute", left: groupX - width * 0.19, top: baseY + height * 0.115, width: width * 0.38, height: height * 0.09, background: "linear-gradient(180deg, rgba(255, 190, 60, 0.55), rgba(255, 150, 30, 0.12) 60%, transparent)", opacity: reflectionOpacity }} />
+      <div style={{ position: "absolute", left: groupX - width * 0.19 + shimmerX, top: baseY + height * 0.115, width: width * 0.1, height: height * 0.09, background: "linear-gradient(180deg, rgba(255, 240, 190, 0.5), transparent)", opacity: reflectionOpacity * 0.8 }} />
+      {/* ROUND 2: second shimmering reflection band, drifting the opposite way */}
+      <div style={{ position: "absolute", left: groupX - width * 0.19 + shimmerX2 + width * 0.14, top: baseY + height * 0.115, width: width * 0.08, height: height * 0.09, background: "linear-gradient(180deg, rgba(255, 200, 100, 0.45), transparent)", opacity: reflectionOpacity * 0.65 }} />
+      <div style={{ position: "absolute", left: 0, top: 0, width, height, background: `radial-gradient(circle at 63% 62%, rgba(255, 190, 60, ${warmWash * warmBreath}), transparent 70%)`, opacity: warmWash > 0 ? 1 : 0 }} />
+      <div style={{ position: "absolute", left: 0, top: 0, width, height, backgroundColor: "#02031a", opacity: darkOverlay }} />
       </div>
-      <div style={{ position: "absolute", left: 0, top: 0, width, height, backgroundColor: "#000000", opacity: fadeOpacity }} />
-      <div style={{ position: "absolute", left: 0, top: 0, width, height, background: `radial-gradient(circle at 68% 62%, rgba(255, 190, 60, ${0.1 + litCount * 0.025 + washBreath * 0.03}), transparent 60%)` }} />
     </div>
   );
 };
