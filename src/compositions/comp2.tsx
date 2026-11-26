@@ -10,6 +10,8 @@ export const DreidelLandsOnGimel: React.FC = () => {
   const frame = useCurrentFrame();
   const { width, height, fps, durationInFrames } = useVideoConfig();
   const t = frame / fps;
+  const progress = frame / durationInFrames;
+  const camScale = 1 + progress * 0.05;
   const twoPi = Math.PI * 2;
 
   // --- Timeline: 0-7s fast spin, 7-11s slowing, 11-13s wobble, 13-15s landed ---
@@ -71,6 +73,11 @@ export const DreidelLandsOnGimel: React.FC = () => {
   const dreidelH = dreidelW * 1.3;
   const glowPulse = 0.5 + Math.sin(t * twoPi * 0.25) * 0.12;
 
+  const sweepX = interpolate(progress, [0, 1], [-width * 0.45, width * 1.15], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
   const coins = Array.from({ length: 10 }, (_, i) => {
     const ang = seededRandom(i * 7 + 1) * twoPi;
     const dist = (0.16 + seededRandom(i * 11 + 3) * 0.2) * width;
@@ -82,35 +89,47 @@ export const DreidelLandsOnGimel: React.FC = () => {
       x: baseX + Math.cos(ang) * push,
       y: baseY + Math.sin(ang) * push * 0.4,
       size,
-      glint: 0.35 + Math.abs(Math.sin(t * 1.4 + i * 1.3)) * 0.5 + landGlint * 0.25,
+      glint: 0.4 + Math.abs(Math.sin(t * 2.0 + i * 1.3)) * 0.6 + landGlint * 0.3,
     };
   });
 
-  const motes = Array.from({ length: 24 }, (_, i) => {
+  // Dust motes stay in the table/spotlight area so the top copy space stays clean.
+  const motes = Array.from({ length: 48 }, (_, i) => {
     const mx = centerX + (seededRandom(i * 3 + 1) - 0.5) * width * 0.5;
-    const my = height * 0.12 + seededRandom(i * 5 + 2) * height * 0.5;
-    const drift = Math.sin(t * 0.5 + i * 1.7) * 26;
+    const my = horizonY + height * 0.02 + seededRandom(i * 5 + 2) * height * 0.5;
+    const drift = Math.sin(t * 0.5 + i * 1.7) * 26 + Math.cos(t * 0.35 + i * 0.9) * 14;
     const fall = ((t * (4 + seededRandom(i * 7 + 4) * 8) + seededRandom(i * 9 + 6) * 200) % 220);
     return { x: mx + drift, y: my + fall, size: 3 + seededRandom(i * 11 + 8) * 7, o: 0.12 + Math.abs(Math.sin(t + i)) * 0.3 };
   });
 
-  const grain = Array.from({ length: 90 }, (_, i) => {
-    const gx = seededRandom(i * 37 + 11) * width;
-    const gy = seededRandom(i * 41 + 13) * height;
-    const size = 2 + seededRandom(i * 43 + 17) * 5;
-    const o = 0.08 + Math.abs(Math.sin(t * 2 + i * 2.3)) * 0.22;
+  // Full-frame film grain: positions, sizes and opacities re-seeded every frame.
+  const grain = Array.from({ length: 160 }, (_, i) => {
+    const gx = seededRandom(i * 37 + 11 + frame * 1.3) * width;
+    const gy = seededRandom(i * 41 + 13 + frame * 1.7) * height;
+    const size = 2 + seededRandom(i * 43 + 17 + frame * 0.5) * 5;
+    const o = 0.05 + seededRandom(i * 53 + 23 + frame * 0.9) * 0.2;
     const gold = seededRandom(i * 47 + 19) > 0.6;
     return { x: gx, y: gy, size, o, gold };
   });
 
-  const woodLines = Array.from({ length: 9 }, (_, i) => {
-    const y = horizonY + height * 0.07 + i * height * 0.065;
-    const wob = seededRandom(i * 3 + 2) * 40;
-    return { y, wob, o: 0.1 + seededRandom(i * 5 + 1) * 0.12 };
+  // Fine wood grain: many thin wavy lines across the whole table, slowly shifting.
+  const woodLines = Array.from({ length: 30 }, (_, i) => {
+    const baseY = horizonY + height * 0.03 + i * (height * 0.58 / 30);
+    const y = baseY + Math.sin(t * 0.25 + i * 0.8) * 5;
+    const wob = seededRandom(i * 3 + 2) * 46;
+    return { y, wob, o: 0.09 + seededRandom(i * 5 + 1) * 0.13 };
+  });
+  const fineWoodLines = Array.from({ length: 48 }, (_, i) => {
+    const baseY = horizonY + height * 0.02 + seededRandom(i * 7 + 3) * height * 0.6;
+    const y = baseY + Math.sin(t * 0.2 + i * 1.1) * 4;
+    const wob = 20 + seededRandom(i * 11 + 5) * 60;
+    return { y, wob, o: 0.04 + seededRandom(i * 13 + 7) * 0.1 };
   });
 
   return (
     <div style={{ width, height, position: "relative", overflow: "hidden", opacity: fade, background: "#0a1230" }}>
+      {/* Slow camera push-in: 1.00 to 1.05 over the 15s */}
+      <div style={{ position: "absolute", left: 0, top: 0, width, height, transform: `scale(${camScale})`, transformOrigin: "50% 62%" }}>
       {/* Deep blue backdrop above the table - top copy space */}
       <div style={{ position: "absolute", left: 0, top: 0, width, height: horizonY + height * 0.06, background: "linear-gradient(180deg, #05082e 0%, #0a1a5e 55%, #123a8f 100%)" }} />
       {/* Warm wood table */}
@@ -118,13 +137,18 @@ export const DreidelLandsOnGimel: React.FC = () => {
       {/* Wood grain lines */}
       <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         {woodLines.map((line, i) => (
-          <path key={i} d={`M 0 ${line.y} Q ${width * 0.3} ${line.y - line.wob} ${width * 0.6} ${line.y} T ${width} ${line.y + line.wob * 0.5}`} stroke="#3a2210" strokeWidth={7} fill="none" strokeOpacity={line.o} />
+          <path key={i} d={`M 0 ${line.y} Q ${width * 0.3} ${line.y - line.wob} ${width * 0.6} ${line.y} T ${width} ${line.y + line.wob * 0.5}`} stroke="#3a2210" strokeWidth={4} fill="none" strokeOpacity={line.o} />
+        ))}
+        {fineWoodLines.map((line, i) => (
+          <path key={`f${i}`} d={`M 0 ${line.y} Q ${width * 0.35} ${line.y - line.wob} ${width * 0.7} ${line.y} T ${width} ${line.y + line.wob * 0.4}`} stroke="#2e1a08" strokeWidth={2} fill="none" strokeOpacity={line.o} />
         ))}
       </svg>
       {/* Warm spotlight cone from above */}
       <div style={{ position: "absolute", left: centerX - width * 0.26, top: 0, width: width * 0.52, height: height * 0.78, background: `radial-gradient(ellipse at 50% 0%, rgba(255, 205, 100, ${0.34 + glowPulse * 0.12}), transparent 70%)` }} />
       {/* Soft glow pool on the table under the dreidel */}
       <div style={{ position: "absolute", left: centerX - width * 0.22, top: dreidelCY - height * 0.06, width: width * 0.44, height: height * 0.22, borderRadius: "50%", background: `radial-gradient(ellipse, rgba(255, 190, 60, ${0.4 + glowPulse * 0.14}), transparent 68%)` }} />
+      {/* Subtle warm light sweep across the table, table area only */}
+      <div style={{ position: "absolute", left: sweepX, top: horizonY, width: width * 0.28, height: height - horizonY, background: "linear-gradient(90deg, transparent 0%, rgba(255, 210, 120, 0.1) 50%, transparent 100%)", transform: "skewX(-14deg)" }} />
       {/* Dust motes drifting in the light */}
       {motes.map((mote, i) => (
         <div key={i} style={{ position: "absolute", left: mote.x, top: mote.y, width: mote.size, height: mote.size, borderRadius: "50%", backgroundColor: "#ffe08a", opacity: mote.o, filter: "drop-shadow(0 0 6px #ffd166)" }} />
@@ -133,6 +157,9 @@ export const DreidelLandsOnGimel: React.FC = () => {
       {coins.map((coin, i) => (
         <div key={i} style={{ position: "absolute", left: coin.x - coin.size / 2, top: coin.y - coin.size / 2, width: coin.size, height: coin.size, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, #fff3b0 0%, #f5c542 45%, #b8860b 100%)", border: `${Math.max(2, coin.size * 0.08)}px solid #8a6508`, boxShadow: "0 10px 24px rgba(0,0,0,0.45)" }}>
           <div style={{ position: "absolute", left: "18%", top: "18%", width: "64%", height: "64%", borderRadius: "50%", border: `${Math.max(2, coin.size * 0.05)}px solid rgba(138, 101, 8, 0.7)`, backgroundColor: `rgba(255, 255, 255, ${coin.glint * 0.35})` }} />
+          {i % 3 === 0 && (
+            <div style={{ position: "absolute", left: "32%", top: "32%", width: "36%", height: "36%", transform: "rotate(45deg)", backgroundColor: `rgba(255, 255, 240, ${0.25 + Math.abs(Math.sin(t * 2.2 + i * 2.1)) * 0.55})`, filter: "blur(1px)" }} />
+          )}
         </div>
       ))}
       {/* Dreidel shadow on the table */}
@@ -166,6 +193,7 @@ export const DreidelLandsOnGimel: React.FC = () => {
       </div>
       {/* Landing glint burst */}
       <div style={{ position: "absolute", left: centerX - width * 0.16, top: dreidelCY - height * 0.12, width: width * 0.32, height: height * 0.24, borderRadius: "50%", background: `radial-gradient(circle, rgba(255, 240, 180, ${landGlint * 0.5}), transparent 65%)` }} />
+      </div>
       {/* Grain for bitrate, kept subtle so the subject stays clear */}
       <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         {grain.map((dot, i) => (
