@@ -6,208 +6,181 @@ function seededRandom(seed: number): number {
   return x - Math.floor(x);
 }
 
-export const HanukkahLightsParade: React.FC = () => {
+export const HolidayTableTopDown: React.FC = () => {
   const frame = useCurrentFrame();
   const { width, height, durationInFrames } = useVideoConfig();
   const progress = frame / durationInFrames;
   const twoPi = Math.PI * 2;
   const centerX = width / 2;
-  const centerY = height * 0.5;
-  const gradientAngle = progress * 360;
-  const globalPulse = Math.sin(progress * twoPi);
-  const scanY = height * 0.5 + Math.sin(progress * twoPi) * height * 0.42;
-  const rayRotation = progress * 360;
-  const dreidelRotation = progress * 360;
-  const dreidelBob = Math.sin(progress * twoPi * 2) * 34;
-  const dreidelScale = 1 + Math.sin(progress * twoPi * 2) * 0.06;
+  const centerY = height / 2;
 
-  const nodes = Array.from({ length: 40 }, (_, i) => {
-    const nx = (0.03 + seededRandom(i * 3 + 1) * 0.94) * width;
-    const ny = (0.04 + seededRandom(i * 3 + 2) * 0.88) * height;
-    const speed = 0.5 + seededRandom(i * 3 + 3) * 1.5;
-    const phase = seededRandom(i * 7 + 5) * twoPi;
-    const x = nx + Math.sin(progress * twoPi * speed + phase) * 70;
-    const y = ny + Math.cos(progress * twoPi * speed + phase) * 52;
-    return { x, y, phase };
+  // Very slow camera drift, one full sin/cos cycle over the whole clip (perfect loop).
+  const driftX = Math.sin(progress * twoPi) * width * 0.012;
+  const driftY = Math.cos(progress * twoPi) * height * 0.014;
+  const driftScale = 1.06 + Math.sin(progress * twoPi) * 0.006;
+  const lightX = 0.28 + Math.sin(progress * twoPi) * 0.03;
+  const lightY = 0.22 + Math.cos(progress * twoPi) * 0.03;
+  const glowPulse = 0.5 + Math.sin(progress * twoPi) * 0.12;
+
+  const donuts = [
+    { fx: 0.3, fy: 0.34, r: 0.105, jam: true, jamColor: "#c2274b" },
+    { fx: 0.52, fy: 0.28, r: 0.095, jam: false, jamColor: "#c2274b" },
+    { fx: 0.7, fy: 0.42, r: 0.11, jam: true, jamColor: "#8f1d3a" },
+    { fx: 0.38, fy: 0.62, r: 0.1, jam: true, jamColor: "#d43d5e" },
+    { fx: 0.62, fy: 0.68, r: 0.09, jam: false, jamColor: "#c2274b" },
+  ];
+
+  const coins = [
+    { fx: 0.16, fy: 0.22, r: 0.032 },
+    { fx: 0.24, fy: 0.55, r: 0.028 },
+    { fx: 0.2, fy: 0.8, r: 0.034 },
+    { fx: 0.44, fy: 0.12, r: 0.026 },
+    { fx: 0.58, fy: 0.48, r: 0.03 },
+    { fx: 0.82, fy: 0.24, r: 0.032 },
+    { fx: 0.84, fy: 0.62, r: 0.028 },
+    { fx: 0.78, fy: 0.84, r: 0.034 },
+    { fx: 0.5, fy: 0.86, r: 0.027 },
+    { fx: 0.1, fy: 0.42, r: 0.024 },
+  ];
+
+  const sugar = Array.from({ length: 90 }, (_, i) => {
+    const d = donuts[i % donuts.length];
+    const ang = seededRandom(i * 7 + 1) * twoPi;
+    const dist = seededRandom(i * 7 + 2) * 0.82;
+    const sx = (d.fx + Math.cos(ang) * dist * d.r * (width / height)) * width;
+    const sy = (d.fy + Math.sin(ang) * dist * d.r) * height;
+    const size = 2 + seededRandom(i * 7 + 3) * 5;
+    const tw = 0.35 + Math.abs(Math.sin(progress * twoPi * 3 + i * 1.3)) * 0.6;
+    return { x: sx, y: sy, size, o: tw };
   });
 
-  const lines: Array<{ x1: number; y1: number; x2: number; y2: number; o: number }> = [];
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
-      const dx = nodes[i].x - nodes[j].x;
-      const dy = nodes[i].y - nodes[j].y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const maxDist = width * 0.2;
-      if (dist < maxDist) {
-        lines.push({
-          x1: nodes[i].x,
-          y1: nodes[i].y,
-          x2: nodes[j].x,
-          y2: nodes[j].y,
-          o: Math.max(0, 1 - dist / maxDist) * 0.6,
-        });
-      }
-    }
-  }
-
-  const embers = Array.from({ length: 75 }, (_, i) => {
+  const steam = Array.from({ length: 10 }, (_, i) => {
+    const d = donuts[i % donuts.length];
     const offset = seededRandom(i * 11 + 2);
-    const cycle = (progress * (0.6 + seededRandom(i * 5 + 1) * 1.2) + offset) % 1;
-    const ex = centerX + (seededRandom(i * 13 + 4) - 0.5) * width * 0.86 + Math.sin(progress * twoPi * 2 + i) * 48;
-    const ey = height * 0.92 - cycle * height * 0.8;
-    const size = 4 + seededRandom(i * 17 + 6) * 12;
-    return { x: ex, y: ey, size, o: (1 - cycle) * (0.5 + seededRandom(i * 19 + 8) * 0.5) };
+    const cycle = (progress * 1 + offset) % 1;
+    const baseX = d.fx * width + (seededRandom(i * 13 + 4) - 0.5) * d.r * width * 1.2;
+    const x = baseX + Math.sin(progress * twoPi * 2 + i * 1.7) * 26;
+    const y = d.fy * height - cycle * height * 0.16;
+    const size = 26 + seededRandom(i * 17 + 6) * 34 + cycle * 30;
+    const o = Math.sin(cycle * Math.PI) * 0.34;
+    return { x, y, size, o };
   });
 
-  const stars = Array.from({ length: 110 }, (_, i) => {
+  const sparkles = Array.from({ length: 70 }, (_, i) => {
     const sx = seededRandom(i * 23 + 3) * width;
     const sy = seededRandom(i * 29 + 7) * height;
-    const size = 3 + seededRandom(i * 31 + 9) * 9;
-    const o = 0.25 + Math.abs(Math.sin(progress * twoPi * 3 + i * 1.1)) * 0.65;
+    const size = 2 + seededRandom(i * 31 + 9) * 6;
+    const o = 0.15 + Math.abs(Math.sin(progress * twoPi * 4 + i * 1.1)) * 0.65;
     return { x: sx, y: sy, size, o };
   });
 
-  const grain = Array.from({ length: 130 }, (_, i) => {
+  const grain = Array.from({ length: 120 }, (_, i) => {
     const gx = seededRandom(i * 37 + 11) * width;
     const gy = seededRandom(i * 41 + 13) * height;
-    const size = 2 + seededRandom(i * 43 + 17) * 6;
-    const o = 0.12 + Math.abs(Math.sin(progress * twoPi * 6 + i * 2.3)) * 0.5;
-    const gold = seededRandom(i * 47 + 19) > 0.5;
+    const size = 2 + seededRandom(i * 43 + 17) * 5;
+    const o = 0.08 + Math.abs(Math.sin(progress * twoPi * 5 + i * 2.3)) * 0.35;
+    const gold = seededRandom(i * 47 + 19) > 0.6;
     return { x: gx, y: gy, size, o, gold };
   });
 
-  const gridDots = Array.from({ length: 84 }, (_, i) => {
-    const col = i % 12;
-    const row = Math.floor(i / 12);
-    const gx = (0.06 + col * 0.08) * width;
-    const gy = (0.08 + row * 0.13) * height;
-    const o = 0.05 + Math.abs(Math.sin(progress * twoPi * 2 + i * 0.45)) * 0.09;
+  const weave = Array.from({ length: 96 }, (_, i) => {
+    const col = i % 16;
+    const row = Math.floor(i / 16);
+    const gx = (0.03 + col * 0.061) * width;
+    const gy = (0.04 + row * 0.16) * height;
+    const o = 0.04 + Math.abs(Math.sin(progress * twoPi + i * 0.4)) * 0.05;
     return { x: gx, y: gy, o };
   });
 
-  const rays = Array.from({ length: 24 }, (_, i) => {
-    const angle = (i / 24) * twoPi;
-    const x2 = centerX + Math.cos(angle) * width * 0.75;
-    const y2 = centerY + Math.sin(angle) * width * 0.75;
-    const x3 = centerX + Math.cos(angle + 0.06) * width * 0.75;
-    const y3 = centerY + Math.sin(angle + 0.06) * width * 0.75;
-    return { x2, y2, x3, y3, o: 0.05 + (i % 2) * 0.04 };
+  const crumbs = Array.from({ length: 24 }, (_, i) => {
+    const cx = seededRandom(i * 53 + 5) * width;
+    const cy = seededRandom(i * 59 + 8) * height;
+    const size = 4 + seededRandom(i * 61 + 10) * 8;
+    return { x: cx, y: cy, size };
   });
 
-  const scanLines = Array.from({ length: 8 }, (_, i) => {
-    const cycle = (progress * 2 + i / 8) % 1;
-    return { y: cycle * height, o: (1 - cycle) * 0.22 };
-  });
-
-  const waveDots = Array.from({ length: 48 }, (_, i) => {
-    const wx = (i / 47) * width;
-    const wy = centerY + Math.sin((i / 47) * twoPi * 3 + progress * twoPi * 2) * height * 0.14;
-    const o = 0.2 + Math.abs(Math.sin(progress * twoPi * 2 + i * 0.5)) * 0.45;
-    return { x: wx, y: wy, o };
-  });
-
-  const shootingStars = Array.from({ length: 12 }, (_, i) => {
-    const offset = seededRandom(i * 53 + 3);
-    const cycle = (progress + offset) % 1;
-    const sx = cycle * width * 1.2 - width * 0.1;
-    const sy = (seededRandom(i * 59 + 5) * 0.5 + cycle * 0.3) * height;
-    return { x: sx, y: sy, o: (1 - cycle) * 0.8 };
-  });
-
-  const lights = Array.from({ length: 8 }, (_, i) => {
-    const phase = i * 0.785;
-    const lx = centerX + Math.sin(progress * twoPi + phase) * width * 0.4;
-    const ly = centerY + Math.sin(progress * twoPi * 2 + i * 1.1) * height * 0.18;
-    const flicker = Math.sin(progress * twoPi * 6 + i * 1.7);
-    return { x: lx, y: ly, flicker, phase, index: i };
-  });
-
-  const trails: Array<{ x: number; y: number; o: number; size: number }> = [];
-  for (let i = 0; i < 8; i++) {
-    for (let k = 1; k <= 6; k++) {
-      const lag = k * 0.16;
-      const tx = centerX + Math.sin(progress * twoPi - lag + i * 0.785) * width * 0.4;
-      const ty = centerY + Math.sin(progress * twoPi * 2 - lag * 2 + i * 1.1) * height * 0.18;
-      trails.push({ x: tx, y: ty, o: (1 - k / 7) * 0.55, size: 34 - k * 4 });
-    }
-  }
-
-  const dreidelSize = height * 0.34;
+  const dreidelX = 0.86 * width;
+  const dreidelY = 0.42 * height;
+  const dreidelRot = progress * 360;
+  const greeneryX = 0.14 * width;
+  const greeneryY = 0.66 * height;
 
   return (
-    <div style={{ width, height, position: "relative", overflow: "hidden", background: `linear-gradient(${gradientAngle}deg, #05082e, #0a1a5e, #123a8f, #7a2ea6, #05082e)` }}>
-      <div style={{ position: "absolute", left: centerX - width * 0.55 + Math.sin(progress * twoPi) * 220, top: height * 0.1 + Math.cos(progress * twoPi) * 140, width: width * 0.7, height: height * 0.7, borderRadius: "50%", background: "radial-gradient(circle, rgba(255, 190, 60, 0.3), transparent 65%)" }} />
-      <div style={{ position: "absolute", left: centerX - width * 0.4 + Math.cos(progress * twoPi * 2) * 260, top: height * 0.44 + Math.sin(progress * twoPi * 2) * 160, width: width * 0.55, height: height * 0.55, borderRadius: "50%", background: "radial-gradient(circle, rgba(80, 160, 255, 0.28), transparent 65%)" }} />
-      <div style={{ position: "absolute", left: -200 + Math.sin(progress * twoPi) * 260, top: 0, width: width + 400, height, background: "repeating-linear-gradient(45deg, rgba(255, 209, 102, 0.07) 0px, rgba(255, 209, 102, 0.07) 18px, transparent 18px, transparent 54px)" }} />
-      <svg style={{ position: "absolute", left: 0, top: 0, width, height, transform: `rotate(${rayRotation}deg)`, transformOrigin: `${centerX}px ${centerY}px` }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-        {rays.map((ray, i) => (
-          <polygon key={i} points={`${centerX},${centerY} ${ray.x2},${ray.y2} ${ray.x3},${ray.y3}`} fill="#ffd166" fillOpacity={ray.o} />
+    <div style={{ width, height, position: "relative", overflow: "hidden", background: "#0a1a4a" }}>
+      <div style={{ position: "absolute", left: driftX, top: driftY, width: width * 1.08, height: height * 1.08, transform: `scale(${driftScale})`, transformOrigin: "50% 50%" }}>
+        <div style={{ position: "absolute", left: -width * 0.04, top: -height * 0.04, width: width * 1.08, height: height * 1.08, background: `linear-gradient(${progress * 360}deg, #081238, #0a1a4a, #102a6b, #0a1a4a, #081238)` }} />
+        <div style={{ position: "absolute", left: -width * 0.04, top: -height * 0.04, width: width * 1.08, height: height * 1.08, background: `radial-gradient(circle at ${lightX * 100}% ${lightY * 100}%, rgba(255, 196, 90, ${0.22 + glowPulse * 0.12}), transparent 55%)` }} />
+        <div style={{ position: "absolute", left: -width * 0.04, top: -height * 0.04, width: width * 1.08, height: height * 1.08, background: "repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0px, rgba(255, 255, 255, 0.025) 3px, transparent 3px, transparent 14px)" }} />
+        {weave.map((dot, i) => (
+          <div key={i} style={{ position: "absolute", left: dot.x, top: dot.y, width: 7, height: 7, borderRadius: "50%", backgroundColor: "#8fb0ff", opacity: dot.o }} />
         ))}
-      </svg>
-      <div style={{ position: "absolute", left: 0, top: 0, width, height, background: `radial-gradient(circle at 50% 50%, rgba(255, 190, 60, ${0.26 + globalPulse * 0.1}), transparent 62%)` }} />
-      {gridDots.map((dot, i) => (
-        <div key={i} style={{ position: "absolute", left: dot.x, top: dot.y, width: 8, height: 8, borderRadius: "50%", backgroundColor: "#7fb3ff", opacity: dot.o }} />
-      ))}
-      <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-        {stars.map((star, i) => (
-          <circle key={i} cx={star.x} cy={star.y} r={star.size} fill="#ffffff" fillOpacity={star.o} />
-        ))}
-      </svg>
-      <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-        {grain.map((dot, i) => (
-          <circle key={i} cx={dot.x} cy={dot.y} r={dot.size} fill={dot.gold ? "#ffd166" : "#aaccff"} fillOpacity={dot.o} />
-        ))}
-      </svg>
-      <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-        {lines.map((line, i) => (
-          <line key={i} x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke="#ffd166" strokeWidth={3} strokeOpacity={line.o} />
-        ))}
-      </svg>
-      {nodes.map((node, i) => (
-        <div key={i} style={{ position: "absolute", left: node.x - 7, top: node.y - 7, width: 14, height: 14, borderRadius: "50%", backgroundColor: "#ffe08a", opacity: 0.55 + Math.sin(progress * twoPi * 2 + node.phase) * 0.3, filter: "drop-shadow(0 0 12px #ffd166)" }} />
-      ))}
-      {[0, 1, 2, 3, 4].map((i) => {
-        const ringProgress = (progress + i / 5) % 1;
-        return (
-          <div key={i} style={{ position: "absolute", left: centerX - ringProgress * width * 0.42, top: centerY - ringProgress * width * 0.42, width: ringProgress * width * 0.84, height: ringProgress * width * 0.84, borderRadius: "50%", border: "4px solid #ffd166", opacity: (1 - ringProgress) * 0.4 }} />
-        );
-      })}
-      {scanLines.map((line, i) => (
-        <div key={i} style={{ position: "absolute", left: 0, top: line.y, width, height: 10, backgroundColor: "#ffe08a", opacity: line.o }} />
-      ))}
-      <div style={{ position: "absolute", left: 0, top: scanY, width, height: 160, background: "linear-gradient(180deg, transparent, rgba(255, 220, 130, 0.22), transparent)" }} />
-      {waveDots.map((dot, i) => (
-        <div key={i} style={{ position: "absolute", left: dot.x - 9, top: dot.y - 9, width: 18, height: 18, borderRadius: "50%", backgroundColor: "#ffd166", opacity: dot.o, filter: "drop-shadow(0 0 10px #ffb703)" }} />
-      ))}
-      {shootingStars.map((star, i) => (
-        <div key={i} style={{ position: "absolute", left: star.x, top: star.y, width: 170, height: 6, borderRadius: 3, background: "linear-gradient(90deg, transparent, #ffffff)", opacity: star.o, transform: "rotate(18deg)" }} />
-      ))}
-      <div style={{ position: "absolute", left: centerX - dreidelSize / 2, top: centerY - dreidelSize / 2 + dreidelBob, width: dreidelSize, height: dreidelSize * 1.25, transform: `rotate(${dreidelRotation}deg) scale(${dreidelScale})`, filter: "drop-shadow(0 0 42px #ffb703)" }}>
-        <svg width={dreidelSize} height={dreidelSize * 1.25} viewBox="0 0 200 250">
-          <rect x={88} y={0} width={24} height={42} rx={10} fill="#f5d76e" />
-          <polygon points="100,20 188,78 188,168 100,248 12,168 12,78" fill="#ffd166" stroke="#b8860b" strokeWidth={5} />
-          <polygon points="100,58 138,92 124,142 76,142 62,92" fill="#fff7d6" stroke="#e8b64c" strokeWidth={4} />
-          <circle cx={100} cy={108} r={14} fill="#0a1a5e" />
+        <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+          {grain.map((dot, i) => (
+            <circle key={i} cx={dot.x} cy={dot.y} r={dot.size} fill={dot.gold ? "#ffd166" : "#aaccff"} fillOpacity={dot.o} />
+          ))}
         </svg>
+        {crumbs.map((crumb, i) => (
+          <div key={i} style={{ position: "absolute", left: crumb.x, top: crumb.y, width: crumb.size, height: crumb.size, borderRadius: "50%", backgroundColor: "#d9a05b", opacity: 0.75 }} />
+        ))}
+        {donuts.map((donut, i) => {
+          const dx = donut.fx * width;
+          const dy = donut.fy * height;
+          const r = donut.r * width;
+          const breathe = 1 + Math.sin(progress * twoPi + i * 1.4) * 0.012;
+          return (
+            <div key={i} style={{ position: "absolute", left: dx, top: dy, transform: `scale(${breathe})`, transformOrigin: "0px 0px" }}>
+              <div style={{ position: "absolute", left: -r + width * 0.012, top: -r * 0.72 + height * 0.014, width: r * 2, height: r * 1.44, borderRadius: "50%", backgroundColor: "rgba(0, 0, 0, 0.45)", filter: "blur(18px)" }} />
+              <div style={{ position: "absolute", left: -r, top: -r * 0.72, width: r * 2, height: r * 1.44, borderRadius: "50%", background: "radial-gradient(circle at 38% 32%, #e8b25e 0%, #c98a2e 45%, #8a5a16 78%, #6b4210 100%)" }} />
+              <div style={{ position: "absolute", left: -r * 0.82, top: -r * 0.6, width: r * 1.64, height: r * 1.1, borderRadius: "50%", background: "radial-gradient(circle at 40% 30%, rgba(255, 236, 180, 0.55), transparent 55%)" }} />
+              <div style={{ position: "absolute", left: -r * 0.34, top: -r * 0.26, width: r * 0.68, height: r * 0.5, borderRadius: "50%", background: donut.jam ? donut.jamColor : "#a06a20", opacity: donut.jam ? 0.95 : 0.55 }} />
+              <div style={{ position: "absolute", left: -r * 0.2, top: -r * 0.16, width: r * 0.4, height: r * 0.28, borderRadius: "50%", background: donut.jam ? "#e85d7a" : "#c98a2e", opacity: donut.jam ? 0.9 : 0.4 }} />
+            </div>
+          );
+        })}
+        <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+          {sugar.map((dot, i) => (
+            <circle key={i} cx={dot.x} cy={dot.y} r={dot.size} fill="#ffffff" fillOpacity={dot.o} />
+          ))}
+        </svg>
+        <div style={{ position: "absolute", left: greeneryX, top: greeneryY, transform: `rotate(${Math.sin(progress * twoPi) * 4}deg)`, transformOrigin: "0px 0px" }}>
+          <div style={{ position: "absolute", left: 0, top: 0, width: width * 0.16, height: height * 0.012, backgroundColor: "#2e6b34", borderRadius: height * 0.006, transform: "rotate(18deg)", transformOrigin: "0px 0px" }} />
+          {[0, 1, 2, 3, 4].map((leaf, i) => (
+            <div key={i} style={{ position: "absolute", left: width * 0.02 + i * width * 0.026, top: -height * 0.028 + (i % 2) * height * 0.03, width: width * 0.036, height: height * 0.032, borderRadius: "50% 50% 50% 50% / 70% 70% 30% 30%", backgroundColor: i % 2 === 0 ? "#3f8f46" : "#2e6b34", transform: `rotate(${-28 + i * 14}deg)` }} />
+          ))}
+        </div>
+        {coins.map((coin, i) => {
+          const cx = coin.fx * width;
+          const cy = coin.fy * height;
+          const r = coin.r * width;
+          const glint = 0.55 + Math.abs(Math.sin(progress * twoPi * 2 + i * 1.5)) * 0.45;
+          return (
+            <div key={i}>
+              <div style={{ position: "absolute", left: cx - r + 6, top: cy - r * 0.7 + 8, width: r * 2, height: r * 1.4, borderRadius: "50%", backgroundColor: "rgba(0, 0, 0, 0.4)", filter: "blur(10px)" }} />
+              <div style={{ position: "absolute", left: cx - r, top: cy - r * 0.7, width: r * 2, height: r * 1.4, borderRadius: "50%", background: "radial-gradient(circle at 38% 30%, #ffe9a3 0%, #f5c542 45%, #c9930f 80%, #9a6d05 100%)", opacity: glint }} />
+              <svg style={{ position: "absolute", left: cx - r * 0.5, top: cy - r * 0.35, width: r, height: r * 0.7 }} width={r} height={r * 0.7} viewBox="0 0 100 70">
+                <polygon points="50,2 60,26 86,26 65,42 73,66 50,50 27,66 35,42 14,26 40,26" fill="#8a6100" fillOpacity={0.55} />
+              </svg>
+            </div>
+          );
+        })}
+        <div style={{ position: "absolute", left: dreidelX, top: dreidelY, transform: `rotate(${dreidelRot}deg)`, transformOrigin: "0px 0px" }}>
+          <div style={{ position: "absolute", left: -width * 0.038 + 8, top: -height * 0.032 + 10, width: width * 0.076, height: height * 0.064, backgroundColor: "rgba(0, 0, 0, 0.45)", filter: "blur(12px)" }} />
+          <div style={{ position: "absolute", left: -width * 0.038, top: -height * 0.032, width: width * 0.076, height: height * 0.064, background: "linear-gradient(135deg, #ffe9a3, #e8b64c, #b8860b)", borderRadius: width * 0.008 }} />
+          <div style={{ position: "absolute", left: -width * 0.008, top: -height * 0.062, width: width * 0.016, height: height * 0.032, backgroundColor: "#d4a017", borderRadius: width * 0.008 }} />
+          <div style={{ position: "absolute", left: -width * 0.012, top: -height * 0.014, width: width * 0.024, height: height * 0.028, borderRadius: "50%", backgroundColor: "#8a6100", opacity: 0.7 }} />
+        </div>
+        {steam.map((wisp, i) => (
+          <div key={i} style={{ position: "absolute", left: wisp.x - wisp.size / 2, top: wisp.y - wisp.size / 2, width: wisp.size, height: wisp.size, borderRadius: "50%", background: "radial-gradient(circle, rgba(255, 255, 255, 0.85), transparent 65%)", opacity: wisp.o, filter: "blur(6px)" }} />
+        ))}
+        <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+          {sparkles.map((star, i) => (
+            <circle key={i} cx={star.x} cy={star.y} r={star.size} fill="#fff7d6" fillOpacity={star.o} />
+          ))}
+        </svg>
+        <div style={{ position: "absolute", left: 0, top: 0, width, height, background: `radial-gradient(circle at ${lightX * 100}% ${lightY * 100}%, rgba(255, 210, 110, ${0.14 + glowPulse * 0.06}), transparent 60%)` }} />
+        <div style={{ position: "absolute", left: centerX - width * 0.45, top: centerY - height * 0.45, width: width * 0.9, height: height * 0.9, borderRadius: "50%", border: "3px solid rgba(255, 209, 102, 0.1)" }} />
       </div>
-      {trails.map((trail, i) => (
-        <div key={i} style={{ position: "absolute", left: trail.x - trail.size / 2, top: trail.y - trail.size / 2, width: trail.size, height: trail.size, borderRadius: "50%", background: "radial-gradient(circle, rgba(255, 220, 130, 0.9), rgba(255, 157, 0, 0.4), transparent 72%)", opacity: trail.o }} />
-      ))}
-      {lights.map((light, i) => {
-        const flameScale = 1 + light.flicker * 0.12;
-        const flameOpacity = 0.82 + light.flicker * 0.14;
-        const glow = 32 + light.flicker * 14;
-        return (
-          <div key={i}>
-            <div style={{ position: "absolute", left: light.x - 38 * flameScale, top: light.y - 78 * flameScale, width: 76 * flameScale, height: 138 * flameScale, borderRadius: "50% 50% 50% 50% / 62% 62% 38% 38%", background: "radial-gradient(circle at 50% 72%, #fffbe6 0%, #ffd166 38%, #ff9d00 68%, #ff5e00 100%)", opacity: flameOpacity, filter: `drop-shadow(0 0 ${glow}px #ffb703)`, transform: `rotate(${light.flicker * 5}deg)` }} />
-            <div style={{ position: "absolute", left: light.x - 15, top: light.y - 48, width: 30, height: 62, borderRadius: "50%", backgroundColor: "#fffbe6", opacity: 0.85 }} />
-          </div>
-        );
-      })}
-      {embers.map((ember, i) => (
-        <div key={i} style={{ position: "absolute", left: ember.x, top: ember.y, width: ember.size, height: ember.size, borderRadius: "50%", backgroundColor: "#ffca3a", opacity: ember.o, filter: "drop-shadow(0 0 10px #ffb703)" }} />
-      ))}
-      <div style={{ position: "absolute", left: 0, top: height * 0.86, width, height: height * 0.14, background: "linear-gradient(180deg, rgba(255, 190, 60, 0.28), transparent)" }} />
+      <div style={{ position: "absolute", left: 0, top: 0, width, height, background: "linear-gradient(180deg, rgba(4, 8, 32, 0.25), transparent 20%, transparent 80%, rgba(4, 8, 32, 0.3))" }} />
     </div>
   );
 };
