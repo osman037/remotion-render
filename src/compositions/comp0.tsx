@@ -153,11 +153,13 @@ export const ShamashLightsFirstCandle: React.FC = () => {
   // ROUND 2: raised from 260 to 360 dots and lifted opacity, so the dark
   // frame never compresses flat. Positions and opacity jump every frame via
   // seededRandom + frame. Copy space gets grain only, nothing else.
+  // ROUND 3: dots made LARGER (4-7px) and HIGHER CONTRAST (base opacity
+  // 0.12) — sharp grain the encoder cannot smooth away.
   const grain = Array.from({ length: 360 }, (_, i) => {
     const gx = (seededRandom(i * 37 + 11) * width + seededRandom(i * 53 + frame * 7) * 260) % width;
     const gy = (seededRandom(i * 41 + 13) * height + seededRandom(i * 59 + frame * 11) * 200) % height;
-    const size = 2 + seededRandom(i * 43 + 17) * 5;
-    const o = 0.06 + Math.abs(Math.sin(progress * twoPi * 6 + i * 2.3)) * 0.16 + seededRandom(i * 61 + frame * 3) * 0.08;
+    const size = 4 + seededRandom(i * 43 + 17) * 3;
+    const o = 0.12 + Math.abs(Math.sin(progress * twoPi * 6 + i * 2.3)) * 0.18 + seededRandom(i * 61 + frame * 3) * 0.1;
     const gold = seededRandom(i * 47 + 19) > 0.5;
     return { x: gx, y: gy, size, o, gold };
   });
@@ -218,17 +220,86 @@ export const ShamashLightsFirstCandle: React.FC = () => {
   });
 
   // --- EXTREME DETAIL LAYER 5d: rotating light ray fan behind the menorah ---
-  // 14 rays fanning out from behind the flames, rotating very slowly
-  // (one full turn per ~100s, so ~54deg over the clip), very low opacity.
+  // ROUND 3: 16 thin HARD-EDGED rays (2-4px, sharp borders, brighter),
+  // fanning out from behind the flames, rotating very slowly (~54deg over
+  // the clip). Replaces the soft wide rays — sharp edges cost bitrate.
   const rayCenterX = groupX;
   const rayCenterY = baseY - height * 0.2;
   const rayAngle = progress * 54;
-  const rays = Array.from({ length: 14 }, (_, i) => {
-    const a = (i / 14) * twoPi;
+  const rays = Array.from({ length: 16 }, (_, i) => {
+    const a = (i / 16) * twoPi;
     const len = height * (0.5 + seededRandom(i * 41 + 3) * 0.35);
     const x2 = rayCenterX + Math.cos(a) * len;
     const y2 = rayCenterY + Math.sin(a) * len;
-    return { x2, y2, w: 3 + seededRandom(i * 43 + 5) * 14, o: 0.03 + seededRandom(i * 47 + 9) * 0.07 };
+    return { x2, y2, w: 2 + seededRandom(i * 43 + 5) * 2, o: 0.1 + seededRandom(i * 47 + 9) * 0.22 };
+  });
+
+  // --- ROUND 3: sharp diagonal stripe overlay, full frame ---
+  // 310 thin 2px diagonal lines, ~14px perpendicular spacing, sliding
+  // slowly. Sharp high-contrast edges the encoder cannot compress away.
+  const stripeCount = 310;
+  const stripeSpacing = 20;
+  const stripeSlide = (progress * 14 * 6) % 14;
+  const stripes = Array.from({ length: stripeCount }, (_, i) => {
+    const x = i * stripeSpacing - height + stripeSlide;
+    return { x1: x, y1: 0, x2: x + height, y2: height };
+  });
+
+  // --- ROUND 3: 124 sharp 4-point cross-flare sparkles, upper right ---
+  // Thin bright arms, high contrast, twinkling fast on integer cycles.
+  // Behind the menorah, upper right — copy space stays dark.
+  const sparkles = Array.from({ length: 124 }, (_, i) => {
+    const s1 = seededRandom(i * 401 + 3);
+    const s2 = seededRandom(i * 409 + 7);
+    const s3 = seededRandom(i * 419 + 11);
+    const x = width * (0.5 + s1 * 0.48);
+    const y = height * (0.03 + s2 * 0.57);
+    const cycles = 6 + Math.floor(s3 * 9);
+    const tw = 0.5 + Math.sin(progress * twoPi * cycles + i * 2.7) * 0.5;
+    const arm = 5 + s2 * 17;
+    const o = 0.12 + tw * (0.35 + s1 * 0.45);
+    return { x, y, arm, o, gold: s1 > 0.45 };
+  });
+
+  // --- ROUND 3: moving fine diamond lattice on the wall behind the menorah ---
+  // Two sets of thin sharp diagonal lines, very low opacity, drifting slowly.
+  const latticeSpacing = 90;
+  const latticeDriftX = (progress * 90 * 0.5) % latticeSpacing;
+  const latticeDriftY = (progress * 90 * 0.3) % latticeSpacing;
+  const latticeLines = Array.from({ length: 52 }, (_, i) => {
+    const x = width * 0.4 - height + i * latticeSpacing;
+    return { x };
+  });
+
+  // --- ROUND 3: 48 sharp dust motes, fast twinkle, right side ---
+  // Small bright dots, no blur, twinkling fast on integer cycles.
+  const sharpDust = Array.from({ length: 48 }, (_, i) => {
+    const s1 = seededRandom(i * 431 + 5);
+    const s2 = seededRandom(i * 433 + 9);
+    const s3 = seededRandom(i * 437 + 13);
+    const baseX = groupX + (s1 - 0.5) * width * 0.4;
+    const baseYd = baseY - height * (0.05 + s2 * 0.4);
+    const dx = Math.sin(progress * twoPi * (0.5 + s3 * 0.8) + i * 1.9) * 40;
+    const dy = Math.cos(progress * twoPi * (0.4 + s1 * 0.6) + i * 2.5) * 30;
+    const cycles = 8 + Math.floor(s3 * 9);
+    const tw = 0.5 + Math.sin(progress * twoPi * cycles + i * 3.3) * 0.5;
+    const size = 2 + s3 * 3;
+    return { x: baseX + dx, y: baseYd + dy, size, o: 0.25 + tw * 0.65 };
+  });
+
+  // --- ROUND 3: engraved crosshatch on the menorah stem and base bar ---
+  // Diagonal lines both directions, thin and sharp.
+  const stemTop = baseY + height * 0.02;
+  const stemBottom = baseY + height * 0.09;
+  const stemHatch = Array.from({ length: 11 }, (_, i) => {
+    const y = stemTop + (i / 10) * (stemBottom - stemTop);
+    return { y, y2: Math.min(y + 28, stemBottom) };
+  });
+  const baseBarY = baseY + height * 0.09;
+  const baseBarH = height * 0.024;
+  const baseHatch = Array.from({ length: 66 }, (_, i) => {
+    const x = groupX - width * 0.19 + i * 22;
+    return { x };
   });
 
   // --- EXTREME DETAIL LAYER 6: fine gold texture lines on the menorah ---
@@ -291,13 +362,24 @@ export const ShamashLightsFirstCandle: React.FC = () => {
           <rect key={i} x={fold.x} y={0} width={foldWidth + 2} height={height} fill={fold.warm ? "#3a1e5e" : "#0a1748"} fillOpacity={fold.o} />
         ))}
       </svg>
+      {/* ROUND 3: moving fine diamond lattice on the wall behind the menorah */}
+      <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        <g transform={`translate(${latticeDriftX} ${latticeDriftY})`} opacity={0.05}>
+          {latticeLines.map((l, i) => (
+            <line key={i} x1={l.x} y1={0} x2={l.x + height} y2={height} stroke="#cfe4ff" strokeWidth={1.5} />
+          ))}
+          {latticeLines.map((l, i) => (
+            <line key={`b${i}`} x1={l.x} y1={height} x2={l.x + height} y2={0} stroke="#ffd166" strokeWidth={1.5} />
+          ))}
+        </g>
+      </svg>
       {/* Slow warm light wash sweeping across the curtain folds */}
       <div style={{ position: "absolute", left: washX - width * 0.12, top: 0, width: width * 0.24, height, background: "linear-gradient(90deg, transparent, rgba(255, 190, 80, 0.14), transparent)", opacity: 0.4 + glowStrength * 0.6 }} />
       {/* Rotating light ray fan behind the menorah, very low opacity */}
       <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         <g transform={`rotate(${rayAngle} ${rayCenterX} ${rayCenterY})`}>
           {rays.map((ray, i) => (
-            <line key={i} x1={rayCenterX} y1={rayCenterY} x2={ray.x2} y2={ray.y2} stroke="#ffd166" strokeWidth={ray.w} strokeOpacity={ray.o * (0.4 + glowStrength * 0.6)} strokeLinecap="round" />
+            <line key={i} x1={rayCenterX} y1={rayCenterY} x2={ray.x2} y2={ray.y2} stroke="#ffd166" strokeWidth={ray.w} strokeOpacity={ray.o * (0.4 + glowStrength * 0.6)} strokeLinecap="butt" />
           ))}
         </g>
       </svg>
@@ -327,10 +409,22 @@ export const ShamashLightsFirstCandle: React.FC = () => {
           <circle key={i} cx={dot.x} cy={dot.y} r={dot.size} fill={dot.gold ? "#ffd166" : "#aaccff"} fillOpacity={dot.o} />
         ))}
       </svg>
+      {/* ROUND 3: 124 sharp 4-point cross-flare sparkles, upper right */}
+      <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        {sparkles.map((sp, i) => (
+          <g key={i} stroke={sp.gold ? "#ffd166" : "#ffffff"} strokeWidth={2} strokeOpacity={sp.o} strokeLinecap="butt">
+            <line x1={sp.x - sp.arm} y1={sp.y} x2={sp.x + sp.arm} y2={sp.y} />
+            <line x1={sp.x} y1={sp.y - sp.arm} x2={sp.x} y2={sp.y + sp.arm} />
+          </g>
+        ))}
+      </svg>
       <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         <path d={`M ${groupX - candleGap * 4} ${baseY} Q ${groupX} ${baseY + height * 0.15} ${groupX + candleGap * 4} ${baseY}`} stroke="#e8b64c" strokeWidth={28} fill="none" strokeLinecap="round" />
         <path d={`M ${groupX - candleGap * 4} ${baseY - 14} Q ${groupX} ${baseY + height * 0.15 - 14} ${groupX + candleGap * 4} ${baseY - 14}`} stroke="#f7d774" strokeWidth={3} fill="none" opacity={0.55} />
         <path d={`M ${groupX - candleGap * 4} ${baseY + 14} Q ${groupX} ${baseY + height * 0.15 + 14} ${groupX + candleGap * 4} ${baseY + 14}`} stroke="#a67c00" strokeWidth={3} fill="none" opacity={0.5} />
+        {/* ROUND 3: bright hard rim-light edges along the top and bottom of the arm */}
+        <path d={`M ${groupX - candleGap * 4} ${baseY - 17} Q ${groupX} ${baseY + height * 0.15 - 17} ${groupX + candleGap * 4} ${baseY - 17}`} stroke="#fffbe6" strokeWidth={2.5} fill="none" opacity={0.8} />
+        <path d={`M ${groupX - candleGap * 4} ${baseY + 17} Q ${groupX} ${baseY + height * 0.15 + 17} ${groupX + candleGap * 4} ${baseY + 17}`} stroke="#fffbe6" strokeWidth={2} fill="none" opacity={0.55} />
         {/* Fine gold texture lines paralleling the arc */}
         <path d={`M ${groupX - candleGap * 4} ${baseY - 7} Q ${groupX} ${baseY + height * 0.15 - 7} ${groupX + candleGap * 4} ${baseY - 7}`} stroke="#ffe9a8" strokeWidth={1.5} fill="none" opacity={0.5} />
         <path d={`M ${groupX - candleGap * 4} ${baseY + 7} Q ${groupX} ${baseY + height * 0.15 + 7} ${groupX + candleGap * 4} ${baseY + 7}`} stroke="#8a5f00" strokeWidth={1.5} fill="none" opacity={0.5} />
@@ -346,11 +440,25 @@ export const ShamashLightsFirstCandle: React.FC = () => {
         {stemLines.map((dx, i) => (
           <line key={i} x1={groupX + dx} y1={baseY + height * 0.02} x2={groupX + dx} y2={baseY + height * 0.09} stroke="#ffe9a8" strokeWidth={1.5} strokeOpacity={0.4} />
         ))}
+        {/* ROUND 3: engraved crosshatch on the stem, both diagonal directions */}
+        {stemHatch.map((h, i) => (
+          <line key={i} x1={groupX - 14} y1={h.y} x2={groupX + 14} y2={h.y2} stroke="#ffe9a8" strokeWidth={1.5} strokeOpacity={0.4} />
+        ))}
+        {stemHatch.map((h, i) => (
+          <line key={`b${i}`} x1={groupX + 14} y1={h.y} x2={groupX - 14} y2={h.y2} stroke="#8a5f00" strokeWidth={1.5} strokeOpacity={0.4} />
+        ))}
         <path d={`M ${groupX} ${baseY + height * 0.02} L ${groupX} ${baseY + height * 0.09}`} stroke="#e8b64c" strokeWidth={28} strokeLinecap="round" />
         <rect x={groupX - width * 0.19} y={baseY + height * 0.09} width={width * 0.38} height={height * 0.024} rx={height * 0.012} fill="#d4a017" />
         {/* Fine gold lines across the base bar */}
         <line x1={groupX - width * 0.19} y1={baseY + height * 0.098} x2={groupX + width * 0.19} y2={baseY + height * 0.098} stroke="#ffe9a8" strokeWidth={1.5} strokeOpacity={0.5} />
         <line x1={groupX - width * 0.19} y1={baseY + height * 0.106} x2={groupX + width * 0.19} y2={baseY + height * 0.106} stroke="#8a5f00" strokeWidth={1.5} strokeOpacity={0.5} />
+        {/* ROUND 3: engraved crosshatch across the base bar, both diagonal directions */}
+        {baseHatch.map((h, i) => (
+          <line key={i} x1={h.x} y1={baseBarY} x2={h.x + baseBarH} y2={baseBarY + baseBarH} stroke="#ffe9a8" strokeWidth={1.5} strokeOpacity={0.35} />
+        ))}
+        {baseHatch.map((h, i) => (
+          <line key={`b${i}`} x1={h.x + baseBarH} y1={baseBarY} x2={h.x} y2={baseBarY + baseBarH} stroke="#8a5f00" strokeWidth={1.5} strokeOpacity={0.35} />
+        ))}
       </svg>
       {candles.map((candle, i) => {
         const cx = groupX + candle.frac * candleGap;
@@ -361,6 +469,9 @@ export const ShamashLightsFirstCandle: React.FC = () => {
             <div style={{ position: "absolute", left: cx - width * 0.011, top: candleTop, width: width * 0.022, height: candleHeight, background: candle.shamash ? "linear-gradient(180deg, #fff7d6, #f5d76e)" : "linear-gradient(180deg, #fdfdfd, #dbeafe)", borderRadius: width * 0.011 }} />
             <div style={{ position: "absolute", left: cx - width * 0.007, top: candleTop, width: width * 0.004, height: candleHeight, backgroundColor: "rgba(255, 255, 255, 0.65)", borderRadius: width * 0.002 }} />
             <div style={{ position: "absolute", left: cx + width * 0.007, top: candleTop, width: width * 0.003, height: candleHeight, backgroundColor: "rgba(120, 110, 160, 0.35)", borderRadius: width * 0.0015 }} />
+            {/* ROUND 3: bright hard rim-light edges on every candle */}
+            <div style={{ position: "absolute", left: cx - width * 0.011 - 2, top: candleTop, width: 2, height: candleHeight, backgroundColor: "rgba(255, 248, 220, 0.85)" }} />
+            <div style={{ position: "absolute", left: cx + width * 0.011, top: candleTop, width: 2, height: candleHeight, backgroundColor: "rgba(255, 248, 220, 0.7)" }} />
             <div style={{ position: "absolute", left: cx - 2, top: candleTop - 24, width: 4, height: 24, backgroundColor: "#3a2a12" }} />
           </div>
         );
@@ -392,6 +503,12 @@ export const ShamashLightsFirstCandle: React.FC = () => {
       {dustMotes.map((mote, i) => (
         <div key={i} style={{ position: "absolute", left: mote.x, top: mote.y, width: mote.size, height: mote.size, borderRadius: "50%", backgroundColor: "#ffe9a8", opacity: mote.o, filter: "drop-shadow(0 0 8px #ffca3a)" }} />
       ))}
+      {/* ROUND 3: 48 sharp dust motes, no blur, fast twinkle */}
+      <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        {sharpDust.map((d, i) => (
+          <circle key={i} cx={d.x} cy={d.y} r={d.size} fill="#fff3b0" fillOpacity={d.o} />
+        ))}
+      </svg>
       {/* Shimmering table reflection, grows with the flames */}
       <div style={{ position: "absolute", left: groupX - width * 0.19, top: baseY + height * 0.115, width: width * 0.38, height: height * 0.09, background: "linear-gradient(180deg, rgba(255, 190, 60, 0.55), rgba(255, 150, 30, 0.12) 60%, transparent)", opacity: reflectionOpacity }} />
       <div style={{ position: "absolute", left: groupX - width * 0.19 + shimmerX, top: baseY + height * 0.115, width: width * 0.1, height: height * 0.09, background: "linear-gradient(180deg, rgba(255, 240, 190, 0.5), transparent)", opacity: reflectionOpacity * 0.8 }} />
@@ -399,6 +516,14 @@ export const ShamashLightsFirstCandle: React.FC = () => {
       <div style={{ position: "absolute", left: groupX - width * 0.19 + shimmerX2 + width * 0.14, top: baseY + height * 0.115, width: width * 0.08, height: height * 0.09, background: "linear-gradient(180deg, rgba(255, 200, 100, 0.45), transparent)", opacity: reflectionOpacity * 0.65 }} />
       <div style={{ position: "absolute", left: 0, top: 0, width, height, background: `radial-gradient(circle at 63% 62%, rgba(255, 190, 60, ${warmWash * warmBreath}), transparent 70%)`, opacity: warmWash > 0 ? 1 : 0 }} />
       <div style={{ position: "absolute", left: 0, top: 0, width, height, backgroundColor: "#02031a", opacity: darkOverlay }} />
+      {/* ROUND 3: fine sharp diagonal stripe overlay, full frame, slowly sliding */}
+      <svg style={{ position: "absolute", left: 0, top: 0, width, height }} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        <g opacity={0.08}>
+          {stripes.map((s, i) => (
+            <line key={i} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} stroke="#ffffff" strokeWidth={2} />
+          ))}
+        </g>
+      </svg>
       </div>
     </div>
   );
